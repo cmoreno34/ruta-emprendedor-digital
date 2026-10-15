@@ -719,7 +719,7 @@ const R = (() => {
           h("button", {class:"btn small", type:"button", on:{click:paintBanner}}, "Cancelar"));
       });
       zone.append(ex);
-      b.append(h("div", {class:"banner mine"}, h("span", {class:"sp"}, h("b", {text:"Vuestro proyecto. "}), h("span", {id:"status", class:"status"}), h("br"), h("span", {text:"¿Seguís en otro ordenador o en la sesión siguiente? «Abrir copia» con el .json que subisteis a Blackboard."})), zone));
+      b.append(h("div", {class:"banner mine"}, h("span", {class:"sp"}, h("b", {text:"Vuestro proyecto. "}), h("span", {id:"status", class:"status"}), h("br"), h("span", {text:CLOUD_URL ? "¿Otro ordenador u otra sesión? Conectad el equipo con vuestro código y PIN: todo aparece como lo dejasteis." : "¿Seguís en otro ordenador o en la sesión siguiente? «Abrir copia» con el .json que subisteis a Blackboard."})), zone));
       paintStatus();
     }
   }
@@ -1113,7 +1113,7 @@ R.deliverable = function (cfg) {
       CONC.forEach(([k, l, hint]) => { const c = R.field(r, { label: l, hint, rows: 3 }, d, k); c.addEventListener("input", paintDoc); });
 
       // 3. documento
-      b = R.step(el, 3, "Vuestro entregable", "Revisadlo entero, descargad el PDF y subidlo a Blackboard junto con la copia .json.");
+      b = R.step(el, 3, "Vuestro entregable", "Revisadlo entero, descargad el PDF y subidlo a Blackboard.");
       const acts = R.h("div", { class: "chips no-print" });
       if (R.standalone) acts.append(R.h("button", { class: "btn primary small", type: "button", on: { click: () => window.print() } }, "Descargar PDF"));
       acts.append(R.h("button", { class: "btn accent small", type: "button", on: { click: () => R.saveCopy() } }, "Guardar copia del proyecto (.json)"));
@@ -1122,7 +1122,7 @@ R.deliverable = function (cfg) {
       cp.addEventListener("click", async () => { try { await navigator.clipboard.writeText(docText()); cp.textContent = "Copiado ✓"; } catch (e) { cp.textContent = "No se pudo copiar: usad Exportar"; } setTimeout(() => cp.textContent = "Copiar texto", 1600); });
       acts.append(exp, cp);
       b.append(acts);
-      R.tip(b, "<b>Para Blackboard:</b> «Descargar PDF» abre la ventana de impresión: elegid <b>Guardar como PDF</b> como destino. Subid el PDF como tarea de la sesión y también la copia .json: es la que abriréis en la sesión siguiente para seguir trabajando.");
+      R.tip(b, "<b>Para Blackboard:</b> «Descargar PDF» abre la ventana de impresión: elegid <b>Guardar como PDF</b> como destino. Subid el PDF como tarea de la sesión. Si el equipo está conectado a la nube, todo se guarda solo y en la sesión siguiente basta con conectar de nuevo (código + PIN); la copia .json es un respaldo opcional.");
       const doc = R.h("article", { class: "dossier" });
       b.append(doc);
       function docText() {
