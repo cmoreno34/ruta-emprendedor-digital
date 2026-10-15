@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="description" content="Ruta guiada para equipos de emprendimiento digital: idea, Scrum, Design Thinking, modelo de negocio, prototipo con Claude Code, validación, pitch y pivote. Máster en Marketing Digital, CEU.">
+<script src="nube/config.js"></script>
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
 <body>
@@ -257,6 +258,20 @@ table.t input{width:100%;border:1px solid var(--line);border-radius:6px;padding:
   .dossier{border:0;box-shadow:none;padding:0}
   .step{break-inside:avoid}
 }
+.cloudbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line)}
+.cloudbar.ok{border-color:var(--ok)}
+.cloudbar.conflict,.cloudbar.error{border-color:var(--red);background:var(--red-soft)}
+.cloudbar.offline,.cloudbar.pending{border-color:var(--warn)}
+.cloudbar.offline{background:var(--warn-soft)}
+.cloudbar.off{background:var(--sunk)}
+.cstate{font:700 13px var(--f-mono);white-space:nowrap}
+.cstate.ok{color:var(--ok)}
+.cstate.offline,.cstate.pending,.cstate.working{color:var(--warn)}
+.cstate.error,.cstate.conflict{color:var(--red)}
+.cloud-form{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.cloud-form label{font:600 11px var(--f-body);letter-spacing:.08em;text-transform:uppercase;color:var(--soft)}
+.cloud-form input{border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--panel);min-width:0}
+.cmsg{color:var(--red);font-weight:600}
 footer.foot{margin-top:36px;border-top:1px solid var(--line);padding-top:16px;color:var(--soft);font-size:13px;max-width:90ch}
 footer.foot b{color:var(--red)}
 </style>
@@ -279,6 +294,7 @@ footer.foot b{color:var(--red)}
 
   <section class="project" id="project" aria-label="Datos del proyecto"></section>
   <div id="banner"></div>
+  <div id="cloud"></div>
 
   <div class="layout">
     <nav class="rail" id="rail" aria-label="Estaciones de la ruta"></nav>
@@ -286,7 +302,7 @@ footer.foot b{color:var(--red)}
   </div>
 
   <footer class="foot">
-    <b>Vuestro trabajo se guarda solo en este navegador.</b> Al acabar cada sesión subid a Blackboard el PDF del entregable y la copia .json; en la sesión siguiente, «Abrir copia». Claude ayuda a pensar, pero no sustituye a vuestros usuarios: los datos de mercado se verifican en la fuente y en el informe se declara qué hizo la IA. No peguéis datos personales de entrevistados.
+    <b>Con el equipo conectado, vuestro trabajo se guarda solo en la nube</b> y lo recuperáis en cualquier ordenador con el código y el PIN. También se guarda en este navegador. Al acabar cada sesión subid a Blackboard el PDF del entregable y la copia .json como respaldo. Claude ayuda a pensar, pero no sustituye a vuestros usuarios: los datos de mercado se verifican en la fuente y en el informe se declara qué hizo la IA. No peguéis datos personales de entrevistados.
   </footer>
 </div>
 
@@ -294,6 +310,128 @@ footer.foot b{color:var(--red)}
 /* ===================== CORE ===================== */
 const R = (() => {
   const KEY = "ruta-ed-v1";
+  /* ---------- nube: Google Apps Script del profesor (ver nube/INSTRUCCIONES.md) ---------- */
+  const CLOUD_URL = window.RUTA_CLOUD_URL || "";
+  const CKEY = "ruta-ed-cloud";
+  const cloud = { team:"", pin:"", version:0, status:"off", msg:"", pending:false, timer:null, retry:null, conflict:null, busy:false };
+  function cloudCfgLoad(){ try { const c = JSON.parse(localStorage.getItem(CKEY) || "null"); if (c && c.team && c.pin){ cloud.team = c.team; cloud.pin = c.pin; cloud.version = c.version || 0; } } catch(e){} }
+  function cloudCfgSave(){ try { if (cloud.team) localStorage.setItem(CKEY, JSON.stringify({ team:cloud.team, pin:cloud.pin, version:cloud.version })); else localStorage.removeItem(CKEY); } catch(e){} }
+  async function cloudCall(body){
+    const r = await fetch(CLOUD_URL, { method:"POST", body: JSON.stringify(body), redirect:"follow" });
+    if (!r.ok) throw new Error("http " + r.status);
+    return r.json();
+  }
+  const cloudOn = () => !!(CLOUD_URL && cloud.team && cloud.pin);
+  function cloudDisconnect(msg){ clearTimeout(cloud.timer); clearTimeout(cloud.retry); cloud.team = ""; cloud.pin = ""; cloud.version = 0; cloud.status = "off"; cloud.pending = false; cloud.conflict = null; cloud.msg = msg || ""; cloudCfgSave(); paintCloud(); }
+  function cloudInfo(){
+    const real = stations.filter(s => !s.extra);
+    const prog = Math.round(100 * real.reduce((a, s) => a + progressOf(s), 0) / real.length);
+    const st = stations.find(s => s.id === cur);
+    return { proyecto: S.project.nombre || "", miembros: S.project.miembros || "", progreso: prog, estacion: st ? st.short : "" };
+  }
+  const CERR = {
+    pin: "El PIN no coincide con el de este equipo. Si lo habéis olvidado, pedid al profesor que lo reinicie.",
+    team: "El código de equipo no es válido (letras, números y guiones; por ejemplo ED-03).",
+    pin_format: "El PIN debe tener entre 4 y 12 caracteres.",
+    too_large: "El proyecto es demasiado grande para la nube: borrad algún boceto dibujado.",
+    busy: "El servidor está ocupado; se reintentará en unos segundos.",
+    corrupt: "La copia de la nube está dañada. Pedid al profesor que recupere una versión del historial."
+  };
+  const fmtWhen = iso => iso ? new Date(iso).toLocaleString("es-ES", { dateStyle:"short", timeStyle:"short" }) : "hace poco";
+  async function cloudConnect(team, pin){
+    cloud.team = String(team || "").trim().toUpperCase(); cloud.pin = String(pin || "").trim(); cloud.conflict = null;
+    cloud.status = "working"; cloud.msg = "Conectando con la nube…"; paintCloud();
+    let r;
+    try { r = await cloudCall({ a:"load", team:cloud.team, pin:cloud.pin }); }
+    catch(e){ cloud.status = "offline"; cloud.msg = "Sin conexión con la nube. Se guarda en este navegador y se reintentará."; cloudCfgSave(); scheduleRetry(); paintCloud(); return; }
+    if (!r.ok){ const m = CERR[r.error] || ("No se pudo conectar (" + r.error + ")."); cloudDisconnect(m); return; }
+    if (r.exists && r.data && r.data.st){
+      const localHasWork = !S.isExample && !!S.updated;
+      const remoteNewer = !localHasWork || !r.updated || new Date(r.updated) >= new Date(S.updated);
+      if (!remoteNewer && cloud.version !== r.version){
+        cloud.version = r.version; cloud.conflict = { kind:"connect", remote:r }; cloud.status = "conflict"; cloudCfgSave(); paintCloud(); return;
+      }
+      if (remoteNewer){ applyRemote(r); return; }
+      cloud.version = r.version; cloudCfgSave(); cloud.status = "pending"; paintCloud(); cloudSave(); return;
+    }
+    // equipo nuevo en la nube: si se está viendo el ejemplo, se empieza en blanco
+    cloud.version = 0; cloudCfgSave();
+    if (S.isExample){ S = blankState(); }
+    S.updated = new Date().toISOString(); persistLocal(); full();
+    await cloudSave();
+  }
+  function applyRemote(r){
+    S = normalize(r.data); S.isExample = false; cloud.version = r.version; cloud.conflict = null; cloud.pending = false;
+    cloud.status = "ok"; cloud.msg = "Recuperado de la nube (última versión: " + fmtWhen(r.updated) + ").";
+    cloudCfgSave(); persistLocal(); full();
+  }
+  function scheduleCloud(){
+    if (!cloudOn() || S.isExample || cloud.conflict) return;
+    cloud.pending = true; clearTimeout(cloud.timer);
+    cloud.timer = setTimeout(cloudSave, 2500);
+    if (cloud.status === "ok" || cloud.status === "off"){ cloud.status = "pending"; paintCloud(); }
+  }
+  function scheduleRetry(){ clearTimeout(cloud.retry); cloud.retry = setTimeout(() => { if (cloudOn()) cloudSave(); }, 30000); }
+  async function cloudSave(){
+    if (!cloudOn() || S.isExample || cloud.conflict) return;
+    if (cloud.busy){ cloud.pending = true; return; }
+    cloud.busy = true; clearTimeout(cloud.timer); cloud.pending = false;
+    try {
+      const r = await cloudCall({ a:"save", team:cloud.team, pin:cloud.pin, base:cloud.version, data:S, info:cloudInfo() });
+      if (r.ok){ cloud.version = r.version; cloud.status = "ok"; cloud.msg = "Guardado en la nube a las " + new Date().toLocaleTimeString("es-ES", { hour:"2-digit", minute:"2-digit" }) + " · versión " + r.version + "."; cloudCfgSave(); }
+      else if (r.error === "conflict"){ cloud.status = "conflict"; cloud.conflict = { kind:"save", version:r.version, updated:r.updated }; }
+      else if (r.error === "busy"){ cloud.pending = true; cloud.status = "offline"; cloud.msg = CERR.busy; scheduleRetry(); }
+      else if (r.error === "pin"){ cloudDisconnect(CERR.pin); }
+      else { cloud.status = "error"; cloud.msg = CERR[r.error] || ("La nube no aceptó el guardado (" + r.error + ")."); }
+    } catch(e){ cloud.pending = true; cloud.status = "offline"; cloud.msg = "Sin conexión: se guarda en este navegador y se subirá al volver la conexión."; scheduleRetry(); }
+    finally { cloud.busy = false; }
+    paintCloud();
+    if (cloud.pending && cloud.status === "ok") scheduleCloud();
+  }
+  async function useRemote(){
+    const c = cloud.conflict;
+    if (c && c.remote){ applyRemote(c.remote); return; }
+    cloud.status = "working"; cloud.msg = "Descargando la versión de la nube…"; paintCloud();
+    try { const r = await cloudCall({ a:"load", team:cloud.team, pin:cloud.pin }); if (r.ok && r.exists){ applyRemote(r); return; } cloud.status = "error"; cloud.msg = "No se pudo descargar la versión de la nube."; }
+    catch(e){ cloud.status = "offline"; cloud.msg = "Sin conexión con la nube."; }
+    paintCloud();
+  }
+  function keepLocal(){
+    const c = cloud.conflict || {};
+    cloud.version = c.version || (c.remote && c.remote.version) || cloud.version;
+    cloud.conflict = null; cloud.status = "pending"; cloudCfgSave(); paintCloud(); cloudSave();
+  }
+  function paintCloud(){
+    const box = document.getElementById("cloud"); if (!box) return;
+    box.replaceChildren();
+    if (!CLOUD_URL) return;
+    if (!cloud.team){
+      const t = h("input", { id:"c-team", type:"text", placeholder:"ED-03", autocomplete:"off", size:"8" });
+      const p = h("input", { id:"c-pin", type:"password", placeholder:"PIN", autocomplete:"off", size:"7" });
+      const f = h("form", { class:"cloud-form" }, h("label", { for:"c-team", text:"Código de equipo" }), t, h("label", { for:"c-pin", text:"PIN" }), p, h("button", { class:"btn primary small", type:"submit" }, "Conectar"));
+      f.addEventListener("submit", ev => { ev.preventDefault(); cloudConnect(t.value, p.value); });
+      box.append(h("div", { class:"banner cloudbar off" },
+        h("span", { class:"sp" }, h("b", { text:"Guardado automático en la nube. " }), "Conectad el equipo para no perder nada entre sesiones ni entre ordenadores. El código os lo da el profesor; el PIN lo elegís la primera vez y lo usáis siempre igual.", cloud.msg ? h("span", { class:"cmsg", text:" " + cloud.msg }) : null),
+        f));
+      return;
+    }
+    const icon = { ok:"☁ ✓", pending:"☁ …", working:"☁ …", offline:"☁ !", error:"☁ ✕", conflict:"☁ ⚠" }[cloud.status] || "☁";
+    let text = cloud.status === "pending" ? "Cambios pendientes: se suben a la nube en unos segundos." : (cloud.msg || "Conectado.");
+    const acts = h("span", { class:"confirm" });
+    if (cloud.status === "conflict" && cloud.conflict){
+      const c = cloud.conflict;
+      text = c.kind === "connect"
+        ? `En la nube hay una versión del ${fmtWhen(c.remote && c.remote.updated)} y en este ordenador hay cambios más recientes. ¿Cuál conserváis?`
+        : `Otra persona del equipo guardó cambios (${fmtWhen(c.updated)}). Si guardáis encima, los suyos quedan solo en el historial del profesor.`;
+      acts.append(h("button", { class:"btn primary small", type:"button", on:{ click:useRemote } }, "Usar la de la nube"),
+                  h("button", { class:"btn small", type:"button", on:{ click:keepLocal } }, "Guardar la de este ordenador"));
+    } else {
+      if (cloud.status === "offline" || cloud.status === "error") acts.append(h("button", { class:"btn small", type:"button", on:{ click:() => { cloud.pending = true; cloudSave(); } } }, "Reintentar"));
+      acts.append(h("button", { class:"btn small ghost", type:"button", on:{ click:() => cloudDisconnect("Desconectado en este ordenador. Vuestro trabajo sigue en la nube.") } }, "Desconectar este ordenador"));
+    }
+    box.append(h("div", { class:"banner cloudbar " + cloud.status, role:"status" }, h("span", { class:"cstate " + cloud.status, text:icon }), h("span", { class:"sp" }, h("b", { text:`Equipo ${cloud.team} · ` }), text), acts));
+  }
+
   const stations = [];
   let S = null;            // full state
   let cur = null;          // current station id
@@ -354,10 +492,14 @@ const R = (() => {
     stations.filter(s => !s.intro).forEach(s => { if (!p.st[s.id]) p.st[s.id] = p.isExample ? clone(s.example) : (s.blank ? s.blank() : blankFrom(s.example)); });
     return p;
   }
-  function persist(){
-    S.updated = new Date().toISOString();
+  function persistLocal(){
     try { localStorage.setItem(KEY, JSON.stringify(S)); lastSaved = new Date(); } catch(e){ lastSaved = null; }
     paintStatus();
+  }
+  function persist(){
+    S.updated = new Date().toISOString();
+    persistLocal();
+    scheduleCloud();
   }
   function save(){
     clearTimeout(saveTimer);
@@ -573,7 +715,7 @@ const R = (() => {
       ex.addEventListener("click", () => {
         zone.replaceChildren(h("span", {text:"Sustituye vuestro trabajo en este navegador. Guardad copia antes."}),
           h("button", {class:"btn small", type:"button", on:{click:saveCopy}}, "Guardar copia"),
-          h("button", {class:"btn accent small", type:"button", on:{click:() => { S = exampleState(); persist(); full(); }}}, "Cargar ejemplo"),
+          h("button", {class:"btn accent small", type:"button", on:{click:() => { cloudDisconnect("Para ver el ejemplo se ha desconectado la nube en este ordenador. Volved a conectar con vuestro código y PIN para recuperar vuestro trabajo."); S = exampleState(); persistLocal(); full(); }}}, "Cargar ejemplo"),
           h("button", {class:"btn small", type:"button", on:{click:paintBanner}}, "Cancelar"));
       });
       zone.append(ex);
@@ -679,7 +821,7 @@ const R = (() => {
     catch(e){ pre.textContent = "(No se pudo generar el prompt: " + e.message + ")"; }
   }
   function go(id){ cur = id; try { history.replaceState(null, "", "#" + id); } catch(e){} paintRail(); paintStation(); window.scrollTo({top: document.querySelector(".layout").offsetTop - 10, behavior:"smooth"}); }
-  function full(){ paintProject(); paintBanner(); paintRail(); paintStation(); }
+  function full(){ paintProject(); paintBanner(); paintCloud(); paintRail(); paintStation(); }
 
   /* ---------- export / import ---------- */
   const slug = () => (S.project.nombre || S.project.equipo || "proyecto").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"") || "proyecto";
@@ -735,10 +877,14 @@ const R = (() => {
   /* ---------- boot ---------- */
   function boot(){
     S = load();
+    cloudCfgLoad();
     const hash = (location.hash || "").slice(1);
     let fresh = true; try { fresh = !localStorage.getItem(KEY); } catch(e){}
     cur = stations.some(s => s.id === hash) ? hash : (fresh ? stations[0].id : (stations.find(s => !s.intro) || stations[0]).id);
     full();
+    paintCloud();
+    if (cloudOn()) cloudConnect(cloud.team, cloud.pin);
+    window.addEventListener("pagehide", () => { if (cloudOn() && cloud.pending && !S.isExample && navigator.sendBeacon){ try { navigator.sendBeacon(CLOUD_URL, JSON.stringify({ a:"save", team:cloud.team, pin:cloud.pin, base:cloud.version, data:S, info:cloudInfo() })); } catch(e){} } });
     document.getElementById("b-save").addEventListener("click", saveCopy);
     document.getElementById("b-all").addEventListener("click", exportAll);
     document.getElementById("b-open").addEventListener("click", openCopy);
@@ -4475,8 +4621,8 @@ R.deliverable({
   R.station({
     id: "decidir", session: "S3", short: "Decidir con datos", sub: "Validation board y learning card",
     title: "Decidir con datos: validation board y learning card",
-    chips: ["S3 · 3.1", "Práctica P10 · 55′", "Nota NT-ED-08"],
-    goal: "El aprendizaje solo sirve si <b>cambia lo que hacéis después</b>. Juntad lo cuali y lo cuanti en un <b>validation board</b>, comparad cada resultado con el criterio que fijasteis <b>antes</b> de medir, cerrad con una <b>learning card</b> y tomad la decisión: perseverar, iterar, pivotar o abandonar.",
+    chips: ["S3 · 3.1", "Práctica P10 · 35′", "Nota NT-ED-08"],
+    goal: "El aprendizaje solo sirve si <b>cambia lo que hacéis después</b>. Juntad lo cuali y lo cuanti en un <b>validation board</b>, comparad cada resultado con el criterio que fijasteis <b>antes</b> de medir, cerrad con una <b>learning card</b> y tomad la decisión: perseverar, iterar, pivotar o abandonar. <b>Empezad el análisis en casa</b> (Claude Code sobre el CSV o las calculadoras de la estación 11) y traed el board en borrador: en clase tenéis 35′ para cerrarlo y decidir.",
     example: {
       rows: [
         { id: "H1", tipo: "Problema", hip: "Los jóvenes que comparten piso en Madrid tienen conflictos de convivencia relevantes.", metodo: "Encuesta online, n = 120 jóvenes que comparten piso", crit: "≥ 60 % ha tenido un conflicto relevante en el último año", critPct: 60, res: "85 de 120 declaran un conflicto relevante", x: 85, n: 120, pct: "", estado: "ok" },
@@ -4749,7 +4895,7 @@ R.deliverable({
   R.station({
     id: "pitch", session: "S3", short: "Pitch", sub: "5 minutos con demo y evidencia",
     title: "Pitch de validación en 5 minutos",
-    chips: ["S3 · 3.2", "Práctica P11 · 30′ + ensayo 20′", "Nota NT-ED-09"],
+    chips: ["S3 · 3.2", "Práctica P11 · 35′ (25′ guion + 10′ ensayo cruzado)", "Nota NT-ED-09"],
     goal: "No es un pitch de inversión: el jurado evalúa <b>la calidad de vuestra evidencia y de vuestra decisión</b>. Contad qué creíais, cómo lo comprobasteis, qué salió (también lo que falló) y qué haréis ahora, en <b>ocho bloques y 5 minutos</b>, con demo en directo.",
     example: {
       lema: "Vive con personas, no con metros cuadrados.",
@@ -4824,7 +4970,7 @@ R.deliverable({
       R.field(b, { label: "Mensaje central", rows: 2, ph: "Hemos validado que… pero no que…; por eso…" }, d, "mensaje");
       const r1 = H("div", { class: "row2" }); b.append(r1);
       R.field(r1, { label: "Frase-lema", hint: "abre y cierra el pitch", single: true }, d, "lema");
-      const urlInp = R.field(r1, { label: "Enlace del prototipo", hint: "para la demo y el QR", single: true, ph: "https://….netlify.app" }, d, "url");
+      const urlInp = R.field(r1, { label: "Enlace del prototipo", hint: "para la demo y el QR", single: true, ph: "https://usuario.github.io/ed-equipo/" }, d, "url");
       const ctxBox = H("div", { class: "pt-ctx" });
       const ctxMsg = H("span", { class: "status", "aria-live": "polite" });
       b.append(ctxBox, H("div", { style: "display:flex;gap:10px;flex-wrap:wrap;align-items:center" }, H("button", { class: "btn small", type: "button", on: { click: fillFromContext } }, "Rellenar bloques vacíos con lo anterior"), ctxMsg));
@@ -4921,7 +5067,7 @@ R.deliverable({
       R.tip(b, "<b>Plan B de la demo:</b> vídeo de 60″ grabado y enlazado en la slide, capturas en una slide oculta y QR al prototipo. Regla de los 10 segundos: si algo no carga, «os lo enseño en vídeo» y seguís.", "warn");
 
       /* 4 · feedback */
-      b = R.step(el, 4, "Hoja de feedback del ensayo cruzado", "Lo rellena el otro equipo tras vuestro pitch (5′) y 3′ de preguntas. Puntuación de 1 a 5 y tres preguntas abiertas.");
+      b = R.step(el, 4, "Hoja de feedback del ensayo cruzado", "Ensayo cruzado rápido (10′): cada equipo hace su pitch ante otro y este lo rellena en el momento. Puntuación de 1 a 5 y tres preguntas abiertas; corregid antes del Demo Day.");
       R.field(b, { label: "Equipo que observa", single: true }, d.fb, "equipo");
       const tb = H("tbody");
       RUB.forEach((c, i) => { const id = "pt-rub-" + i; const s = H("select", { id }, ...[["", "–"], ["1", "1"], ["2", "2"], ["3", "3"], ["4", "4"], ["5", "5"]].map(([v, l]) => H("option", { value: v, text: l }))); s.value = d.fb.r[i] === "" || d.fb.r[i] == null ? "" : String(d.fb.r[i]); s.addEventListener("change", () => { d.fb.r[i] = s.value === "" ? "" : Number(s.value); R.save(); paintAvg(); }); tb.append(H("tr", null, H("td", null, H("label", { for: id, text: c })), H("td", null, s))); });
@@ -5031,13 +5177,20 @@ R.deliverable({
     const lc = dc.lc || {};
     return [rows.join(" "), lc.observamos ? "Observamos que " + lc.observamos.replace(/^que\s+/i, "") : ""].filter(Boolean).join(" ");
   }
-  const words = t => String(t || "").trim().split(/\s+/).filter(Boolean).length;
+  const words = t => String(t || "").replace(/\((pausa|demo)[^)]*\)/gi, " ").trim().split(/\s+/).filter(Boolean).length;
+  const mm = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
+  const RP = [
+    ["cambio", "Qué cambió", 0, 40, "Del modelo de antes al de ahora, en dos frases; qué mantenéis."],
+    ["porque", "Por qué (evidencia)", 40, 100, "Los datos que lo justifican, con n: la carta y vuestro validation board."],
+    ["demo", "Demo del nuevo prototipo", 100, 190, "El prototipo pivotado en vivo: solo lo que ha cambiado."],
+    ["sig", "Siguiente experimento", 190, 240, "Hipótesis más arriesgada, experimento y criterio de éxito."]
+  ];
 
   R.station({
     id: "pivote", session: "S3", short: "Pivote", sub: "Cambiar sin empezar de cero",
     title: "Pivot challenge: cambiar sin empezar de cero",
-    chips: ["S3 · 3.4", "Práctica P12 · 60′", "Nota NT-ED-08"],
-    goal: "Pivotar es <b>mover un pie y dejar el otro anclado</b>: conserváis lo aprendido (el problema validado, el prototipo, la lista de espera) y cambiáis una pieza concreta del modelo. Leéis una carta de evidencia, nombráis el tipo de pivote, rehacéis el Lean Canvas, escribís la nueva test card y preparáis la frase del pivote para el cierre.",
+    chips: ["S3 · 3.4–3.6", "Práctica P12 · 70′ + re-pitch 45′", "Nota NT-ED-08"],
+    goal: "Pivotar es <b>mover un pie y dejar el otro anclado</b>: conserváis lo aprendido (el problema validado, el prototipo, la lista de espera) y cambiáis una pieza concreta del modelo. Leéis una carta de evidencia, nombráis el tipo de pivote, rehacéis el Lean Canvas, <b>rehacéis el prototipo con Claude Code y lo publicáis</b>, escribís la nueva test card y lo contáis en un <b>re-pitch de 4′</b>.",
     example: {
       carta: "propia",
       cartaTxt: "H1 problema 70,8 % (85/120) validada; H2 valor 31,1 % (128/412) validada; H3 intención 48,3 % (58/120; IC 39,4–57,3 %) con cautela; H4 pago 5,8 % (7/120; IC Wilson 2,9–11,6 %) no validada, y la fake door de Premium solo recibe 11 clics de 412 visitantes (2,7 %). En 12 entrevistas, 3 de los 4 gestores de residencias, coliving y propietarios describen la rotación por conflictos como un coste y 2 preguntan el precio.",
@@ -5070,16 +5223,34 @@ R.deliverable({
         coste: "Dos semanas; landing B2B adaptada con Claude Code en una tarde."
       },
       frase: "Pivotamos de B2C freemium a B2B2C. Mantenemos el test de compatibilidad, el prototipo y la lista de espera; cambiamos quién paga: residencias, coliving y propietarios, unos 29 € por habitación cubierta, y los estudiantes gratis. Porque solo un 5,8 % de los estudiantes pagaría y 3 de 4 gestores entrevistados sufren la rotación y nos preguntaron el precio. Siguiente experimento: 10 gestores; éxito si 3 aceptan un piloto.",
-      url: ""
+      url: "",
+      rehacer: [
+        { pieza: "Titular y propuesta", antes: "«Encuentra un compañero de piso compatible»", despues: "Para gestores: «Menos rotación y menos conflictos: inquilinos compatibles desde el primer día». Bloque aparte para estudiantes: «Gratis: vive con gente con tus hábitos»." },
+        { pieza: "Precios", antes: "Gratis + Match Premium 9,99 €/mes (botón «Probar Premium»).", despues: "Página de precios B2B: ~29 € por habitación cubierta (pago por éxito) o suscripción por edificio. Estudiantes, gratis." },
+        { pieza: "CTA", antes: "«Haz el test gratis» → lista de espera.", despues: "«Solicitar piloto» → formulario de Tally para gestores (mide H6). El test gratis se mantiene para estudiantes." },
+        { pieza: "Producto (demo)", antes: "Test de 3′, % de compatibilidad, chat y acuerdo de convivencia.", despues: "Lo mismo + maqueta del panel del gestor: habitaciones libres y candidatos ordenados por compatibilidad." },
+        { pieza: "Campaña", antes: "Instagram y TikTok para estudiantes internacionales.", despues: "LinkedIn y email a gestores de residencias y coliving de Madrid; los estudiantes llegan a través de la residencia." }
+      ],
+      rp: {
+        cambio: "En el Demo Day os contamos RoomieMatch B2C freemium. Hoy pivotamos a B2B2C: pagan residencias, coliving y propietarios, unos 29 € por habitación cubierta; los estudiantes, gratis. Mantenemos el test, el prototipo y la lista de espera.",
+        porque: "Porque el estudiante no paga: solo un 5,8 % pagaría 9,99 € al mes (7 de 120) y solo 11 de 412 visitantes pulsaron Premium. En cambio, 3 de los 4 gestores entrevistados sufren la rotación y 2 nos preguntaron el precio. Es una señal, no una validación.",
+        demo: "(DEMO) Esta es la nueva landing para gestores: menos rotación, inquilinos compatibles desde el primer día. Aquí el panel: habitaciones libres y candidatos ordenados por compatibilidad. Y aquí el precio por habitación cubierta y el botón «Solicitar piloto». El test de los estudiantes sigue igual y es gratis.",
+        sig: "Siguiente experimento, en dos semanas: 10 entrevistas con gestores, con esta página de precios y la propuesta de un piloto. Éxito si 3 de 10 aceptan el piloto o firman una carta de intención. Si nadie acepta, revisaremos el segmento."
+      },
+      rpDemo: 40,
+      rpFb: { quien: "Profesor + equipo 3", bien: "El porqué con cifras y el panel del gestor hacen creíble el pivote.", cambiar: "Enseñad antes el precio por habitación y explicad qué pasa con las 128 personas de la lista de espera." }
     },
     blank(){
       const canvas = {}; LC.forEach(([k]) => canvas[k] = { a: "", b: "", c: "" });
-      return { carta: "", cartaTxt: "", decision: "", tipo: "", tipo2: "", mantenemos: "", cambiamos: "", porque: "", canvas, hips: [{ h: "", crit: "" }], tc: { creemos: "", haremos: "", mediremos: "", exito: "", coste: "" }, frase: "", url: "" };
+      return { carta: "", cartaTxt: "", decision: "", tipo: "", tipo2: "", mantenemos: "", cambiamos: "", porque: "", canvas, hips: [{ h: "", crit: "" }], tc: { creemos: "", haremos: "", mediremos: "", exito: "", coste: "" }, frase: "", url: "", rehacer: [{ pieza: "", antes: "", despues: "" }], rp: { cambio: "", porque: "", demo: "", sig: "" }, rpDemo: 30, rpFb: { quien: "", bien: "", cambiar: "" } };
     },
     render(el, d, R){
       d.canvas = d.canvas || {}; LC.forEach(([k]) => { d.canvas[k] = d.canvas[k] || { a: "", b: "", c: "" }; });
       if (!Array.isArray(d.hips)) d.hips = [];
       d.tc = d.tc || {};
+      if (!Array.isArray(d.rehacer)) d.rehacer = [];
+      d.rp = d.rp || {}; d.rpFb = d.rpFb || {};
+      if (d.rpDemo === undefined) d.rpDemo = 30;
       R.css("pivote", `
 .pv-card{background:var(--note);color:var(--note-ink);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;font-size:14px}
 .pv-card b{font-weight:700}
@@ -5106,6 +5277,16 @@ R.deliverable({
 @media(max-width:760px){.pv-head{display:none}.pv-row{grid-template-columns:1fr}.pv-row .sub{display:block}}
 .pv-pre{background:var(--code-bg);color:var(--code-ink);border-radius:12px;padding:12px 14px;font:400 12px/1.6 var(--f-mono);white-space:pre-wrap;word-break:break-word;margin:0;max-height:320px;overflow:auto}
 .pv-m{font:500 12.5px var(--f-mono);color:var(--soft)}
+.pv-lab{font:600 12.5px var(--f-body);color:var(--ink)}
+.pv-rp{display:flex;flex-direction:column;gap:10px}
+.pv-rpb{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.pv-rpb textarea{width:100%;border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:7px 9px;font:400 14px/1.5 var(--f-body);resize:vertical;min-width:0}
+.pv-run{display:flex;flex-direction:column;gap:4px}
+.pv-run .it{display:grid;grid-template-columns:22px minmax(0,1fr) 92px;gap:8px;align-items:center;border-radius:8px;padding:5px 8px;font-size:13.5px;border:1px solid transparent}
+.pv-run .it .n{font:700 12px var(--f-mono);color:var(--soft)}
+.pv-run .it.past{opacity:.55}
+.pv-run .it.now{background:var(--red-soft);border-color:var(--red);font-weight:700}
+.pv-now{font:600 14px var(--f-body);min-height:1.4em}
 `);
       const H = R.h;
 
@@ -5203,9 +5384,61 @@ R.deliverable({
       drawCanvas();
       if (!anyBefore) importModelo();
 
-      /* 5 · nuevas hipótesis y test card */
-      b = R.step(el, 5, "Nuevas hipótesis y siguiente experimento", "Identificad el nuevo supuesto más arriesgado y diseñad el experimento más barato y rápido que pueda refutarlo (entrevistas, landing nueva, fake door, piloto concierge), con el criterio fijado ahora.");
-      R.list(b, { add: "Añadir hipótesis", numbered: true, cols: [
+      /* 5 · rehacer el prototipo */
+      b = R.step(el, 5, "Rehacer el prototipo", "35′ con Claude Code: el prototipo tiene que contar el pivote. Decidid qué cambia en la web, la app o la campaña (titular, beneficios, precios, CTA, flujo, público de los anuncios) y qué se queda igual. La versión original se conserva: el informe final enlaza el prototipo antes y después del pivote.");
+      R.list(b, { add: "Añadir cambio", numbered: true, onChange: () => paintPre(), cols: [
+        { key: "pieza", label: "Pieza", ph: "Titular, CTA, precios, panel…", w: "150px" },
+        { key: "antes", label: "Antes", type: "area", w: "1fr" },
+        { key: "despues", label: "Después del pivote", type: "area", w: "1.2fr" }
+      ] }, d.rehacer);
+      const urlAntes = () => { const p = R.state.st.prototipo; return p && typeof p.url === "string" ? p.url.trim() : ""; };
+      const ur = H("div", { class: "row2" }); b.append(ur);
+      const ua = urlAntes();
+      ur.append(H("div", { class: "fld" }, H("span", { class: "pv-lab", text: "URL antes del pivote (estación Prototipo)" }), ua ? H("a", { href: ua, target: "_blank", rel: "noopener", class: "pv-m", style: "overflow-wrap:anywhere", text: ua }) : H("span", { class: "pv-m", text: "Vacía: escribidla en la estación 9 (Prototipo)." })));
+      R.field(ur, { label: "URL después del pivote", hint: "GitHub Pages, mismo repositorio", single: true, ph: ua ? ua.replace(/\/?$/, "/") + "pivote/" : "https://usuario.github.io/ed-equipo/pivote/" }, d, "url").addEventListener("input", () => paintPre());
+      b.append(H("p", { class: "sec-label", text: "Prompt para Claude Code · adaptar y publicar" }));
+      const pre = H("pre", { class: "pv-pre" });
+      const copyB = H("button", { class: "btn accent small", type: "button" }, "Copiar prompt de Claude Code");
+      copyB.addEventListener("click", async () => {
+        try { await navigator.clipboard.writeText(pre.textContent); copyB.textContent = "Copiado ✓"; }
+        catch (e) { const r = document.createRange(); r.selectNodeContents(pre); const s = getSelection(); s.removeAllRanges(); s.addRange(r); copyB.textContent = "Seleccionado: Ctrl+C"; }
+        setTimeout(() => copyB.textContent = "Copiar prompt de Claude Code", 1600);
+      });
+      b.append(pre, H("div", null, copyB));
+      function paintPre(){
+        const NL = String.fromCharCode(10);
+        const tipo = [d.tipo, d.tipo2].filter(Boolean).map(t => (TIPOS.find(x => x[0] === t) || [])[1]).filter(Boolean).join(" + ") || "[tipo de pivote]";
+        const hs = (d.hips || []).filter(h => h && (h.h || "").trim());
+        const riskiest = ((hs.find(h => /pago|pagar/i.test(h.h)) || hs[0] || {}).h || "").trim().replace(/[.\s]+$/, "");
+        const lc = LC.filter(([k]) => (d.canvas[k].b || "").trim()).map(([k, n]) => `- ${n}${d.canvas[k].c && d.canvas[k].c !== "no" ? " (CAMBIA)" : ""}: ${d.canvas[k].b.trim()}`).join(NL);
+        const rh = (d.rehacer || []).filter(x => x && ((x.pieza || "").trim() || (x.despues || "").trim())).map(x => `- ${x.pieza || "?"}: ${(x.antes || "").trim() ? "antes «" + x.antes.trim() + "» → " : ""}después «${(x.despues || "").trim()}»`).join(NL);
+        const piv = [d.mantenemos ? "Mantenemos: " + d.mantenemos.trim() : "", d.cambiamos ? "Cambiamos: " + d.cambiamos.trim() : "", d.porque ? "Porque: " + d.porque.trim() : ""].filter(Boolean).join(" ");
+        const ua2 = urlAntes();
+        pre.textContent = [
+          `Lee CLAUDE.md y el prototipo que ya está en esta carpeta (es el repositorio que publicamos en GitHub Pages${ua2 ? ": " + ua2 : ""}).`,
+          "",
+          `Hemos pivotado (${tipo}). ${piv || "[mantenemos X, cambiamos Y porque Z]"}`,
+          "",
+          "Lean Canvas después del pivote:", lc || "[pegar el Lean Canvas nuevo]",
+          "",
+          "Qué tiene que cambiar en el prototipo:", rh || "[pegar la lista de cambios]",
+          "",
+          "1) Propón un plan corto (archivos que crearás o cambiarás) y espera mi OK.",
+          "2) Crea la versión pivotada en la carpeta pivote/ reutilizando estilos, componentes y textos que no cambian. NO borres ni modifiques la versión original: necesitamos la URL de antes y la de después.",
+          "3) Mantén la identidad visual. No inventes testimonios, logos de clientes ni cifras: usa solo las de este prompt o marca [FALTA DATO]. El CTA debe medir la nueva hipótesis (p. ej., «Solicitar piloto» hacia nuestro formulario de Tally).",
+          `4) Actualiza la sección «Hipótesis» de CLAUDE.md con la nueva hipótesis más arriesgada${riskiest ? ": " + riskiest : ""}.`,
+          "5) Abre la página en local y revisa que funciona en móvil.",
+          "6) Publica en GitHub Pages en el MISMO repositorio: git add de los archivos cambiados, commit con un mensaje claro y push a main. Pídeme confirmación antes de cada comando git; nunca uses --force ni reset --hard; no subas datos/, CSV, transcripciones ni claves.",
+          `7) Dime la URL final${(d.url || "").trim() ? " (debería ser " + d.url.trim() + ")" : " (la de antes + pivote/)"} y recuérdame que puede tardar unos minutos en actualizarse.`
+        ].join(NL);
+      }
+      paintPre();
+      el.addEventListener("input", () => paintPre()); el.addEventListener("change", () => paintPre());
+      R.tip(b, "Comprobad la URL después en el móvil de otra persona antes del re-pitch. Si GitHub se atasca, enseñad la versión local y publicad al terminar: lo importante es que el prototipo cuente el pivote.", "warn");
+
+      /* 6 · nuevas hipótesis y test card */
+      b = R.step(el, 6, "Nuevas hipótesis y siguiente experimento", "Identificad el nuevo supuesto más arriesgado y diseñad el experimento más barato y rápido que pueda refutarlo (entrevistas, landing nueva, fake door, piloto concierge), con el criterio fijado ahora.");
+      R.list(b, { add: "Añadir hipótesis", numbered: true, onChange: () => paintPre(), cols: [
         { key: "h", label: "Hipótesis", type: "area", w: "1.4fr" },
         { key: "crit", label: "Criterio de éxito (fijado ahora)", type: "area", w: "1fr" }
       ] }, d.hips);
@@ -5217,44 +5450,70 @@ R.deliverable({
       R.field(t2, { label: "Será cierto si…", hint: "y qué haréis si no", rows: 2 }, d.tc, "exito");
       R.field(b, { label: "Coste y tiempo", single: true }, d.tc, "coste");
 
-      /* 6 · frase y prototipo */
-      b = R.step(el, 6, "Frase del pivote y prototipo adaptado", "En el cierre de la sesión, cada equipo tiene 1–2′: la frase del pivote y una demo rápida del prototipo adaptado. Adaptad el prototipo con Claude Code en una carpeta nueva, sin borrar el original.");
-      const fr = R.field(b, { label: "Frase del pivote", hint: "«Mantenemos X, cambiamos Y, porque Z» + siguiente experimento", rows: 4 }, d, "frase");
+      /* 7 · re-pitch */
+      b = R.step(el, 7, "Re-pitch del pivote", "4′ por equipo y 2′ de feedback. No repitáis el pitch del Demo Day: contad qué cambió, por qué (la evidencia), enseñad el nuevo prototipo en vivo y cerrad con el siguiente experimento.");
+      const fr = R.field(b, { label: "Frase del pivote", hint: "«Mantenemos X, cambiamos Y, porque Z»: abre el re-pitch", rows: 3 }, d, "frase");
       const fm = H("div", { class: "pv-m", "aria-live": "polite" });
       b.append(H("div", { style: "display:flex;gap:10px;flex-wrap:wrap;align-items:center" }, H("button", { class: "btn small", type: "button", on: { click: () => {
         const tipo = [d.tipo, d.tipo2].filter(Boolean).map(t => (TIPOS.find(x => x[0] === t) || [])[1]).filter(Boolean).join(" + ");
         const strip = s => (s || "").trim().replace(/[.\s]+$/, "");
         const lower = s => s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
-        const t = [`Pivotamos${tipo ? " (" + tipo.toLowerCase() + ")" : ""}.`, d.mantenemos ? `Mantenemos ${lower(strip(d.mantenemos))}.` : "", d.cambiamos ? `Cambiamos ${lower(strip(d.cambiamos))}.` : "", d.porque ? `Porque ${lower(strip(d.porque))}.` : "", d.tc && d.tc.exito ? `Siguiente experimento: ${lower(strip(d.tc.haremos || ""))}; éxito si ${lower(strip(d.tc.exito)).replace(/^al menos/i, "al menos")}.` : ""].filter(Boolean).join(" ");
+        const t = [`Pivotamos${tipo ? " (" + tipo.toLowerCase() + ")" : ""}.`, d.mantenemos ? `Mantenemos ${lower(strip(d.mantenemos))}.` : "", d.cambiamos ? `Cambiamos ${lower(strip(d.cambiamos))}.` : "", d.porque ? `Porque ${lower(strip(d.porque))}.` : ""].filter(Boolean).join(" ");
         d.frase = t; fr.value = t; R.save(); paintF();
       } } }, "Componer desde el paso 3"), fm));
-      function paintF(){ const w = words(d.frase), s = w * 60 / 150; fm.textContent = w ? `${w} palabras · ≈ ${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")} a 150 p/min ${s > 90 ? "· recortad: dejad tiempo para la demo" : "· deja tiempo para la demo"}` : ""; }
+      function paintF(){ const w = words(d.frase), s = w * 60 / 150; fm.textContent = w ? `${w} palabras · ≈ ${mm(s)} a 150 p/min${s > 45 ? " · larga para una apertura: recortadla" : ""}` : ""; }
       fr.addEventListener("input", paintF); paintF();
-      R.field(b, { label: "Enlace del prototipo adaptado", single: true, ph: "https://….netlify.app/pivote/" }, d, "url");
-      b.append(H("p", { class: "sec-label", text: "Prompt para Claude Code · adaptar el prototipo" }));
-      const pre = H("pre", { class: "pv-pre" });
-      const copyB = H("button", { class: "btn accent small", type: "button" }, "Copiar prompt de Claude Code");
-      copyB.addEventListener("click", async () => {
-        try { await navigator.clipboard.writeText(pre.textContent); copyB.textContent = "Copiado ✓"; }
-        catch (e) { const r = document.createRange(); r.selectNodeContents(pre); const s = getSelection(); s.removeAllRanges(); s.addRange(r); copyB.textContent = "Seleccionado: Ctrl+C"; }
-        setTimeout(() => copyB.textContent = "Copiar prompt de Claude Code", 1600);
+      const rpEl = H("div", { class: "pv-rp" });
+      const rpTot = H("div", { "aria-live": "polite" });
+      b.append(rpEl);
+      const painters = [];
+      RP.forEach(([k, name, a, z, ob], i) => {
+        const id = "pv-rp-" + k;
+        const t = H("textarea", { id, rows: k === "demo" ? 4 : 3, placeholder: ob }); t.value = d.rp[k] || "";
+        const m = H("span", { class: "pv-m" });
+        const paint = () => { const s = words(d.rp[k]) * 60 / 150 + (k === "demo" ? (Number(d.rpDemo) || 0) : 0); m.textContent = `${words(d.rp[k])} palabras · ≈ ${mm(s)} de ${mm(z - a)}${s > (z - a) * 1.2 ? " · largo: recortad" : ""}`; };
+        painters.push(paint);
+        t.addEventListener("input", () => { d.rp[k] = t.value; R.save(); paint(); paintRpTot(); });
+        paint();
+        rpEl.append(H("div", { class: "pv-rpb" }, H("label", { for: id }, H("b", { text: `${i + 1} · ${name}` }), H("span", { class: "pv-m", text: ` ${mm(a)}–${mm(z)} · ${ob}` })), t, m));
       });
-      b.append(pre, H("div", null, copyB));
-      function paintPre(){
-        const tipo = [d.tipo, d.tipo2].filter(Boolean).map(t => (TIPOS.find(x => x[0] === t) || [])[1]).filter(Boolean).join(" + ") || "[tipo de pivote]";
-        const hs = (d.hips || []).filter(h => h && (h.h || "").trim());
-        const riskiest = ((hs.find(h => /pago|pagar/i.test(h.h)) || hs[0] || {}).h || "").trim().replace(/[.\s]+$/, "");
-        const ch = LC.filter(([k]) => d.canvas[k].c && d.canvas[k].c !== "no" && (d.canvas[k].b || "").trim()).map(([k, n]) => `- ${n}: ${d.canvas[k].b.trim()}`).join("\n");
-        pre.textContent = `Lee CLAUDE.md. Hemos pivotado (${tipo}): ${(d.frase || "[mantenemos X, cambiamos Y porque Z]").trim()}\n\nBloques del Lean Canvas que cambian:\n${ch || "[pegar bloques que cambian]"}\n\nCrea una versión nueva de la landing en web/pivote/ (no borres la original) para el nuevo segmento o modelo: titular, 3 beneficios, cómo funciona, precios y un CTA coherente (p. ej., «Solicitar piloto») que lleve a nuestro formulario de Tally. Mantén la identidad visual, no inventes testimonios ni cifras y dime qué archivos has creado o cambiado. Actualiza también la sección «Hipótesis» de CLAUDE.md con la nueva hipótesis más arriesgada${riskiest ? ": " + riskiest : ""}.`;
+      R.number(b, { label: "Segundos de demo sin hablar", hint: "se suman al bloque 3", min: 0, max: 120, step: 5, onChange: () => { painters.forEach(f => f()); paintRpTot(); } }, d, "rpDemo");
+      b.append(rpTot);
+      function paintRpTot(){
+        const s = RP.reduce((acc, [k]) => acc + words(d.rp[k]) * 60 / 150, 0) + (Number(d.rpDemo) || 0);
+        rpTot.replaceChildren(H("div", { class: "verdict " + (s > 240 ? "no" : s > 225 ? "mid" : "ok"), text: `Estimado: ${mm(s)} de 4:00 (150 palabras/min + demo). ${s > 240 ? "Os pasáis: recortad." : s > 225 ? "Muy justo: dejad aire." : "Cabe. Ensayadlo con el cronómetro."}` }));
       }
-      paintPre();
-      el.addEventListener("input", paintPre); el.addEventListener("change", paintPre);
-      R.tip(b, "Publicad la versión nueva en Netlify como sitio nuevo (o en /pivote) y guardad la URL: el Lean Canvas antes/después, la learning card y el enlace forman el <b>anexo de pivote</b> del informe.", "ok");
+      paintRpTot();
+      const tm = R.timer(b, { minutes: 4, label: "Re-pitch · 4:00" });
+      const nowEl = H("div", { class: "pv-now", "aria-live": "polite" });
+      const run = H("div", { class: "pv-run" }, ...RP.map(([k, name, a, z], i) => H("div", { class: "it" }, H("span", { class: "n", text: String(i + 1) }), H("span", { text: name }), H("span", { class: "pv-m", text: `${mm(a)}–${mm(z)}` }))));
+      b.append(nowEl, run);
+      let ac = null, last = -1;
+      tm.el.addEventListener("click", () => { try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); if (ac.state === "suspended") ac.resume(); } catch (e) {} });
+      const chime = () => { try { if (!ac) return; const g = ac.createGain(), o = ac.createOscillator(); o.frequency.value = 660; g.gain.value = 0.06; o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime + 0.12); } catch (e) {} };
+      const poll = setInterval(() => {
+        if (!document.body.contains(tm.el)){ clearInterval(poll); return; }
+        const v = tm.el.querySelector(".tm-v"); const m = v && v.textContent.match(/(\d+):(\d+)/); if (!m) return;
+        const el_ = 240 - ((+m[1]) * 60 + (+m[2]));
+        const idx = el_ <= 0 ? -1 : el_ >= 240 ? RP.length : RP.findIndex(x => el_ < x[3]);
+        if (idx === last) return;
+        run.querySelectorAll(".it").forEach((n, i) => { n.classList.toggle("now", i === idx); n.classList.toggle("past", idx >= 0 && i < idx); });
+        if (idx >= 0 && idx < RP.length){ nowEl.textContent = `Ahora: ${idx + 1} · ${RP[idx][1]} (hasta ${mm(RP[idx][3])})`; if (idx > 0) chime(); }
+        else nowEl.textContent = idx === RP.length ? "Tiempo: 4:00. Pasad al feedback (2′)." : "";
+        last = idx;
+      }, 300);
+      b.append(H("p", { class: "sec-label", text: "Feedback de 2′ (anotadlo mientras os lo dan)" }));
+      const fb = H("div", { class: "row3" }); b.append(fb);
+      R.field(fb, { label: "Quién da el feedback", single: true, ph: "Profesor, equipo 2…" }, d.rpFb, "quien");
+      R.field(fb, { label: "Lo que convence del pivote", rows: 3 }, d.rpFb, "bien");
+      R.field(fb, { label: "Dudas y qué cambiar", rows: 3 }, d.rpFb, "cambiar");
+      R.tip(b, "El Lean Canvas antes/después, la learning card y las dos URL (antes y después del pivote) forman el <b>anexo de pivote</b> del informe final.", "ok");
     },
     progress(d){
       const cv = d.canvas || {};
       const changed = LC.filter(([k]) => cv[k] && cv[k].c && cv[k].c !== "no" && (cv[k].b || "").trim()).length;
-      return R.share([d.cartaTxt, d.decision, d.decision === "perseverar" || d.decision === "abandonar" ? "x" : d.tipo, d.mantenemos && d.cambiamos ? "x" : "", changed >= 2 || d.decision === "perseverar" ? "x" : "", d.tc && d.tc.exito, d.frase]);
+      const rp = d.rp || {};
+      return R.share([d.cartaTxt, d.decision, d.decision === "perseverar" || d.decision === "abandonar" ? "x" : d.tipo, d.mantenemos && d.cambiamos ? "x" : "", changed >= 2 || d.decision === "perseverar" ? "x" : "", (d.rehacer || []).some(x => x && (x.despues || "").trim()) ? "x" : "", d.url, d.tc && d.tc.exito, ["cambio", "porque", "demo", "sig"].filter(k => (rp[k] || "").trim()).length >= 3 ? "x" : ""]);
     },
     prompt(d, R){
       const tipo = [d.tipo, d.tipo2].filter(Boolean).map(t => (TIPOS.find(x => x[0] === t) || [])[1]).filter(Boolean).join(" + ");
@@ -5263,14 +5522,14 @@ R.deliverable({
       const hips = R.lines(d.hips, (h, i) => `${i + 1}. ${h.h} · Criterio: ${h.crit}`);
       const carta = (CARTAS.find(x => x[0] === d.carta) || [])[1];
       return {
-        task: "Haz de abogado del diablo de nuestro pivote. 1) ¿La evidencia justifica pivotar o deberíamos perseverar, iterar o abandonar? Defiende la opción contraria con los mejores argumentos. 2) ¿Hemos nombrado bien el tipo de pivote (Ries)? ¿Hay otro tipo que encaje mejor con la evidencia? 3) Busca sesgos: confirmación, coste hundido, enamoramiento de la solución y pivotar por aburrimiento. 4) Revisa la coherencia del Lean Canvas después (segmento ↔ problema ↔ propuesta ↔ canales ↔ ingresos ↔ métricas): ¿qué bloque no encaja? 5) ¿Es la nueva hipótesis la más arriesgada y el experimento el más barato que podría refutarla? ¿El criterio es medible? 6) Reescribe nuestra frase del pivote para decirla en menos de 40 segundos. No inventes datos: si falta evidencia, dilo.",
-        material: [`Evidencia (${d.carta === "propia" ? "nuestro validation board" : carta ? "carta " + carta : "sin indicar"}): ${d.cartaTxt || "(vacía)"}`, `Decisión: ${d.decision || "(sin decidir)"}${tipo ? " · Tipo de pivote: " + tipo : ""}`, R.kv(d, { mantenemos: "Mantenemos", cambiamos: "Cambiamos", porque: "Porque" }), canvas ? "Lean Canvas antes → después:\n" + canvas : "", hips ? "Nuevas hipótesis:\n" + hips : "", R.kv(d.tc || {}, { creemos: "Test card · creemos", haremos: "Haremos", mediremos: "Mediremos", exito: "Será cierto si", coste: "Coste y tiempo" }), d.frase ? "Frase del pivote: " + d.frase : ""].filter(Boolean).join("\n\n"),
-        format: "Seis apartados numerados, directos, con viñetas. Termina con la objeción más fuerte en una frase. Máximo 400 palabras."
+        task: "Haz de abogado del diablo de nuestro pivote y de nuestro re-pitch de 4 minutos.1) ¿La evidencia justifica pivotar o deberíamos perseverar, iterar o abandonar? Defiende la opción contraria con los mejores argumentos. 2) ¿Hemos nombrado bien el tipo de pivote (Ries)? ¿Hay otro tipo que encaje mejor con la evidencia? 3) Busca sesgos: confirmación, coste hundido, enamoramiento de la solución y pivotar por aburrimiento. 4) Revisa la coherencia del Lean Canvas después (segmento ↔ problema ↔ propuesta ↔ canales ↔ ingresos ↔ métricas): ¿qué bloque no encaja? 5) ¿Es la nueva hipótesis la más arriesgada y el experimento el más barato que podría refutarla? ¿El criterio es medible? 6) Revisa los cambios del prototipo: ¿cuentan el pivote y miden la nueva hipótesis? 7) Revisa el guion del re-pitch (qué cambió, por qué, demo, siguiente experimento): ajústalo a 4 minutos y señala cualquier cifra sin n. No inventes datos: si falta evidencia, dilo.",
+        material: [`Evidencia (${d.carta === "propia" ? "nuestro validation board" : carta ? "carta " + carta : "sin indicar"}): ${d.cartaTxt || "(vacía)"}`, `Decisión: ${d.decision || "(sin decidir)"}${tipo ? " · Tipo de pivote: " + tipo : ""}`, R.kv(d, { mantenemos: "Mantenemos", cambiamos: "Cambiamos", porque: "Porque" }), canvas ? "Lean Canvas antes → después:\n" + canvas : "", hips ? "Nuevas hipótesis:\n" + hips : "", R.kv(d.tc || {}, { creemos: "Test card · creemos", haremos: "Haremos", mediremos: "Mediremos", exito: "Será cierto si", coste: "Coste y tiempo" }), d.frase ? "Frase del pivote: " + d.frase : "", (d.rehacer || []).some(x => x && x.despues) ? "Cambios en el prototipo:" + String.fromCharCode(10) + R.lines(d.rehacer, x => `- ${x.pieza}: ${x.antes ? x.antes + " → " : ""}${x.despues}`) : "", d.url ? "URL después del pivote: " + d.url : "", (d.rp && Object.values(d.rp).some(v => v && String(v).trim())) ? "Guion del re-pitch (4′):" + String.fromCharCode(10) + RP.map(([k, n]) => `[${n}] ${String(d.rp[k] || "").trim() || "(vacío)"}`).join(String.fromCharCode(10)) : ""].filter(Boolean).join("\n\n"),
+        format: "Siete apartados numerados, directos, con viñetas. Termina con la objeción más fuerte en una frase. Máximo 400 palabras."
       };
     },
     links: [
       ["Lean Canvas", "El lienzo de Ash Maurya", "https://leanstack.com/lean-canvas"],
-      ["Netlify Drop", "Publicar la versión pivotada", "https://app.netlify.com/drop"],
+      ["GitHub Pages", "Publicar la versión pivotada en el mismo repo", "https://docs.github.com/es/pages"],
       ["Tally", "Formulario «Solicitar piloto»", "https://tally.so"],
       ["Miro", "Canvas antes/después en equipo", "https://miro.com"],
       ["Claude Code", "Documentación para adaptar el prototipo", "https://docs.anthropic.com/es/docs/claude-code/overview"]
@@ -5283,10 +5542,10 @@ R.deliverable({
 R.deliverable({
   id: "entregable3", session: "S3", file: "entregable_final", short: "Entregable final", sub: "Todo el proyecto",
   title: "Entregable final",
-  chips: ["S3 · Cierre", "Base del informe de validación"],
+  chips: ["S3 · Cierre 5:45–6:00", "PDF + .json a Blackboard", "Base del informe de validación"],
   goal: "El documento completo: <b>todas las estaciones de las tres sesiones</b>, del problema al pivote, con vuestra conclusión final. Es el borrador base del informe de validación (máx. 10 páginas) que entregáis una semana después.",
   includes: ["semilla", "scrum", "empatia", "lluvia", "crazy8", "ideas", "modelo", "supuestos", "wireframe", "prototipo", "cuali", "cuanti", "decidir", "pitch", "pivote"],
-  requires: "<b>El informe final debe tener:</b> resumen ejecutivo, problema y POV, concepto y Lean Canvas, prototipo (enlace), hipótesis y test cards, metodología cuali y cuanti con muestra y limitaciones, resultados, decisión y siguiente experimento, anexo de uso de IA y anexo de pivote.",
+  requires: "<b>El informe final debe tener:</b> resumen ejecutivo, problema y POV, concepto y Lean Canvas, prototipo (enlace antes y después del pivote), hipótesis y test cards, metodología cuali y cuanti con muestra y limitaciones, resultados, decisión y siguiente experimento, anexo de uso de IA y anexo de pivote.",
   task: "Actúa como tribunal del máster. Con todo el material: 1) Escribe un resumen ejecutivo de 120 palabras. 2) Evalúa si la decisión final (perseverar/pivotar) está justificada por la evidencia, citando cifras con su n y margen. 3) Señala las 3 debilidades metodológicas más importantes y cómo reconocerlas en el apartado de limitaciones. 4) Lista lo que falta para el informe final según su estructura. 5) Propón la conclusión final del equipo en 6 líneas.",
   format: "Cinco apartados. Cifras siempre con n. Máximo 500 palabras.",
   example: {
