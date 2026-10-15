@@ -3468,9 +3468,28 @@ R.deliverable({
   const BRIEF_L = { objetivo: "Objetivo", publico: "Público", mensaje: "Mensaje clave", tono: "Tono", colores: "Colores y estilo", cta: "Llamada a la acción (CTA)", medir: "Qué mediremos" };
   const T = s => String(s || "").trim();
 
+  /* Textos literales de PUBLICAR_AUTOMATICO.md (decisión del profesor) */
+  const PROMPT0 = `Quiero que puedas publicar mis prototipos en GitHub Pages sin que yo tenga que configurar nada. Hazlo paso a paso y pídeme permiso antes de instalar o cambiar algo:
+1. Comprueba si están instalados git y GitHub CLI (gh). Si falta alguno, instálalo: en Windows con «winget install --id Git.Git -e» y «winget install --id GitHub.cli -e»; en Mac con «xcode-select --install» y «brew install gh» (si no hay Homebrew, dime cómo seguir). Después de instalar, comprueba que los comandos responden (si no, dime que cierre y vuelva a abrir la app).
+2. Comprueba si gh tiene sesión iniciada (gh auth status). Si no la tiene, ejecuta en segundo plano «gh auth login --hostname github.com --git-protocol https --web», enséñame el código de un solo uso y la dirección https://github.com/login/device, y espera a que te diga que lo he autorizado en el navegador.
+3. Ejecuta «gh auth setup-git», confirma con «gh auth status» que estoy conectado y dime mi usuario de GitHub.
+No me pidas contraseñas ni tokens y no los guardes en ningún archivo.`;
+  const PUBLICAR = `Cuando termines, publica el prototipo en GitHub Pages:
+1. Si esta carpeta no es un repositorio git, inicialízalo con la rama main. Comprueba que .gitignore excluye datos/, .env y cualquier archivo con datos personales, y enséñame con «git status» qué se va a subir.
+2. Si el repositorio aún no existe en GitHub, créalo público con «gh repo create ed-⟨proyecto⟩ --public --source=. --remote=origin --push». Si ya existe, haz commit con un mensaje claro en castellano y «git push».
+3. Si GitHub Pages no está activo, actívalo desde la rama main y la raíz con «gh api -X POST repos/⟨usuario⟩/ed-⟨proyecto⟩/pages -f "source[branch]=main" -f "source[path]=/"» (si responde que ya existe, sigue).
+4. Comprueba cada 20 segundos, durante un máximo de 5 minutos, que la web responde, y dame la URL final: https://⟨usuario⟩.github.io/ed-⟨proyecto⟩/ (y la de la subcarpeta web/ o app/ si el prototipo está ahí).
+Pídeme confirmación antes de cada comando que cambie algo en GitHub. Nunca uses --force ni borres repositorios.`;
+  const ghUser = d => T(d.ghUser).replace(/^@/, "") || "vuestro-usuario";
+  const projSlug = R => slug(T(R.project.nombre) || T(R.project.equipo) || "proyecto");
+  const publicar = (d, R) => PUBLICAR.split("⟨proyecto⟩").join(projSlug(R)).split("⟨usuario⟩").join(ghUser(d));
+  const pagesUrl = (d, R) => `https://${ghUser(d)}.github.io/ed-${projSlug(R)}/`;
+
   function ensure(d){
     d.brief = d.brief || {}; d.checks = d.checks || {};
     if (!RUTAS[d.ruta]) d.ruta = d.ruta || "";
+    if (d.ghUser == null) d.ghUser = "";
+    if (d.ghOk == null) d.ghOk = false;
     return d;
   }
   function wire(R){
@@ -3509,7 +3528,7 @@ R.deliverable({
       "- No inventes cifras, testimonios, logos ni premios. Si hace falta un dato, deja [DATO PENDIENTE] y avísanos.",
       "- Respeta el orden de bloques y los textos del wireframe; si propones cambios, explícalos antes de aplicarlos.",
       "- Pide confirmación antes de borrar o sobrescribir cualquier archivo.",
-      "- Publicamos en GitHub Pages desde un repositorio público: no subas datos/, CSV de encuestas, transcripciones, .env, contraseñas ni claves; pide confirmación antes de cada comando git o gh y nunca uses --force ni reset --hard.",
+      `- Publicas tú en GitHub Pages cuando te lo pidamos (bloque PUBLICAR): repositorio público ed-${projSlug(R)} en la cuenta ${ghUser(d)}, URL ${pagesUrl(d, R)}. No subas datos/, CSV de encuestas, transcripciones, .env, contraseñas ni claves; pide confirmación antes de cada comando que cambie algo en GitHub y nunca uses --force ni borres repositorios.`,
       "- Trabaja por pasos (plan → construir → revisar) y, tras cada paso, resume en 3 líneas qué has hecho y qué falta.");
     if (T(d.extra)) L.push(...T(d.extra).split(/\r?\n/).map(s => s.trim()).filter(Boolean).map(s => s.startsWith("-") ? s : "- " + s));
     return L.join("\n");
@@ -3525,27 +3544,18 @@ R.deliverable({
 
   function prompts(d, R){
     const p = R.project, name = T(p.nombre) || "nuestro proyecto";
-    const url = T(d.url) || "[URL_PUBLICADA]";
+    const url = T(d.url) || pagesUrl(d, R);
     const seg = T(d.brief.publico) || T(p.segmento) || "nuestro cliente objetivo";
     const camp = slug(name).replace(/-/g, "_") + "_s2";
-    const repo = "ed-" + slug(T(p.nombre) || T(p.equipo) || "equipo");
+    const pub = "\n\n" + publicar(d, R);
     return [
       ["Sprint A · 40′", "A1 · Plan", "5′", `Lee CLAUDE.md. Antes de escribir código, propón un plan breve: estructura de secciones siguiendo el wireframe, textos de cada bloque (marcando lo que falte), paleta y tipografía coherentes con el brief, y cómo vamos a medir el CTA. No crees ni modifiques archivos todavía: espera nuestro OK.`],
-      ["Sprint A · 40′", "A2 · Construir", "25′", buildTask(d) + "\n\n" + buildMaterial(d, R)],
-      ["Sprint A · 40′", "A3 · Revisar", "10′", `Revisa el archivo como si fueras ${seg} abriéndolo en el móvil. Comprueba: 1) en 5 segundos se entiende qué es, para quién y qué hacer; 2) el CTA se ve sin scroll; 3) no hay scroll horizontal a 375 px; 4) accesibilidad (contraste, alt, labels, foco visible); 5) no hay cifras, testimonios ni datos personales inventados. Lista los problemas por gravedad y corrige solo los 3 más graves. Pide confirmación antes de borrar nada.`],
+      ["Sprint A · 40′", "A2 · Construir y publicar", "25′", buildTask(d) + "\n\n" + buildMaterial(d, R) + pub],
+      ["Sprint A · 40′", "A3 · Revisar", "10′", `Revisa el archivo como si fueras ${seg} abriéndolo en el móvil. Comprueba: 1) en 5 segundos se entiende qué es, para quién y qué hacer; 2) el CTA se ve sin scroll; 3) no hay scroll horizontal a 375 px; 4) accesibilidad (contraste, alt, labels, foco visible); 5) no hay cifras, testimonios ni datos personales inventados; 6) hay <title>, meta description, meta viewport y favicon, y las rutas son relativas. Lista los problemas por gravedad y corrige solo los 3 más graves. Pide confirmación antes de borrar nada.` + pub],
       ["Revisión cruzada · 10′", "R · Revisar el prototipo de otro equipo", "10′", `Vamos a revisar el prototipo de otro equipo (pego abajo su URL o su HTML). Actúa como alguien de su público objetivo. Dame: 3 cosas que funcionan, 3 que confunden o frenan, y 1 cambio prioritario que harías antes de lanzar. Tono constructivo y concreto, máximo 150 palabras.\n\n[PEGA AQUÍ LA URL O EL HTML DEL OTRO EQUIPO]`],
-      ["Sprint B · 30′", "B1 · Publicar en GitHub Pages", "10′", `Quiero publicar esta carpeta en GitHub Pages. Ve paso a paso y pídeme confirmación antes de cada comando:
-1) Comprueba si git y gh (GitHub CLI) están disponibles y si gh tiene sesión iniciada (gh auth status). No instales nada. Si no hay gh, usa git con el repositorio que hemos creado en github.com (te pasamos su URL). Si no hay git, dínoslo y lo subiremos desde la web de GitHub con «Add file → Upload files».
-2) Revisa que index.html abre con doble clic sin servidor, que las rutas son relativas y que hay <title>, meta description, meta viewport y favicon.
-3) Comprueba que existe .gitignore y que excluye datos/, .env y cualquier archivo con datos personales. Enséñame la lista de archivos que se van a subir.
-4) La primera vez: si la carpeta no es un repositorio, inicialízalo con la rama main, haz un primer commit y crea el repositorio PÚBLICO con: gh repo create ${repo} --public --source=. --push
-   Las siguientes veces: git add, git commit -m "[qué ha cambiado]" y git push.
-5) Activa GitHub Pages desde la rama main y la carpeta raíz: gh api -X POST repos/[USUARIO]/${repo}/pages -f "source[branch]=main" -f "source[path]=/" (si no puedes, dime los pasos en Settings → Pages → Deploy from a branch → main / (root)).
-6) Dime la URL final, https://[USUARIO].github.io/${repo}/, y recuérdame que tarda entre 1 y 10 minutos en aparecer.
-Nunca uses --force ni reset --hard, y no borres archivos. El repositorio es público: nada de datos personales, CSV de encuestas, transcripciones, contraseñas ni claves.`],
-      ["Sprint B · 30′", "B2 · Formulario con Tally", "7′", `Vamos a recoger los registros con Tally. Dime qué campos crear en tally.so según el formulario del wireframe (solo los imprescindibles) y cómo añadir campos ocultos utm_source y utm_campaign. Cuando te pase el enlace [ENLACE_TALLY], conecta el CTA principal para abrirlo (popup de Tally o enlace) y añade bajo el botón una línea de privacidad: para qué usamos los datos y que es un proyecto de clase.`],
-      ["Sprint B · 30′", "B3 · Analítica con Microsoft Clarity", "7′", `Añade Microsoft Clarity con el ID de proyecto que te daré [ID_CLARITY]. Inserta el script en <head>, pero que solo se cargue si el visitante acepta un aviso de cookies sencillo y accesible (Aceptar / Rechazar, recordando la elección). Explícame en 3 líneas qué veremos en Clarity (grabaciones, mapas de calor, clics en el CTA).`],
-      ["Sprint B · 30′", "B4 · Enlaces con UTM", "6′", `Genera los enlaces con UTM para ${url}: Instagram (utm_source=instagram, utm_medium=social), WhatsApp de grupos de máster (utm_source=whatsapp, utm_medium=mensajeria), LinkedIn (utm_source=linkedin, utm_medium=social) y email (utm_source=email, utm_medium=email), todos con utm_campaign=${camp}. Devuélvelos en una tabla (canal, enlace completo) y recuérdanos qué número mirar en cada canal para H2.`]
+      ["Sprint B · 30′", "B1 · Formulario con Tally", "12′", `Vamos a recoger los registros con Tally. Dime qué campos crear en tally.so según el formulario del wireframe (solo los imprescindibles) y cómo añadir campos ocultos utm_source y utm_campaign. Cuando te pase el enlace [ENLACE_TALLY], conecta el CTA principal para abrirlo (popup de Tally o enlace) y añade bajo el botón una línea de privacidad: para qué usamos los datos y que es un proyecto de clase.` + pub],
+      ["Sprint B · 30′", "B2 · Analítica con Microsoft Clarity", "10′", `Añade Microsoft Clarity con el ID de proyecto que te daré [ID_CLARITY]. Inserta el script en <head>, pero que solo se cargue si el visitante acepta un aviso de cookies sencillo y accesible (Aceptar / Rechazar, recordando la elección). Explícame en 3 líneas qué veremos en Clarity (grabaciones, mapas de calor, clics en el CTA).` + pub],
+      ["Sprint B · 30′", "B3 · Enlaces con UTM", "8′", `Genera los enlaces con UTM para ${url}: Instagram (utm_source=instagram, utm_medium=social), WhatsApp de grupos de máster (utm_source=whatsapp, utm_medium=mensajeria), LinkedIn (utm_source=linkedin, utm_medium=social) y email (utm_source=email, utm_medium=email), todos con utm_campaign=${camp}. Devuélvelos en una tabla (canal, enlace completo) y recuérdanos qué número mirar en cada canal para H2. Guarda la tabla en utm.md dentro de la carpeta.` + pub]
     ];
   }
 
@@ -3561,6 +3571,7 @@ Nunca uses --force ni reset --hard, y no borres archivos. El repositorio es púb
     chips: ["S2 · 2.2", "LAB P6 · 90′", "Nota NT-ED-05"],
     goal: "En el LAB convertís el wireframe en <b>un prototipo publicado con una URL</b> que mide lo que preguntan vuestras test cards. Claude Code construye; vosotros decidís el brief, revisáis cada paso y no dais nada por bueno sin probarlo en el móvil.",
     example: {
+      ghOk: false, ghUser: "",
       ruta: "web",
       brief: {
         objetivo: "Validar H2: que al menos el 25 % de los visitantes se apunte a la lista de espera (smoke test), y medir con un fake door el interés por Premium (H4).",
@@ -3575,7 +3586,7 @@ Nunca uses --force ni reset --hard, y no borres archivos. El repositorio es púb
       checks: { c1: true, c2: true, c3: true, c4: true, c5: false, c6: false, c7: true, c8: true, c9: false, c10: false, c11: true },
       url: ""
     },
-    blank(){ const b = {}; Object.keys(BRIEF_L).forEach(k => b[k] = ""); const c = {}; CHECKS.forEach(([k]) => c[k] = false); return { ruta: "web", brief: b, extra: "", checks: c, url: "" }; },
+    blank(){ const b = {}; Object.keys(BRIEF_L).forEach(k => b[k] = ""); const c = {}; CHECKS.forEach(([k]) => c[k] = false); return { ghOk: false, ghUser: "", ruta: "web", brief: b, extra: "", checks: c, url: "" }; },
     render(el, d, R){
       ensure(d);
       R.css("prototipo", `
@@ -3599,16 +3610,37 @@ Nunca uses --force ni reset --hard, y no borres archivos. El repositorio es púb
       const refreshers = [];
       const refresh = () => refreshers.forEach(f => f());
 
-      /* ---------- 1. Itinerario ---------- */
-      let b = R.step(el, 1, "Itinerario", "Elegid qué vais a construir hoy. Las tres rutas acaban en una URL publicada que mide algo.");
+      /* ---------- 1. Enlazar Claude con GitHub ---------- */
+      let b = R.step(el, 1, "Enlazar Claude con GitHub (una sola vez por ordenador)", "Claude Code puede crear el repositorio, subir los archivos, activar GitHub Pages y daros la URL. Solo necesitáis una cuenta en github.com y enlazar Claude con GitHub una vez en cada ordenador (≈ 3 min): abrid Claude Code, pegad este prompt y seguid sus indicaciones; os dará un código para autorizar en github.com/login/device.");
+      const p0Pre = R.h("pre", { class: "prompt", tabindex: "0", "aria-label": "Prompt 0: enlazar Claude con GitHub", text: PROMPT0 });
+      const p0Btn = R.h("button", { class: "btn accent small", type: "button", "aria-label": "Copiar prompt 0" }, "Copiar");
+      p0Btn.addEventListener("click", () => copy(p0Btn, PROMPT0, p0Pre, "Copiar"));
+      b.append(R.h("div", { class: "pt-pr" }, R.h("div", { class: "pt-prh" }, R.h("span", null, R.h("b", { text: "PROMPT 0 · Enlazar Claude con GitHub" }), R.h("span", { class: "t", text: "≈ 3′" })), p0Btn), p0Pre));
+      const ghRow = R.h("div", { class: "row2", style: "align-items:end" }); b.append(ghRow);
+      const okInp = R.h("input", { type: "checkbox", id: "pt-ghok" });
+      okInp.checked = !!d.ghOk;
+      okInp.addEventListener("change", () => { d.ghOk = okInp.checked; R.save(); paintGh(); });
+      ghRow.append(R.h("label", { class: "pt-ck", for: "pt-ghok" }, okInp, R.h("span", { text: "Ya está enlazado: gh auth status dice que estamos conectados" })));
+      R.field(ghRow, { label: "Vuestro usuario de GitHub", hint: "el que os dice Claude al final", single: true, ph: "vuestro-usuario" }, d, "ghUser").addEventListener("input", () => { paintGh(); refresh(); });
+      const ghInfo = R.h("div"); b.append(ghInfo);
+      function paintGh(){
+        const u = T(d.ghUser);
+        ghInfo.replaceChildren(d.ghOk && u
+          ? R.h("div", { class: "tip ok", text: `Listo. Vuestro prototipo se publicará en ${pagesUrl(d, R)} (repositorio ed-${projSlug(R)} de la cuenta ${ghUser(d)}).` })
+          : R.h("div", { class: "tip warn", text: "No peguéis contraseñas ni tokens en el chat. La cuenta es personal: el repositorio se crea en la cuenta de quien enlazó Claude. Si el código de un solo uso caduca, pedid a Claude que repita el paso 2." }));
+      }
+      paintGh();
+
+      /* ---------- 2. Itinerario ---------- */
+      b = R.step(el, 2, "Itinerario", "Elegid qué vais a construir hoy. Las tres rutas acaban en una URL publicada que mide algo.");
       const ruBox = R.h("div");
       R.select(b, { label: "Qué construimos", options: Object.entries(RUTAS).map(([k, v]) => [k, v.l]), onChange: () => { paintRu(); refresh(); } }, d, "ruta");
       b.append(ruBox);
       function paintRu(){ const ru = RUTAS[d.ruta]; ruBox.replaceChildren(ru ? R.h("div", { class: "pt-ru" }, R.h("b", { text: ru.l + ". " }), ru.d) : R.h("span")); }
       paintRu();
 
-      /* ---------- 2. Brief ---------- */
-      b = R.step(el, 2, "Brief del prototipo", "El brief es el encargo en una página: qué queréis conseguir, para quién, qué decir y qué medir. Cuanto más concreto, mejor trabaja Claude Code.");
+      /* ---------- 3. Brief ---------- */
+      b = R.step(el, 3, "Brief del prototipo", "El brief es el encargo en una página: qué queréis conseguir, para quién, qué decir y qué medir. Cuanto más concreto, mejor trabaja Claude Code.");
       const brMsg = R.h("span", { class: "pt-msg", "aria-live": "polite" });
       const brBox = R.h("div", { style: "display:flex;flex-direction:column;gap:12px" });
       b.append(R.h("div", { class: "pt-bar" }, R.h("button", { class: "btn small", type: "button", on: { click: () => {
@@ -3642,8 +3674,8 @@ Nunca uses --force ni reset --hard, y no borres archivos. El repositorio es púb
       }
       drawBrief();
 
-      /* ---------- 3. CLAUDE.md ---------- */
-      b = R.step(el, 3, "El CLAUDE.md del equipo", "CLAUDE.md es un archivo de instrucciones que Claude Code lee al empezar en una carpeta: así no tenéis que repetir el contexto ni las reglas en cada prompt. Se genera con vuestro proyecto, concepto, brief y wireframe.");
+      /* ---------- 4. CLAUDE.md ---------- */
+      b = R.step(el, 4, "El CLAUDE.md del equipo", "CLAUDE.md es un archivo de instrucciones que Claude Code lee al empezar en una carpeta: así no tenéis que repetir el contexto ni las reglas en cada prompt. Se genera con vuestro proyecto, concepto, brief y wireframe.");
       R.field(b, { label: "Reglas propias del equipo (opcional)", hint: "una por línea; se añaden al final", rows: 2 }, d, "extra").addEventListener("input", refresh);
       const mdPre = R.h("pre", { class: "prompt", tabindex: "0", "aria-label": "Contenido del CLAUDE.md" });
       const mdBtn = R.h("button", { class: "btn accent small", type: "button" }, "Copiar CLAUDE.md");
@@ -3652,8 +3684,8 @@ Nunca uses --force ni reset --hard, y no borres archivos. El repositorio es púb
       R.tip(b, "<b>Cómo usarlo:</b> cread una carpeta para el prototipo, guardad dentro este texto como <b>CLAUDE.md</b> y abrid Claude Code en esa carpeta. Si cambiáis el brief o el wireframe, volved a copiarlo.");
       refreshers.push(() => { mdPre.textContent = claudeMd(d, R); });
 
-      /* ---------- 4. Prompts del LAB ---------- */
-      b = R.step(el, 4, "Secuencia de prompts del LAB", "Copiad los prompts de uno en uno, en este orden, y no paséis al siguiente sin revisar el resultado en el navegador. Sprint A construye, la revisión cruzada aporta ojos de fuera y el Sprint B publica y mide.");
+      /* ---------- 5. Prompts del LAB ---------- */
+      b = R.step(el, 5, "Secuencia de prompts del LAB", "Copiad los prompts de uno en uno, en este orden, y no paséis al siguiente sin revisar el resultado en el navegador. Cada prompt que cambia archivos termina con el bloque PUBLICAR: Claude Code sube los cambios a GitHub Pages y os da la URL. Sprint A construye, la revisión cruzada aporta ojos de fuera y el Sprint B conecta la medición.");
       const seq = R.h("div", { class: "pt-seq" });
       b.append(seq);
       function drawSeq(){
@@ -3668,11 +3700,11 @@ Nunca uses --force ni reset --hard, y no borres archivos. El repositorio es púb
         });
       }
       refreshers.push(drawSeq);
-      R.tip(b, "<b>Plan rápido si GitHub se atasca:</b> arrastrad la carpeta a <a href=\"https://app.netlify.com/drop\" target=\"_blank\" rel=\"noopener\">Netlify Drop</a> y tendréis una URL en un minuto; después pasad a GitHub Pages.");
+      R.tip(b, "<b>Plan B</b> si no podéis instalar nada (ordenadores de la universidad): en la web de vuestro repositorio en GitHub, «Add file → Upload files» y subid los archivos.");
       R.tip(b, "Si Claude Code se lía, no sigáis parcheando: pedidle que <b>explique qué ha hecho</b> y volved al último paso que funcionaba. Y no peguéis claves ni contraseñas en el chat: el ID de Clarity y el enlace de Tally son públicos, pero nada más.", "warn");
 
-      /* ---------- 5. Checklist y URL ---------- */
-      b = R.step(el, 5, "Checklist de calidad y URL publicada", "Antes de compartir el enlace, repasad la lista. Las marcadas con ★ son imprescindibles: sin ellas el experimento no mide bien o no es ético.");
+      /* ---------- 6. Checklist y URL ---------- */
+      b = R.step(el, 6, "Checklist de calidad y URL publicada", "Antes de compartir el enlace, repasad la lista. Las marcadas con ★ son imprescindibles: sin ellas el experimento no mide bien o no es ético.");
       const stat = R.h("div");
       const cks = R.h("div", { class: "pt-checks" });
       CHECKS.forEach(([k, must, txt]) => {
@@ -3684,7 +3716,7 @@ Nunca uses --force ni reset --hard, y no borres archivos. El repositorio es púb
       });
       b.append(stat, cks);
       const urlInfo = R.h("div");
-      R.field(b, { label: "URL publicada", hint: "la de GitHub Pages, empezando por https://", single: true, ph: "https://usuario.github.io/ed-equipo/" }, d, "url").addEventListener("input", () => { paintUrl(); refresh(); });
+      R.field(b, { label: "URL publicada", hint: "pegad la URL final que os da Claude al publicar", single: true, ph: pagesUrl(d, R) }, d, "url").addEventListener("input", () => { paintUrl(); refresh(); });
       b.append(urlInfo);
       function paintStat(){
         const must = CHECKS.filter(c => c[1]), okM = must.filter(c => d.checks[c[0]]).length, okA = CHECKS.filter(c => d.checks[c[0]]).length;
@@ -3693,7 +3725,7 @@ Nunca uses --force ni reset --hard, y no borres archivos. El repositorio es púb
       }
       function paintUrl(){
         const u = T(d.url);
-        if (!u){ urlInfo.replaceChildren(R.h("div", { class: "tip", text: "Cuando publiquéis en GitHub Pages, pegad aquí la URL (https://usuario.github.io/repositorio/): se usará en los enlaces con UTM y en las estaciones de validación." })); return; }
+        if (!u){ urlInfo.replaceChildren(R.h("div", { class: "tip", text: `Al terminar el bloque PUBLICAR, Claude os da la URL final (será parecida a ${pagesUrl(d, R)}). Pegadla aquí: se usará en los enlaces con UTM y en las estaciones de validación.` })); return; }
         if (!/^https:\/\/[^\s]+\.[^\s]+/.test(u)){ urlInfo.replaceChildren(R.h("div", { class: "tip warn", text: "La URL debería empezar por https:// (GitHub Pages la da así)." })); return; }
         urlInfo.replaceChildren(R.h("div", { class: "tip ok" }, "URL guardada. ", R.h("a", { href: u, target: "_blank", rel: "noopener", text: "Abrir en una pestaña nueva ↗" }), " Probadla también en el móvil de alguien de otro equipo."));
       }
@@ -3709,7 +3741,7 @@ Nunca uses --force ni reset --hard, y no borres archivos. El repositorio es púb
       return {
         task: buildTask(d),
         material: buildMaterial(d, R),
-        format: "Primero un plan de 5–8 líneas; después, el archivo completo en un único bloque de código; al final, 5 líneas con lo hecho y lo pendiente."
+        format: "Primero un plan de 5–8 líneas; después, el archivo completo; al final, 5 líneas con lo hecho y lo pendiente.\n\n" + publicar(d, R)
       };
     },
     toText(d, R){
@@ -4626,7 +4658,7 @@ R.deliverable({
     example: {
       rows: [
         { id: "H1", tipo: "Problema", hip: "Los jóvenes que comparten piso en Madrid tienen conflictos de convivencia relevantes.", metodo: "Encuesta online, n = 120 jóvenes que comparten piso", crit: "≥ 60 % ha tenido un conflicto relevante en el último año", critPct: 60, res: "85 de 120 declaran un conflicto relevante", x: 85, n: 120, pct: "", estado: "ok" },
-        { id: "H2", tipo: "Valor", hip: "Una propuesta centrada en compañeros compatibles genera registros en la landing.", metodo: "Smoke test en la landing (Netlify + Tally), 412 visitantes únicos", crit: "≥ 25 % de visitantes únicos deja su email", critPct: 25, res: "128 de 412 dejan su email (A/B: 36,9 % con «compañero compatible» frente a 25,2 %)", x: 128, n: 412, pct: "", estado: "ok" },
+        { id: "H2", tipo: "Valor", hip: "Una propuesta centrada en compañeros compatibles genera registros en la landing.", metodo: "Smoke test en la landing (GitHub Pages + Tally), 412 visitantes únicos", crit: "≥ 25 % de visitantes únicos deja su email", critPct: 25, res: "128 de 412 dejan su email (A/B: 36,9 % con «compañero compatible» frente a 25,2 %)", x: 128, n: 412, pct: "", estado: "ok" },
         { id: "H3", tipo: "Intención", hip: "Los estudiantes usarían RoomieMatch para buscar su próximo compañero.", metodo: "Concept test en la encuesta, n = 120", crit: "≥ 40 % top-2-box en intención de uso (1–5)", critPct: 40, res: "58 de 120 responden 4 o 5", x: 58, n: 120, pct: "", estado: "mid" },
         { id: "H4", tipo: "Pago", hip: "Los estudiantes pagarán 9,99 €/mes por Match Premium.", metodo: "Pregunta de pago (n = 120) + botón «Probar Premium» en la landing", crit: "≥ 10 % dispuesto a pagar 9,99 €/mes", critPct: 10, res: "7 de 120 lo contratarían; fake door: 11 clics de 412 visitantes (2,7 %)", x: 7, n: 120, pct: "", estado: "no" }
       ],
@@ -5385,18 +5417,37 @@ R.deliverable({
       if (!anyBefore) importModelo();
 
       /* 5 · rehacer el prototipo */
-      b = R.step(el, 5, "Rehacer el prototipo", "35′ con Claude Code: el prototipo tiene que contar el pivote. Decidid qué cambia en la web, la app o la campaña (titular, beneficios, precios, CTA, flujo, público de los anuncios) y qué se queda igual. La versión original se conserva: el informe final enlaza el prototipo antes y después del pivote.");
+      b = R.step(el, 5, "Rehacer el prototipo", "35′ con Claude Code: el prototipo tiene que contar el pivote. Decidid qué cambia en la web, la app o la campaña (titular, beneficios, precios, CTA, flujo, público de los anuncios) y qué se queda igual. Antes de rehacer, Claude Code copia la versión actual a la carpeta v1/: así el «antes» sigue publicado y el informe final enlaza las dos URL.");
       R.list(b, { add: "Añadir cambio", numbered: true, onChange: () => paintPre(), cols: [
         { key: "pieza", label: "Pieza", ph: "Titular, CTA, precios, panel…", w: "150px" },
         { key: "antes", label: "Antes", type: "area", w: "1fr" },
         { key: "despues", label: "Después del pivote", type: "area", w: "1.2fr" }
       ] }, d.rehacer);
-      const urlAntes = () => { const p = R.state.st.prototipo; return p && typeof p.url === "string" ? p.url.trim() : ""; };
+      /* usuario de GitHub y repositorio: del prototipo (campo de usuario o URL publicada) y del nombre del proyecto */
+      const slug = s => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      const proto = () => { const p = R.state.st.prototipo; return p && typeof p === "object" ? p : {}; };
+      const urlAntes = () => { const u = proto().url; return typeof u === "string" ? u.trim() : ""; };
+      function ghUser(){
+        const p = proto();
+        for (const k of Object.keys(p)){ const nk = k.toLowerCase(); const v = p[k]; if (typeof v === "string" && v.trim() && /^(gh|github|usuario|user)/.test(nk) && !/^https?:/i.test(v.trim())) return v.trim().replace(/^@/, ""); }
+        const m = urlAntes().match(/^https?:\/\/([a-z0-9-]+)\.github\.io/i);
+        return m ? m[1] : "vuestro-usuario";
+      }
+      const proyecto = () => slug(R.project.nombre) || slug(R.project.equipo) || "proyecto";
+      const base = () => { const ua = urlAntes(); return /\.github\.io\//i.test(ua) ? ua.replace(/\/?$/, "/") : `https://${ghUser()}.github.io/ed-${proyecto()}/`; };
       const ur = H("div", { class: "row2" }); b.append(ur);
-      const ua = urlAntes();
-      ur.append(H("div", { class: "fld" }, H("span", { class: "pv-lab", text: "URL antes del pivote (estación Prototipo)" }), ua ? H("a", { href: ua, target: "_blank", rel: "noopener", class: "pv-m", style: "overflow-wrap:anywhere", text: ua }) : H("span", { class: "pv-m", text: "Vacía: escribidla en la estación 9 (Prototipo)." })));
-      R.field(ur, { label: "URL después del pivote", hint: "GitHub Pages, mismo repositorio", single: true, ph: ua ? ua.replace(/\/?$/, "/") + "pivote/" : "https://usuario.github.io/ed-equipo/pivote/" }, d, "url").addEventListener("input", () => paintPre());
-      b.append(H("p", { class: "sec-label", text: "Prompt para Claude Code · adaptar y publicar" }));
+      const antesBox = H("div", { class: "fld" });
+      ur.append(antesBox);
+      const urlD = R.field(ur, { label: "URL después del pivote", hint: "la que os dé Claude Code", single: true, ph: base() }, d, "url");
+      urlD.addEventListener("input", () => paintPre());
+      function paintAntes(){
+        const v1 = base() + "v1/";
+        antesBox.replaceChildren(H("span", { class: "pv-lab", text: "URL antes del pivote" }), H("a", { href: v1, target: "_blank", rel: "noopener", class: "pv-m", style: "overflow-wrap:anywhere", text: v1 }),
+          H("span", { class: "pv-m", text: urlAntes() ? "Es vuestra URL de la estación 9 + v1/ (la copia que se conserva)." : "Sin URL en la estación 9: se calcula con vuestro usuario de GitHub y el nombre del proyecto." }));
+        urlD.placeholder = base();
+      }
+      paintAntes();
+      b.append(H("p", { class: "sec-label", text: "Prompt para Claude Code · rehacer y publicar" }));
       const pre = H("pre", { class: "pv-pre" });
       const copyB = H("button", { class: "btn accent small", type: "button" }, "Copiar prompt de Claude Code");
       copyB.addEventListener("click", async () => {
@@ -5413,9 +5464,9 @@ R.deliverable({
         const lc = LC.filter(([k]) => (d.canvas[k].b || "").trim()).map(([k, n]) => `- ${n}${d.canvas[k].c && d.canvas[k].c !== "no" ? " (CAMBIA)" : ""}: ${d.canvas[k].b.trim()}`).join(NL);
         const rh = (d.rehacer || []).filter(x => x && ((x.pieza || "").trim() || (x.despues || "").trim())).map(x => `- ${x.pieza || "?"}: ${(x.antes || "").trim() ? "antes «" + x.antes.trim() + "» → " : ""}después «${(x.despues || "").trim()}»`).join(NL);
         const piv = [d.mantenemos ? "Mantenemos: " + d.mantenemos.trim() : "", d.cambiamos ? "Cambiamos: " + d.cambiamos.trim() : "", d.porque ? "Porque: " + d.porque.trim() : ""].filter(Boolean).join(" ");
-        const ua2 = urlAntes();
+        const u = ghUser(), p = proyecto(), bs = base();
         pre.textContent = [
-          `Lee CLAUDE.md y el prototipo que ya está en esta carpeta (es el repositorio que publicamos en GitHub Pages${ua2 ? ": " + ua2 : ""}).`,
+          "Lee CLAUDE.md y el prototipo que ya está en esta carpeta (es el repositorio que publicamos en GitHub Pages).",
           "",
           `Hemos pivotado (${tipo}). ${piv || "[mantenemos X, cambiamos Y porque Z]"}`,
           "",
@@ -5423,18 +5474,25 @@ R.deliverable({
           "",
           "Qué tiene que cambiar en el prototipo:", rh || "[pegar la lista de cambios]",
           "",
-          "1) Propón un plan corto (archivos que crearás o cambiarás) y espera mi OK.",
-          "2) Crea la versión pivotada en la carpeta pivote/ reutilizando estilos, componentes y textos que no cambian. NO borres ni modifiques la versión original: necesitamos la URL de antes y la de después.",
-          "3) Mantén la identidad visual. No inventes testimonios, logos de clientes ni cifras: usa solo las de este prompt o marca [FALTA DATO]. El CTA debe medir la nueva hipótesis (p. ej., «Solicitar piloto» hacia nuestro formulario de Tally).",
+          "1) Antes de rehacer nada, copia la versión actual a la carpeta v1/ para conservar el antes (ajusta las rutas relativas si hace falta para que v1/ funcione sola). No modifiques v1/ después.",
+          "2) Propón un plan corto (archivos que crearás o cambiarás) y espera mi OK.",
+          "3) Rehaz el prototipo en su sitio de siempre reutilizando estilos, componentes y textos que no cambian. Mantén la identidad visual. No inventes testimonios, logos de clientes ni cifras: usa solo las de este prompt o marca [FALTA DATO]. El CTA debe medir la nueva hipótesis (p. ej., «Solicitar piloto» hacia nuestro formulario de Tally).",
           `4) Actualiza la sección «Hipótesis» de CLAUDE.md con la nueva hipótesis más arriesgada${riskiest ? ": " + riskiest : ""}.`,
-          "5) Abre la página en local y revisa que funciona en móvil.",
-          "6) Publica en GitHub Pages en el MISMO repositorio: git add de los archivos cambiados, commit con un mensaje claro y push a main. Pídeme confirmación antes de cada comando git; nunca uses --force ni reset --hard; no subas datos/, CSV, transcripciones ni claves.",
-          `7) Dime la URL final${(d.url || "").trim() ? " (debería ser " + d.url.trim() + ")" : " (la de antes + pivote/)"} y recuérdame que puede tardar unos minutos en actualizarse.`
+          "5) Abre la página en local y revisa que funciona en móvil (la nueva y la de v1/).",
+          "",
+          "Cuando termines, publica el prototipo en GitHub Pages:",
+          "1. Si esta carpeta no es un repositorio git, inicialízalo con la rama main. Comprueba que .gitignore excluye datos/, .env y cualquier archivo con datos personales, y enséñame con «git status» qué se va a subir.",
+          `2. Si el repositorio aún no existe en GitHub, créalo público con «gh repo create ed-${p} --public --source=. --remote=origin --push». Si ya existe, haz commit con un mensaje claro en castellano y «git push».`,
+          `3. Si GitHub Pages no está activo, actívalo desde la rama main y la raíz con «gh api -X POST repos/${u}/ed-${p}/pages -f "source[branch]=main" -f "source[path]=/"» (si responde que ya existe, sigue).`,
+          `4. Comprueba cada 20 segundos, durante un máximo de 5 minutos, que la web responde, y dame la URL final: https://${u}.github.io/ed-${p}/ (y la de la subcarpeta web/ o app/ si el prototipo está ahí).`,
+          "Pídeme confirmación antes de cada comando que cambie algo en GitHub. Nunca uses --force ni borres repositorios.",
+          "",
+          `Al final dame las dos URL: antes (${bs}v1/) y después (${bs}), y comprueba que las dos responden.`
         ].join(NL);
       }
       paintPre();
-      el.addEventListener("input", () => paintPre()); el.addEventListener("change", () => paintPre());
-      R.tip(b, "Comprobad la URL después en el móvil de otra persona antes del re-pitch. Si GitHub se atasca, enseñad la versión local y publicad al terminar: lo importante es que el prototipo cuente el pivote.", "warn");
+      el.addEventListener("input", () => { paintAntes(); paintPre(); }); el.addEventListener("change", () => paintPre());
+      R.tip(b, "Comprobad las dos URL en el móvil de otra persona antes del re-pitch. <b>Plan B</b> si Claude Code no puede publicar: subid los archivos en la web del repositorio con «Add file → Upload files».", "warn");
 
       /* 6 · nuevas hipótesis y test card */
       b = R.step(el, 6, "Nuevas hipótesis y siguiente experimento", "Identificad el nuevo supuesto más arriesgado y diseñad el experimento más barato y rápido que pueda refutarlo (entrevistas, landing nueva, fake door, piloto concierge), con el criterio fijado ahora.");
