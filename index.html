@@ -2343,6 +2343,375 @@ R.station({
 })();
 
 </script>
+<script>/* 06_modelo.js */
+(() => {
+  /* Patrones de ingresos digitales: [valor, nombre, qué es, ejemplos reales, aplicado a RoomieMatch] */
+  const PATTERNS = [
+    ["freemium", "Freemium", "Lo básico es gratis y se paga por funciones avanzadas. Atrae a mucha gente, pero solo una parte pequeña acaba pagando: necesitáis volumen y una frontera clara entre gratis y pago.", "Spotify, Canva, LinkedIn Premium", "Test y 3 perfiles compatibles gratis; Premium 9,99 €/mes con perfiles ilimitados y verificación prioritaria."],
+    ["suscripcion", "Suscripción", "Cuota fija mensual o anual por usar el servicio. Ingresos previsibles; la métrica que manda es la tasa de baja (churn).", "Netflix, Duolingo, Notion", "Cuota mensual mientras buscas piso. Ojo: se busca piso una o dos veces al año, así que la baja será alta."],
+    ["marketplace", "Marketplace / comisión", "Conectáis a dos lados (oferta y demanda) y cobráis una comisión por cada transacción. Lo difícil es arrancar: sin oferta no llega la demanda y al revés.", "Airbnb, Wallapop, Glovo", "Comisión al propietario por cada habitación alquilada a través de la plataforma."],
+    ["publicidad", "Publicidad", "El usuario no paga; pagan los anunciantes por su atención. Solo funciona con mucha audiencia y uso frecuente.", "Google, Instagram, medios digitales", "Anuncios de mudanzas, muebles o bancos. Poca audiencia y uso esporádico: mal encaje."],
+    ["pagoUso", "Pago por uso", "Se paga por cada uso o unidad consumida (por consulta, por envío, por informe). Barrera de entrada baja, ingresos irregulares.", "AWS, pasarelas de pago, informes a medida", "Pago único por un informe de compatibilidad o por verificar un perfil."],
+    ["b2b2c", "B2B2C", "Una empresa paga para ofrecer vuestro servicio a SUS clientes, que lo usan gratis o con descuento. Convencéis a pocos clientes grandes en lugar de a miles de usuarios, pero la venta es más lenta.", "Seguros vendidos por bancos, plataformas de beneficios para empleados", "Residencias, coliving y propietarios pagan ≈29 € por habitación; los estudiantes lo usan gratis (el pivote del ejemplo)."]
+  ];
+
+  const LEAN_LABELS = { problema: "Problema", alternativas: "Alternativas existentes", segmentos: "Segmentos de clientes", early: "Early adopters", uvp: "Propuesta única de valor", concepto: "Concepto de alto nivel", solucion: "Solución", canales: "Canales", ingresos: "Fuentes de ingresos", costes: "Estructura de costes", metricas: "Métricas clave", ventaja: "Ventaja injusta" };
+  const BMC_LABELS = { socios: "Socios clave", actividades: "Actividades clave", recursos: "Recursos clave", propuesta: "Propuesta de valor", relaciones: "Relaciones con clientes", canales: "Canales", segmentos: "Segmentos de clientes", costes: "Estructura de costes", ingresos: "Fuentes de ingresos" };
+  const VPC_LABELS = { trabajos: "Trabajos del cliente", dolores: "Dolores", ganancias: "Ganancias", productos: "Productos y servicios", aliviadores: "Aliviadores de dolores", creadores: "Creadores de ganancias" };
+
+  const fitRows = g => g.querySelectorAll("textarea").forEach(t => { t.rows = Math.min(7, Math.max(2, String(t.value).split(/\n/).length + 1)); });
+  const splitLines = v => String(v || "").split(/\r?\n/).map(s => s.replace(/^\s*[-•*\d.)]+\s*/, "").replace(/^\[[A-Za-z?]{1,3}\]\s*/, "").trim()).filter(Boolean);
+
+  /* Lectura tolerante del mapa de empatía: busca claves de dolores, ganancias y trabajos (JTBD) a 3 niveles. */
+  function fromEmpatia(R){
+    const out = { trabajos: [], dolores: [], ganancias: [] };
+    const e = R.state && R.state.st && R.state.st.empatia;
+    if (!e || typeof e !== "object") return out;
+    const RX = [["dolores", /dolor|pain|frustr|miedo|esfuerzo/i], ["ganancias", /gananc|gain|alegr|deseo|logro|resultado/i], ["trabajos", /jtbd|job|trabajo|tarea/i]];
+    const texts = v => {
+      if (typeof v === "string") return splitLines(v);
+      if (Array.isArray(v)) return v.flatMap(x => typeof x === "string" ? splitLines(x) : (x && typeof x === "object") ? [Object.values(x).filter(y => typeof y === "string" && y.trim()).join(" — ")].filter(Boolean) : []);
+      if (v && typeof v === "object") return Object.values(v).flatMap(texts);
+      return [];
+    };
+    (function walk(o, depth){
+      for (const [k, v] of Object.entries(o)){
+        if (/^pov$/i.test(k)) continue;
+        const hit = RX.find(([, rx]) => rx.test(k));
+        if (hit) out[hit[0]].push(...texts(v));
+        else if (v && typeof v === "object" && !Array.isArray(v) && depth < 3) walk(v, depth + 1);
+      }
+    })(e, 0);
+    for (const k in out) out[k] = [...new Set(out[k])];
+    return out;
+  }
+
+  function conceptText(R){
+    const c = R.state.st.ideas && R.state.st.ideas.concept;
+    if (!c || typeof c !== "object") return "";
+    const main = [c.frase || c.propuesta || c.uvp || c.titular, c.beneficio].filter(x => x && String(x).trim()).join(" ");
+    return main || String(c.nombre || "").trim();
+  }
+
+  function calc(m){
+    const cac = +m.cac || 0, conv = (+m.conv || 0) / 100, p = +m.precio || 0;
+    const mg = (m.margen === "" || m.margen == null ? 100 : +m.margen) / 100, ch = (+m.churn || 0) / 100;
+    const ltv = ch > 0 ? p * mg / ch : null;
+    return { ltv, ratio: ltv != null && cac > 0 ? ltv / cac : null, life: ch > 0 ? 1 / ch : null, payback: p * mg > 0 && cac > 0 ? cac / (p * mg) : null, regs: conv > 0 ? 1 / conv : null, cpl: conv > 0 && cac > 0 ? cac * conv : null };
+  }
+
+  function ensure(d){
+    d.vpc = d.vpc || {}; d.lean = d.lean || {}; d.bmc = d.bmc || {}; d.m = d.m || {};
+    if (!Array.isArray(d.encaje)) d.encaje = [];
+    return d;
+  }
+
+  R.station({
+    id: "modelo", session: "S1", short: "Modelo de negocio", sub: "VPC, Lean Canvas y BMC",
+    title: "Modelo de negocio",
+    chips: ["S1 · 1.4", "Práctica P4 · 50′", "Nota NT-ED-03"],
+    goal: "Con el concepto elegido toca responder <b>quién paga, por qué y si salen las cuentas</b>. Primero comprobáis el encaje con el cliente (Value Proposition Canvas), luego dibujáis el modelo completo en un <b>Lean Canvas</b> y hacéis unas cuentas sencillas. El Business Model Canvas queda para cuando el modelo se estabilice.",
+    example: {
+      vpc: {
+        trabajos: "Cuando acabo de ser admitida en un máster en Madrid y busco habitación desde mi país, quiero saber cómo son las personas con las que voy a vivir, para llegar tranquila y dedicar el año a estudiar y hacer amigos, no a pelearme por el piso.\nEncontrar habitación antes de llegar a Madrid",
+        dolores: "No saber con quién vivirá hasta llegar.\nPerder la fianza al irse antes de tiempo.\nPerfiles sin verificar y anuncios falsos.\nConflictos por limpieza, ruido y horarios",
+        ganancias: "Pago seguro y rapidez para reservar.\nLlegar con amigos ya hechos.\nCentrarse en el máster, no en el piso.\nConvivir con alguien afín",
+        productos: "Web y app RoomieMatch\nTest de hábitos de 3 minutos\nChat dentro de la plataforma",
+        aliviadores: "Compatibilidad calculada y chat antes de firmar\nVerificación de identidad con la universidad\nPlantilla de acuerdo de convivencia (salida pactada y fianza)",
+        creadores: "Perfiles afines por hábitos y estudios\nComunidad de recién llegados\nTodo online desde tu país"
+      },
+      encaje: [
+        { dolor: "No saber con quién vivirá hasta llegar.", imp: "alta", aliviador: "Compatibilidad calculada y chat antes de firmar" },
+        { dolor: "Perder la fianza al irse antes de tiempo.", imp: "media", aliviador: "Plantilla de acuerdo de convivencia" },
+        { dolor: "Perfiles sin verificar y anuncios falsos.", imp: "alta", aliviador: "Verificación de identidad con la universidad" },
+        { dolor: "Conflictos por limpieza, ruido y horarios", imp: "alta", aliviador: "Test de hábitos + acuerdo de convivencia" }
+      ],
+      lean: {
+        problema: "1. No sabes con quién vas a convivir hasta que ya has firmado.\n2. Eliges piso a distancia, desde tu país, sin conocer a nadie.\n3. Los perfiles de los portales no son fiables (estafas, fotos falsas).",
+        alternativas: "Idealista, Badi, grupos de Facebook y WhatsApp, preguntar a conocidos; residencias caras.",
+        segmentos: "Estudiantes de máster internacionales que llegan a Madrid (22–30 años).",
+        early: "Admitidos en un máster que llegan en septiembre y aún no tienen piso.",
+        uvp: "Encuentra con quién vivir, no solo dónde: compañeros de piso compatibles y verificados antes de llegar a Madrid.",
+        concepto: "La compatibilidad de una app de citas, aplicada a compartir piso.",
+        solucion: "Test de hábitos de 3 minutos y emparejamiento por compatibilidad.\nPerfiles verificados.\nChat antes de decidir.",
+        canales: "Instagram y TikTok, grupos de WhatsApp de cada máster, oficinas internacionales de las universidades, embajadores.",
+        ingresos: "Freemium: test y 3 perfiles gratis; Premium 9,99 €/mes (perfiles ilimitados, verificación prioritaria).",
+        costes: "Desarrollo y mantenimiento de la web/app, verificación de perfiles, marketing de captación (CAC), tiempo del equipo.",
+        metricas: "% que completa el test\nRegistros / visitantes de la landing\nConversión a Premium\nEmparejamientos que acaban en convivencia",
+        ventaja: "Hoy, ninguna clara. A futuro: datos propios de convivencia y acuerdos con los másteres."
+      },
+      patron: "freemium",
+      patronNota: "Empezamos con freemium porque el estudiante es quien sufre el problema. Si la disposición a pagar sale baja, la alternativa es B2B2C: que paguen residencias y propietarios.",
+      m: { cac: 16, conv: 5.8, precio: 9.99, margen: 80, churn: 25 },
+      bmcOpen: false,
+      bmc: {
+        socios: "Residencias de estudiantes y operadores de coliving\nPropietarios con varias habitaciones\nOficinas internacionales de las universidades",
+        actividades: "Mejorar el test de compatibilidad\nVerificar perfiles\nCaptar y atender a residencias y propietarios",
+        recursos: "Algoritmo y datos de compatibilidad\nPlataforma web/app\nAcuerdos con residencias",
+        propuesta: "Estudiantes: compañeros compatibles y verificados, gratis.\nResidencias y propietarios: menos conflictos y menos rotación.",
+        relaciones: "Estudiantes: autoservicio y comunidad.\nB2B: gestor de cuenta y panel de ocupación.",
+        canales: "Estudiantes: redes sociales, másteres, embajadores.\nB2B: venta directa y ferias de alojamiento estudiantil.",
+        segmentos: "Estudiantes de máster internacionales (usuarios, gratis)\nResidencias, coliving y propietarios (clientes que pagan)",
+        costes: "Desarrollo, verificación, equipo comercial B2B, marketing a estudiantes.",
+        ingresos: "≈29 € por habitación que pagan residencias, coliving y propietarios; los estudiantes no pagan."
+      }
+    },
+    blank(){
+      const v = {}; Object.keys(VPC_LABELS).forEach(k => v[k] = "");
+      const l = {}; Object.keys(LEAN_LABELS).forEach(k => l[k] = "");
+      const b = {}; Object.keys(BMC_LABELS).forEach(k => b[k] = "");
+      return { vpc: v, encaje: [{ dolor: "", imp: "alta", aliviador: "" }], lean: l, patron: "", patronNota: "", m: { cac: "", conv: "", precio: "", margen: 80, churn: "" }, bmcOpen: false, bmc: b };
+    },
+    render(el, d, R){
+      ensure(d);
+      R.css("modelo", `
+        .md-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+        .md-msg{font-size:12.5px;color:var(--soft)}
+        .md-colh{font:700 11px var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:var(--soft);padding:2px 2px 0}
+        .md-lean .cell textarea,.md-bmc .cell textarea{min-height:46px}
+        .md-lean .cell.sub,.md-bmc .cell.sub{background:var(--sunk)}
+        .md-pat{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--bg);display:flex;flex-direction:column;gap:4px;font-size:14px}
+        .md-pat b{font-weight:700}
+        .md-pat .ex{color:var(--soft);font-size:13px}
+        details.md-opt{border:1px dashed var(--line);border-radius:12px;padding:10px 12px;background:var(--bg)}
+        details.md-opt>summary{cursor:pointer;font-weight:600}
+        details.md-opt[open]>summary{margin-bottom:10px}
+        .md-optbody{display:flex;flex-direction:column;gap:12px}
+        @media(max-width:700px){.md-stack{grid-template-columns:1fr!important}.md-stack>*{grid-column:auto!important;grid-row:auto!important}}
+      `);
+
+      R.tip(el, "<b>¿Por qué tres lienzos?</b> Miran lo mismo con distinto zoom. El <b>Value Proposition Canvas</b> hace zoom en el encaje entre lo que ofrecéis y lo que el cliente necesita. El <b>Lean Canvas</b> es el modelo de una startup que aún tiene más dudas que certezas (problema, métricas, ventaja). El <b>Business Model Canvas</b> describe una empresa más estable (socios, recursos, actividades). Hoy trabajáis con los dos primeros.");
+
+      /* ---------- 1. VPC ---------- */
+      let b = R.step(el, 1, "Value Proposition Canvas", "Dos mitades que tienen que encajar. A la derecha, el perfil del cliente: sus trabajos (lo que intenta conseguir), dolores y ganancias; sale de vuestro mapa de empatía. A la izquierda, vuestro mapa de valor: qué ofrecéis, qué dolores alivia y qué ganancias crea. Una idea por línea.");
+      const emp = fromEmpatia(R);
+      const empN = emp.trabajos.length + emp.dolores.length + emp.ganancias.length;
+      function mergeEmp(){
+        let n = 0;
+        ["trabajos", "dolores", "ganancias"].forEach(k => {
+          const have = splitLines(d.vpc[k]).map(s => s.toLowerCase());
+          const add = emp[k].filter(s => !have.includes(s.toLowerCase()));
+          if (add.length){ d.vpc[k] = [String(d.vpc[k] || "").trim(), ...add].filter(Boolean).join("\n"); n += add.length; }
+        });
+        return n;
+      }
+      if (!R.filled([d.vpc.trabajos, d.vpc.dolores, d.vpc.ganancias]) && empN){ mergeEmp(); R.save(); }
+      const msg = R.h("span", { class: "md-msg", "aria-live": "polite" });
+      const vpcBox = R.h("div");
+      b.append(R.h("div", { class: "md-bar" },
+        R.h("button", { class: "btn small", type: "button", on: { click: () => {
+          if (!empN){ msg.textContent = "El mapa de empatía todavía está vacío: rellenadlo o escribid aquí el perfil."; return; }
+          const n = mergeEmp(); R.save(); drawVpc();
+          msg.textContent = n ? `Añadidas ${n} líneas del mapa de empatía (sin borrar lo vuestro).` : "Ya teníais todo lo del mapa de empatía.";
+        } } }, "Traer del mapa de empatía"), msg));
+      b.append(vpcBox);
+      function drawVpc(){
+        vpcBox.replaceChildren();
+        const g = R.grid(vpcBox, { cols: 2, minCol: 200, cells: [
+          { key: "ganancias", label: "Ganancias", hint: "Qué le alegraría o superaría sus expectativas", col: "2", row: "2" },
+          { key: "dolores", label: "Dolores", hint: "Qué le molesta, preocupa o frena", col: "2", row: "3" },
+          { key: "trabajos", label: "Trabajos del cliente (JTBD)", hint: "Qué intenta conseguir", col: "2", row: "4" },
+          { key: "creadores", label: "Creadores de ganancias", hint: "Cómo producís esas ganancias", col: "1", row: "2", hi: true },
+          { key: "aliviadores", label: "Aliviadores de dolores", hint: "Cómo elimináis o reducís cada dolor", col: "1", row: "3", hi: true },
+          { key: "productos", label: "Productos y servicios", hint: "Lo que ofrecéis", col: "1", row: "4", hi: true }
+        ] }, d.vpc);
+        g.classList.add("md-stack"); fitRows(g);
+        g.prepend(R.h("div", { class: "md-colh", style: "grid-column:2;grid-row:1" }, "Perfil del cliente (ellos)"));
+        g.children[4].before(R.h("div", { class: "md-colh", style: "grid-column:1;grid-row:1" }, "Mapa de valor (vosotros)"));
+      }
+      drawVpc();
+
+      /* ---------- 2. Encaje ---------- */
+      b = R.step(el, 2, "Comprobad el encaje", "Hay encaje cuando cada dolor importante tiene un aliviador concreto. Cargad los dolores del perfil, marcad su importancia y escribid qué parte de vuestra solución lo alivia. Si no hay nada, o falta producto o sobra dolor.");
+      const fitMsg = R.h("span", { class: "md-msg", "aria-live": "polite" });
+      const verdict = R.h("div");
+      let fitList;
+      b.append(R.h("div", { class: "md-bar" }, R.h("button", { class: "btn small", type: "button", on: { click: () => {
+        const have = d.encaje.map(x => String(x.dolor || "").trim().toLowerCase());
+        const add = splitLines(d.vpc.dolores).filter(s => !have.includes(s.toLowerCase()));
+        const keep = d.encaje.filter(x => R.filled([x.dolor, x.aliviador]));
+        d.encaje.splice(0, d.encaje.length, ...keep, ...add.map(s => ({ dolor: s, imp: "alta", aliviador: "" })));
+        R.save(); fitList.redraw(); paintFit();
+        fitMsg.textContent = add.length ? `Cargados ${add.length} dolores nuevos.` : "No hay dolores nuevos en el perfil.";
+      } } }, "Cargar los dolores del perfil"), fitMsg));
+      fitList = R.list(b, { add: "Añadir dolor", onChange: () => paintFit(), cols: [
+        { key: "dolor", label: "Dolor", ph: "Qué le duele", w: "1.3fr" },
+        { key: "imp", label: "Importancia", type: "select", options: [["alta", "Alta"], ["media", "Media"], ["baja", "Baja"]], def: "alta", w: "110px" },
+        { key: "aliviador", label: "¿Qué lo alivia?", ph: "Vacío = sin aliviador", w: "1.3fr" }
+      ] }, d.encaje);
+      b.append(verdict);
+      function paintFit(){
+        const rows = d.encaje.filter(x => String(x.dolor || "").trim());
+        const high = rows.filter(x => x.imp === "alta");
+        const gaps = high.filter(x => !String(x.aliviador || "").trim());
+        verdict.replaceChildren();
+        if (!rows.length){ verdict.append(R.h("div", { class: "tip", text: "Cargad o escribid al menos tres dolores para comprobar el encaje." })); return; }
+        if (!high.length){ verdict.append(R.h("div", { class: "verdict mid", text: "Ningún dolor marcado como importante. Si nada duele de verdad, nadie cambiará lo que hace hoy." })); return; }
+        if (gaps.length) verdict.append(R.h("div", { class: "verdict no", text: `${gaps.length} de ${high.length} dolores importantes sin aliviador: ${gaps.map(x => x.dolor).join("; ")}.` }));
+        else verdict.append(R.h("div", { class: "verdict ok", text: `Los ${high.length} dolores importantes tienen aliviador. Encaje sobre el papel: ahora hay que comprobarlo con clientes.` }));
+      }
+      paintFit();
+
+      /* ---------- 3. Lean Canvas ---------- */
+      b = R.step(el, 3, "Lean Canvas", "El lienzo de Ash Maurya para startups: 9 bloques en una página. Rellenadlo en el orden de los números: primero problema y cliente, después la propuesta y la solución, y al final las cuentas. Si un bloque es una suposición, decidlo: lo probaréis en la sesión 2.");
+      const leanMsg = R.h("span", { class: "md-msg", "aria-live": "polite" });
+      const leanBox = R.h("div");
+      function prefillLean(){
+        const pov = R.state.st.empatia && String(R.state.st.empatia.pov || "").trim();
+        const semilla = R.state.st.semilla || {};
+        const src = { uvp: conceptText(R), segmentos: String(R.project.segmento || "").trim(), problema: pov || String(R.project.reto || "").trim(), alternativas: String(semilla.hoy || "").trim() };
+        const done = [];
+        for (const [k, v] of Object.entries(src)) if (v && !String(d.lean[k] || "").trim()){ d.lean[k] = v; done.push(LEAN_LABELS[k]); }
+        return done;
+      }
+      if (!R.filled(Object.values(d.lean))){ if (prefillLean().length) R.save(); }
+      b.append(R.h("div", { class: "md-bar" }, R.h("button", { class: "btn small", type: "button", on: { click: () => {
+        const done = prefillLean(); R.save(); drawLean();
+        leanMsg.textContent = done.length ? "Rellenado desde estaciones anteriores: " + done.join(", ") + "." : "Nada que traer: esos bloques ya tienen texto (o las estaciones anteriores están vacías).";
+      } } }, "Traer del concepto, el proyecto y el POV"), leanMsg));
+      b.append(leanBox);
+      function drawLean(){
+        leanBox.replaceChildren();
+        const g = R.grid(leanBox, { cols: 10, minCol: 50, cells: [
+          { key: "problema", label: "1 · Problema", hint: "Los 3 más importantes", col: "1 / span 2", row: "1 / span 3" },
+          { key: "alternativas", label: "Alternativas existentes", hint: "Cómo lo resuelven hoy", col: "1 / span 2", row: "4" },
+          { key: "solucion", label: "4 · Solución", hint: "Una por problema", col: "3 / span 2", row: "1 / span 2" },
+          { key: "metricas", label: "8 · Métricas clave", hint: "Qué números miraréis", col: "3 / span 2", row: "3 / span 2" },
+          { key: "uvp", label: "3 · Propuesta única de valor", hint: "Por qué sois diferentes y merecéis atención", col: "5 / span 2", row: "1 / span 3", hi: true },
+          { key: "concepto", label: "Concepto de alto nivel", hint: "«X para Y»", col: "5 / span 2", row: "4" },
+          { key: "ventaja", label: "9 · Ventaja injusta", hint: "Lo que no se copia ni se compra fácil", col: "7 / span 2", row: "1 / span 2" },
+          { key: "canales", label: "5 · Canales", hint: "Cómo llegáis a ellos", col: "7 / span 2", row: "3 / span 2" },
+          { key: "segmentos", label: "2 · Segmentos de clientes", hint: "Quién tiene el problema", col: "9 / span 2", row: "1 / span 3" },
+          { key: "early", label: "Early adopters", hint: "Los primeros que lo usarán", col: "9 / span 2", row: "4" },
+          { key: "costes", label: "7 · Estructura de costes", col: "1 / span 5", row: "5" },
+          { key: "ingresos", label: "6 · Fuentes de ingresos", hint: "Quién paga, cuánto y cómo", col: "6 / span 5", row: "5" }
+        ] }, d.lean);
+        g.classList.add("md-lean", "md-stack"); fitRows(g);
+        [1, 5, 9].forEach(i => g.children[i] && g.children[i].classList.add("sub"));
+      }
+      drawLean();
+
+      /* ---------- 4. Patrón de ingresos ---------- */
+      b = R.step(el, 4, "Patrón de ingresos digital", "Casi todos los negocios digitales cobran de una de estas formas. Elegid la que mejor encaja con quién paga y cada cuánto usa el servicio.");
+      const patBox = R.h("div");
+      R.select(b, { label: "Patrón", options: [["", "Elegid uno"], ...PATTERNS.map(p => [p[0], p[1]])], onChange: () => paintPat() }, d, "patron");
+      b.append(patBox);
+      R.field(b, { label: "Cómo lo aplicaríais vosotros", hint: "Qué es gratis, qué se paga y quién paga", rows: 2 }, d, "patronNota");
+      function paintPat(){
+        const p = PATTERNS.find(x => x[0] === d.patron);
+        patBox.replaceChildren(p
+          ? R.h("div", { class: "md-pat" }, R.h("span", null, R.h("b", { text: p[1] + ". " }), p[2]), R.h("span", { class: "ex", text: "Ejemplos: " + p[3] + "." }), R.h("span", { class: "ex", text: "En RoomieMatch: " + p[4] }))
+          : R.h("div", { class: "tip", text: "Elegid un patrón para ver qué es, ejemplos y cómo se aplicaría al ejemplo RoomieMatch." }));
+      }
+      paintPat();
+
+      /* ---------- 5. Métricas unitarias ---------- */
+      b = R.step(el, 5, "Cuentas por cliente (métricas unitarias)", "CAC: lo que os cuesta conseguir un cliente que paga. LTV: lo que os deja ese cliente mientras sigue (precio × margen ÷ tasa de baja mensual). Regla habitual: LTV/CAC de 3 o más; por debajo de 1 perdéis dinero con cada cliente.");
+      const r1 = R.h("div", { class: "row3" }); b.append(r1);
+      R.number(r1, { label: "CAC (€)", hint: "por cliente de pago", min: 0, onChange: () => paintM() }, d.m, "cac");
+      R.number(r1, { label: "Conversión a pago (%)", hint: "de registro a pago", min: 0, max: 100, onChange: () => paintM() }, d.m, "conv");
+      R.number(r1, { label: "Precio (€/mes)", min: 0, onChange: () => paintM() }, d.m, "precio");
+      const r2 = R.h("div", { class: "row2" }); b.append(r2);
+      R.number(r2, { label: "Margen bruto (%)", hint: "lo que queda tras costes directos", min: 0, max: 100, onChange: () => paintM() }, d.m, "margen");
+      R.number(r2, { label: "Churn mensual (%)", hint: "clientes que se dan de baja cada mes", min: 0, max: 100, onChange: () => paintM() }, d.m, "churn");
+      const mBox = R.h("div", { style: "display:flex;flex-direction:column;gap:10px" }); b.append(mBox);
+      R.tip(b, "<b>Ejemplo ficticio.</b> En RoomieMatch, el CAC de 16 € y el churn del 25 % son supuestos de clase; la conversión del 5,8 % es la que saldrá en H4. Con un LTV ≈ 32 € el B2C no llega a 3×: es la primera pista del pivote a B2B2C. Vosotros, si no tenéis datos, poned un rango y marcadlo como supuesto.", "warn");
+      function paintM(){
+        const c = calc(d.m), S = R.stats;
+        const k = (v, l) => R.h("div", { class: "k" }, R.h("div", { class: "v", text: v }), R.h("div", { class: "l", text: l }));
+        mBox.replaceChildren(R.h("div", { class: "stat" },
+          k(c.ltv != null ? S.num(c.ltv) + " €" : "–", "LTV por cliente de pago"),
+          k(c.ratio != null ? S.num(c.ratio, 1) + "×" : "–", "LTV / CAC"),
+          k(c.payback != null ? S.num(c.payback, 1) + " meses" : "–", "Recuperar el CAC"),
+          k(c.life != null ? S.num(c.life, 1) + " meses" : "–", "Vida media del cliente"),
+          k(c.regs != null ? S.num(c.regs, 0) : "–", "Registros por cliente de pago"),
+          k(c.cpl != null ? S.num(c.cpl) + " €" : "–", "Coste máx. por registro")));
+        if (c.ratio == null){ mBox.append(R.h("div", { class: "tip", text: "Rellenad CAC, precio y churn para calcular LTV y LTV/CAC." })); return; }
+        const cls = c.ratio >= 3 ? "ok" : c.ratio >= 1 ? "mid" : "no";
+        const txt = c.ratio >= 3 ? "LTV/CAC de 3 o más: las cuentas aguantan, si los supuestos se confirman." : c.ratio >= 1 ? "Ganáis algo por cliente, pero poco margen para errores: bajad el CAC, subid precio o reducid la baja." : "Cada cliente cuesta más de lo que deja. Cambiad algo del modelo antes de escalar.";
+        mBox.append(R.h("div", { class: "verdict " + cls, text: txt }));
+      }
+      paintM();
+
+      /* ---------- 6. BMC opcional ---------- */
+      b = R.step(el, 6, "Business Model Canvas (opcional)", "Los 9 bloques de Osterwalder. Añade lo que el Lean Canvas no tiene: socios, actividades, recursos y relaciones. Útil cuando sabéis quién paga y necesitáis organizar la empresa.");
+      const det = R.h("details", { class: "md-opt" }, R.h("summary", { text: "Para cuando el modelo se estabilice o al pivotar (p. ej. B2B2C con socios)" }));
+      if (d.bmcOpen) det.open = true;
+      det.addEventListener("toggle", () => { d.bmcOpen = det.open; R.save(); });
+      const ob = R.h("div", { class: "md-optbody" }); det.append(ob); b.append(det);
+      const bmcBox = R.h("div");
+      const bmcZone = R.h("span", { class: "md-bar" });
+      const COMMON = { segmentos: l => [l.segmentos, l.early ? "Early adopters: " + l.early : ""].filter(x => x && String(x).trim()).join("\n"), propuesta: l => l.uvp, canales: l => l.canales, ingresos: l => l.ingresos, costes: l => l.costes };
+      function copyLean(){
+        for (const [k, fn] of Object.entries(COMMON)) d.bmc[k] = String(fn(d.lean) || "").trim();
+        R.save(); drawBmc(); paintZone("Copiados segmentos, propuesta de valor, canales, ingresos y costes. Completad socios, actividades, recursos y relaciones.");
+      }
+      function paintZone(note){
+        bmcZone.replaceChildren(R.h("button", { class: "btn small", type: "button", on: { click: () => {
+          const busy = Object.keys(COMMON).filter(k => String(d.bmc[k] || "").trim());
+          if (!busy.length){ copyLean(); return; }
+          bmcZone.replaceChildren(R.h("span", { class: "md-msg", text: `Se sustituirán ${busy.length} bloques del BMC que ya tienen texto.` }),
+            R.h("button", { class: "btn accent small", type: "button", on: { click: copyLean } }, "Sí, pasar"),
+            R.h("button", { class: "btn small", type: "button", on: { click: () => paintZone() } }, "Cancelar"));
+        } } }, "Pasar del Lean Canvas al BMC"), R.h("span", { class: "md-msg", "aria-live": "polite", text: note || "" }));
+      }
+      paintZone();
+      ob.append(R.h("p", { class: "md-msg", style: "margin:0", text: "Bloques comunes con el Lean Canvas: segmentos, propuesta de valor, canales, ingresos y costes. Nuevos: socios, actividades, recursos y relaciones (resaltados)." }), bmcZone, bmcBox);
+      function drawBmc(){
+        bmcBox.replaceChildren();
+        const g = R.grid(bmcBox, { cols: 10, minCol: 50, cells: [
+          { key: "socios", label: "Socios clave", hint: "Nuevo", col: "1 / span 2", row: "1 / span 2", hi: true },
+          { key: "actividades", label: "Actividades clave", hint: "Nuevo", col: "3 / span 2", row: "1", hi: true },
+          { key: "recursos", label: "Recursos clave", hint: "Nuevo", col: "3 / span 2", row: "2", hi: true },
+          { key: "propuesta", label: "Propuesta de valor", col: "5 / span 2", row: "1 / span 2" },
+          { key: "relaciones", label: "Relaciones con clientes", hint: "Nuevo", col: "7 / span 2", row: "1", hi: true },
+          { key: "canales", label: "Canales", col: "7 / span 2", row: "2" },
+          { key: "segmentos", label: "Segmentos de clientes", col: "9 / span 2", row: "1 / span 2" },
+          { key: "costes", label: "Estructura de costes", col: "1 / span 5", row: "3" },
+          { key: "ingresos", label: "Fuentes de ingresos", col: "6 / span 5", row: "3" }
+        ] }, d.bmc);
+        g.classList.add("md-bmc", "md-stack"); fitRows(g);
+      }
+      drawBmc();
+    },
+    progress(d){
+      ensure(d);
+      return R.share([d.vpc.trabajos, d.vpc.dolores, d.vpc.aliviadores || d.vpc.creadores, d.lean.problema, d.lean.segmentos, d.lean.uvp, d.lean.solucion, d.lean.ingresos, d.patron, d.m.cac && d.m.precio && d.m.churn ? "x" : ""]);
+    },
+    prompt(d, R){
+      ensure(d);
+      const c = calc(d.m), S = R.stats;
+      const p = PATTERNS.find(x => x[0] === d.patron);
+      const fit = R.lines(d.encaje, x => `- [${x.imp || "?"}] ${x.dolor || "…"} → ${String(x.aliviador || "").trim() || "SIN ALIVIADOR"}`);
+      const m = d.m;
+      const met = R.filled([m.cac, m.precio, m.churn]) ? [
+        `CAC ${m.cac} € · conversión a pago ${m.conv} % · precio ${m.precio} €/mes · margen ${m.margen} % · churn mensual ${m.churn} %`,
+        c.ltv != null ? `→ LTV ${S.num(c.ltv)} € · LTV/CAC ${c.ratio != null ? S.num(c.ratio, 1) + "×" : "–"} · recuperación del CAC ${c.payback != null ? S.num(c.payback, 1) + " meses" : "–"}` : ""
+      ].filter(Boolean).join("\n") : "(sin métricas)";
+      const bmcTxt = R.filled(Object.values(d.bmc)) ? "\nBusiness Model Canvas (opcional):\n" + R.kv(d.bmc, BMC_LABELS) : "";
+      return {
+        task: "Revisa nuestro modelo de negocio. 1) Encaje: ¿qué dolores importantes quedan sin aliviador y qué aliviadores no responden a ningún dolor real? 2) Lean Canvas: señala los 3 bloques más arriesgados (los que, si son falsos, hunden el proyecto) y cómo probaríamos cada uno en una semana. 3) ¿El patrón de ingresos encaja con quién paga y con la frecuencia de uso? Propón una alternativa y qué cambiaría en el lienzo. 4) Métricas unitarias: ¿qué palanca (precio, conversión, churn o CAC) moverías primero y por qué? No inventes cifras de mercado: si falta un dato, di cómo obtenerlo.",
+        material: [
+          "Value Proposition Canvas:", R.kv(d.vpc, VPC_LABELS) || "(vacío)",
+          "Encaje dolor → aliviador:", fit || "(vacío)",
+          "Lean Canvas:", R.kv(d.lean, LEAN_LABELS) || "(vacío)",
+          `Patrón de ingresos: ${p ? p[1] : "(sin elegir)"}${d.patronNota ? " — " + d.patronNota : ""}`,
+          "Métricas unitarias:", met
+        ].join("\n") + bmcTxt,
+        format: "Cuatro apartados numerados con viñetas cortas. Máximo 350 palabras."
+      };
+    },
+    links: [
+      ["LEANSTACK", "Lean Canvas original de Ash Maurya", "https://www.leanstack.com/lean-canvas"],
+      ["Strategyzer · VPC", "Value Proposition Canvas explicado", "https://www.strategyzer.com/library/the-value-proposition-canvas"],
+      ["Strategyzer · BMC", "Business Model Canvas", "https://www.strategyzer.com/library/the-business-model-canvas"],
+      ["Miro", "Plantillas de lienzos para el equipo", "https://miro.com/templates/"],
+      ["FigJam", "Pizarra colaborativa de Figma", "https://www.figma.com/figjam/"]
+    ]
+  });
+})();
+
+</script>
 <script>/* 06z_entregable_s1.js */
 R.deliverable({
   id: "entregable1", session: "S1", file: "entregable_S1", short: "Entregable S1", sub: "Se genera solo",
@@ -2361,6 +2730,843 @@ R.deliverable({
   },
   links: []
 });
+
+</script>
+<script>/* 07_supuestos.js */
+(() => {
+  /* Tipos de MVP: [valor, nombre, qué es, cuándo usarlo, coste, fuerza de la evidencia, ejemplo RoomieMatch] */
+  const MVPS = [
+    ["smoke", "Smoke test (landing)", "Una página que presenta el producto como si ya existiera, con un botón de registro o lista de espera. Medís cuánta gente hace clic o deja su email.", "Para comprobar si interesa (deseabilidad) antes de construir nada.", "Horas", "Media", "Landing «Encuentra con quién vivir, no solo dónde» con lista de espera y A/B de titular (H2)."],
+    ["fake", "Fake door (puerta falsa)", "Un botón para una función o precio que todavía no existe. Al pulsarlo, se explica con honestidad que llega pronto. Medís los clics.", "Para medir interés por una función o un precio concreto.", "Minutos", "Media", "Botón «Premium 9,99 €/mes» en la landing (H4)."],
+    ["concierge", "Concierge", "Dais el servicio a mano a unos pocos clientes, y ellos saben que es manual. Aprendéis muchísimo de cada uno.", "Para entender el proceso real antes de automatizarlo.", "Días", "Fuerte", "Emparejar a mano a 10 estudiantes con un formulario y una hoja de cálculo."],
+    ["mago", "Mago de Oz", "El cliente cree que usa un producto automático, pero detrás hay personas haciéndolo a mano.", "Para probar la experiencia completa sin programar el «motor».", "Días", "Fuerte", "El «algoritmo» de compatibilidad lo calcula el equipo a mano durante una semana."],
+    ["clicable", "Prototipo clicable", "Pantallas enlazadas (Figma o HTML) que simulan el uso real, sin programación detrás. Sirve para tests de usabilidad.", "Para comprobar si se entiende y se usa (factibilidad y usabilidad).", "Horas", "Débil–media", "Las 4 pantallas de la app (bienvenida, test, compatibles, chat) con 5 tests de usabilidad."],
+    ["preventa", "Preventa", "Vendéis antes de tenerlo: reserva, pago por adelantado o carta de intención (en B2B). Es la prueba más fuerte de que alguien pagará.", "Para validar viabilidad: que paguen de verdad.", "Días", "Muy fuerte", "Carta de intención de una residencia para un piloto (pivote B2B2C)."]
+  ];
+  const TIPOS = [["deseabilidad", "Deseabilidad"], ["viabilidad", "Viabilidad"], ["factibilidad", "Factibilidad"]];
+  const isHot = s => Number(s.imp) > 3 && Number(s.ev) < 3;
+
+  function ensure(d){
+    if (!Array.isArray(d.sup)) d.sup = [];
+    if (!Array.isArray(d.cards)) d.cards = [];
+    return d;
+  }
+
+  R.station({
+    id: "supuestos", session: "S2", short: "Supuestos y experimentos", sub: "Qué probar primero y cómo",
+    title: "Supuestos y experimentos",
+    chips: ["S2 · 2.1", "Práctica P5 · 30′", "Nota NT-ED-04"],
+    goal: "Vuestro modelo está lleno de cosas que <b>creéis</b> pero no <b>sabéis</b>. Listad esos supuestos, colocadlos en el mapa y elegid los que, si fallan, hunden el proyecto y aún no tienen pruebas. Para cada uno, una <b>test card</b> con el criterio de éxito fijado antes de salir a medir.",
+    example: {
+      sup: [
+        { txt: "Los estudiantes de máster internacionales tienen problemas serios de convivencia al compartir piso", tipo: "deseabilidad", imp: "5", ev: "2" },
+        { txt: "Se apuntarán a una lista de espera si les explicamos el servicio", tipo: "deseabilidad", imp: "5", ev: "1" },
+        { txt: "Confían en un test de compatibilidad para elegir compañero", tipo: "deseabilidad", imp: "4", ev: "1" },
+        { txt: "Pagarían 9,99 €/mes por Premium", tipo: "viabilidad", imp: "5", ev: "1" },
+        { txt: "Podemos conseguir clientes de pago con un CAC de 16 € o menos", tipo: "viabilidad", imp: "4", ev: "1" },
+        { txt: "Residencias y propietarios pagarían por inquilinos compatibles", tipo: "viabilidad", imp: "3", ev: "1" },
+        { txt: "Podemos verificar perfiles sin un coste alto", tipo: "factibilidad", imp: "3", ev: "2" },
+        { txt: "Buscan piso sobre todo a través de redes sociales y grupos", tipo: "deseabilidad", imp: "2", ev: "4" }
+      ],
+      mvp: "smoke",
+      cards: [
+        { hip: "Los estudiantes de máster internacionales han tenido problemas serios de convivencia al compartir piso.", exp: "Encuesta a 120 estudiantes de máster (pregunta filtro sobre su experiencia) y 12 entrevistas en profundidad.", metrica: "% que ha tenido al menos un problema serio de convivencia", criterio: "≥ 60 %", plazo: "1 semana (antes de la sesión 3)", mvp: "" },
+        { hip: "Si les explicamos el servicio, se apuntarán a la lista de espera.", exp: "Smoke test: landing con CTA «Haz el test gratis» y lista de espera; tráfico de Instagram y grupos de WhatsApp de másteres; A/B de dos titulares.", metrica: "Registros / visitantes únicos", criterio: "≥ 25 %", plazo: "7 días con la landing publicada", mvp: "smoke" },
+        { hip: "Confían en un emparejamiento por compatibilidad para elegir compañero.", exp: "Pregunta de intención de uso (escala 1–5) en la encuesta, después de ver la propuesta.", metrica: "Top-2-box: % que responde 4 o 5", criterio: "≥ 40 % top-2-box", plazo: "1 semana", mvp: "" },
+        { hip: "Pagarían 9,99 €/mes por la versión Premium.", exp: "Pregunta de disposición a pagar en la encuesta + fake door «Premium 9,99 €/mes» en la landing.", metrica: "% que pagaría (encuesta) y % de clics en Premium (fake door)", criterio: "≥ 10 %", plazo: "7 días", mvp: "fake" }
+      ]
+    },
+    blank(){ return { sup: [{ txt: "", tipo: "deseabilidad", imp: "3", ev: "3" }], mvp: "", cards: [{ hip: "", exp: "", metrica: "", criterio: "", plazo: "", mvp: "" }] }; },
+    render(el, d, R){
+      ensure(d);
+      R.css("supuestos", `
+        .su-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+        .su-msg{font-size:12.5px;color:var(--soft)}
+        .su-hotq{position:absolute;left:50%;top:0;right:0;bottom:50%;background:var(--red-soft)}
+        .su-ax{display:flex;justify-content:space-between;gap:8px;font-size:11.5px;color:var(--soft);margin-top:4px}
+        .su-maprow{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:14px;align-items:start}
+        @media(max-width:760px){.su-maprow{grid-template-columns:1fr}}
+        .su-legend{display:flex;flex-direction:column;gap:6px;font-size:13.5px}
+        .su-legend .it{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:8px;align-items:center;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:6px 8px}
+        .su-legend .it.hot{border-color:var(--red)}
+        .su-legend .n{font:600 12px var(--f-mono);color:var(--soft)}
+        .su-legend .it.hot .n{color:var(--red)}
+        .su-mvp{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--bg);display:grid;gap:6px;font-size:14px}
+        .su-mvp .meta{display:flex;gap:6px;flex-wrap:wrap}
+        .su-mvp .ex{color:var(--soft);font-size:13px}
+        .su-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:12px}
+        .su-card{background:var(--bg);border:1px solid var(--line);border-left:4px solid var(--navy);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;min-width:0}
+        .su-card .hd{display:flex;justify-content:space-between;align-items:center;gap:8px}
+        .su-card .id{font:800 18px var(--f-display);color:var(--red)}
+        .su-card .fld textarea,.su-card .fld input,.su-card .fld select{background:var(--panel)}
+        .su-del{border:0;background:transparent;color:var(--soft);cursor:pointer;font-size:18px;line-height:1;padding:4px 8px;border-radius:6px}
+        .su-del:hover{color:var(--red);background:var(--red-soft)}
+      `);
+
+      /* ---------- 1. Lista ---------- */
+      let b = R.step(el, 1, "Lista de supuestos", "Un supuesto es algo que dais por cierto sin tener pruebas. Clasificadlo: deseabilidad (¿lo quieren?), viabilidad (¿es negocio?) o factibilidad (¿sabemos hacerlo?). Puntuad de 1 a 5 su importancia (si es falso, ¿se hunde el proyecto?) y la evidencia que ya tenéis.");
+      const supMsg = R.h("span", { class: "su-msg", "aria-live": "polite" });
+      let supList;
+      const LEAN_MAP = [["problema", "deseabilidad", "El problema existe y es importante: "], ["segmentos", "deseabilidad", "Nuestro cliente es: "], ["uvp", "deseabilidad", "Les convence esta propuesta: "], ["canales", "viabilidad", "Llegaremos a ellos por: "], ["ingresos", "viabilidad", "Pagarán así: "], ["costes", "viabilidad", "Los costes serán: "], ["solucion", "factibilidad", "Podemos construir: "]];
+      b.append(R.h("div", { class: "su-bar" }, R.h("button", { class: "btn small", type: "button", on: { click: () => {
+        const lean = (R.state.st.modelo && R.state.st.modelo.lean) || {};
+        const have = d.sup.map(s => String(s.txt || "").trim().toLowerCase());
+        const add = [];
+        LEAN_MAP.forEach(([k, tipo, pre]) => {
+          const first = String(lean[k] || "").split(/\r?\n/).map(s => s.replace(/^\s*[-•*\d.)]+\s*/, "").trim()).find(Boolean);
+          if (!first) return;
+          const txt = pre + first;
+          if (!have.includes(txt.toLowerCase())) add.push({ txt, tipo, imp: "3", ev: "1" });
+        });
+        if (!add.length){ supMsg.textContent = "No hay nada nuevo que traer: el Lean Canvas está vacío o ya lo habéis traído."; return; }
+        const keep = d.sup.filter(s => String(s.txt || "").trim());
+        d.sup.splice(0, d.sup.length, ...keep, ...add);
+        R.save(); supList.redraw(); drawMap();
+        supMsg.textContent = `Añadidos ${add.length} supuestos del Lean Canvas. Ajustad importancia y evidencia.`;
+      } } }, "Proponer supuestos desde el Lean Canvas"), supMsg));
+      supList = R.list(b, { add: "Añadir supuesto", numbered: true, onChange: () => drawMap(), cols: [
+        { key: "txt", label: "Supuesto", ph: "Creemos que…", w: "2fr" },
+        { key: "tipo", label: "Tipo", type: "select", options: TIPOS, def: "deseabilidad", w: "130px" },
+        { key: "imp", label: "Importancia", type: "select", options: [["1", "1 · poca"], ["2", "2"], ["3", "3"], ["4", "4"], ["5", "5 · crítica"]], def: "3", w: "105px" },
+        { key: "ev", label: "Evidencia", type: "select", options: [["1", "1 · ninguna"], ["2", "2"], ["3", "3"], ["4", "4"], ["5", "5 · datos sólidos"]], def: "3", w: "120px" }
+      ] }, d.sup);
+
+      /* ---------- 2. Mapa ---------- */
+      b = R.step(el, 2, "Mapa de supuestos", "Cada supuesto se coloca según importancia (arriba = crítico) y evidencia (derecha = sin pruebas). El cuadrante rojo, importante y sin evidencia, es lo que hay que probar primero.");
+      const mapBox = R.h("div");
+      b.append(mapBox);
+      function addCardFrom(s){
+        d.cards.push({ hip: String(s.txt || "").trim(), exp: "", metrica: "", criterio: "", plazo: "", mvp: "" });
+        R.save(); drawCards();
+        const last = cardsBox.lastElementChild; if (last){ const f = last.querySelectorAll("textarea")[1]; if (f) f.focus(); }
+      }
+      function drawMap(){
+        mapBox.replaceChildren();
+        const items = d.sup.map((s, i) => ({ s, i })).filter(x => String(x.s.txt || "").trim());
+        const hot = items.filter(x => isHot(x.s));
+        const mx = R.h("div", { class: "matrix", role: "img", "aria-label": `Mapa de supuestos: ${items.length} supuestos, ${hot.length} importantes y sin evidencia` },
+          R.h("div", { class: "su-hotq" }), R.h("div", { class: "axis-x" }), R.h("div", { class: "axis-y" }),
+          R.h("span", { class: "q", style: "left:0;top:0", text: "Importante · con evidencia" }),
+          R.h("span", { class: "q", style: "right:0;top:0;text-align:right;color:var(--red)", text: "Probar primero" }),
+          R.h("span", { class: "q", style: "left:0;bottom:0", text: "Poco importante · con evidencia" }),
+          R.h("span", { class: "q", style: "right:0;bottom:0;text-align:right", text: "Poco importante · sin evidencia" }));
+        const seen = {};
+        items.forEach(({ s, i }) => {
+          const imp = Math.min(5, Math.max(1, Number(s.imp) || 3)), ev = Math.min(5, Math.max(1, Number(s.ev) || 3));
+          const key = imp + "-" + ev; const k = seen[key] = (seen[key] || 0) + 1;
+          const x = 10 + (ev - 1) / 4 * 80, y = 12 + (5 - imp) / 4 * 76;
+          const off = (k - 1) * 9 * (k % 2 ? 1 : -1);
+          mx.append(R.h("span", { class: "pt" + (isHot(s) ? " hot" : ""), style: `left:${100 - x + (k > 1 ? off / 2 : 0)}%;top:${y + (k > 1 ? 5 : 0)}%`, title: s.txt, text: "S" + (i + 1) }));
+        });
+        const left = R.h("div", null, mx, R.h("div", { class: "su-ax" }, R.h("span", { text: "← mucha evidencia" }), R.h("span", { text: "ninguna evidencia →" })));
+        const leg = R.h("div", { class: "su-legend" }, R.h("strong", { text: hot.length ? `Probar primero (${hot.length})` : "Nada en el cuadrante rojo" }));
+        if (!items.length) leg.append(R.h("div", { class: "tip", text: "Escribid supuestos en el paso 1 y aparecerán aquí." }));
+        else if (!hot.length) leg.append(R.h("div", { class: "tip", text: "¿Seguro? Si todo lo importante tiene ya pruebas, revisad la puntuación de evidencia: una opinión del equipo no es evidencia." }));
+        hot.forEach(({ s, i }) => leg.append(R.h("div", { class: "it hot" }, R.h("span", { class: "n", text: "S" + (i + 1) }), R.h("span", { text: s.txt }),
+          R.h("button", { class: "btn small", type: "button", "aria-label": `Crear test card para S${i + 1}`, on: { click: () => addCardFrom(s) } }, "→ Test card"))));
+        const rest = items.filter(x => !isHot(x.s));
+        if (rest.length) leg.append(R.h("p", { class: "su-msg", style: "margin:4px 0 0", text: "Resto: " + rest.map(({ s, i }) => `S${i + 1} ${s.txt}`).join(" · ") }));
+        mapBox.append(R.h("div", { class: "su-maprow" }, left, leg));
+      }
+
+      /* ---------- 3. MVP ---------- */
+      b = R.step(el, 3, "Elegid el tipo de MVP", "Un MVP (producto mínimo viable) es el experimento más barato que os da evidencia real, no una versión pequeña del producto. Cuanto más se parezca la prueba a pagar o usar de verdad, más fuerte es la evidencia.");
+      const mvpBox = R.h("div");
+      R.select(b, { label: "Tipo de MVP", options: [["", "Elegid uno para ver cómo funciona"], ...MVPS.map(m => [m[0], m[1]])], onChange: () => paintMvp() }, d, "mvp");
+      b.append(mvpBox);
+      function paintMvp(){
+        const m = MVPS.find(x => x[0] === d.mvp);
+        if (!m){ mvpBox.replaceChildren(R.h("div", { class: "tip", text: "Smoke test, fake door, concierge, Mago de Oz, prototipo clicable o preventa: elegid uno para ver qué es, cuándo usarlo y un ejemplo." })); return; }
+        mvpBox.replaceChildren(R.h("div", { class: "su-mvp" },
+          R.h("span", null, R.h("b", { text: m[1] + ". " }), m[2]),
+          R.h("span", { text: "Cuándo: " + m[3] }),
+          R.h("div", { class: "meta" }, R.h("span", { class: "chip", text: "Coste: " + m[4] }), R.h("span", { class: "chip", text: "Evidencia: " + m[5] })),
+          R.h("span", { class: "ex", text: "En RoomieMatch: " + m[6] }),
+          R.h("div", null, R.h("button", { class: "btn small", type: "button", on: { click: () => {
+            d.cards.push({ hip: "", exp: m[1] + ": ", metrica: "", criterio: "", plazo: "", mvp: m[0] });
+            R.save(); drawCards();
+            const last = cardsBox.lastElementChild; if (last){ const f = last.querySelector("textarea"); if (f) f.focus(); }
+          } } }, "Usar en una test card nueva"))));
+      }
+      paintMvp();
+
+      /* ---------- 4. Test cards ---------- */
+      b = R.step(el, 4, "Test cards", "Una tarjeta por hipótesis: qué creéis, cómo lo vais a comprobar, qué vais a medir y a partir de qué número diréis que acertasteis. Si no podéis escribir el criterio, todavía no tenéis experimento.");
+      const cardsBox = R.h("div", { class: "su-cards" });
+      b.append(cardsBox);
+      b.append(R.h("div", null, R.h("button", { class: "btn small", type: "button", on: { click: () => { d.cards.push({ hip: "", exp: "", metrica: "", criterio: "", plazo: "", mvp: "" }); R.save(); drawCards(); const last = cardsBox.lastElementChild; if (last){ const f = last.querySelector("textarea"); if (f) f.focus(); } } } }, "+ Añadir test card")));
+      R.tip(b, "<b>Fijad el criterio de éxito antes de lanzar el experimento</b> y no lo toquéis después: si lo ajustáis a lo que salió, siempre «acertaréis». En RoomieMatch: H1 ≥ 60 %, H2 ≥ 25 %, H3 ≥ 40 % top-2-box, H4 ≥ 10 %.", "warn");
+      function drawCards(){
+        cardsBox.replaceChildren();
+        d.cards.forEach((c, i) => {
+          const card = R.h("article", { class: "su-card", "aria-label": "Test card H" + (i + 1) });
+          card.append(R.h("div", { class: "hd" }, R.h("span", { class: "id", text: "H" + (i + 1) }),
+            R.h("button", { class: "su-del", type: "button", "aria-label": `Quitar test card H${i + 1}`, title: "Quitar", on: { click: () => { d.cards.splice(i, 1); R.save(); drawCards(); } } }, "×")));
+          R.field(card, { label: "Creemos que…", hint: "hipótesis", rows: 2 }, c, "hip");
+          R.field(card, { label: "Para comprobarlo…", hint: "experimento", rows: 2 }, c, "exp");
+          const r = R.h("div", { class: "row2" }); card.append(r);
+          R.field(r, { label: "Mediremos…", hint: "métrica", rows: 2 }, c, "metrica");
+          R.field(r, { label: "Acertamos si…", hint: "criterio de éxito", rows: 2 }, c, "criterio");
+          const r2 = R.h("div", { class: "row2" }); card.append(r2);
+          R.field(r2, { label: "Plazo", single: true }, c, "plazo");
+          R.select(r2, { label: "Tipo de MVP", options: [["", "Encuesta / entrevistas"], ...MVPS.map(m => [m[0], m[1]])] }, c, "mvp");
+          cardsBox.append(card);
+        });
+        if (!d.cards.length) cardsBox.append(R.h("div", { class: "tip", text: "Sin test cards todavía. Cread una desde el mapa o con el botón." }));
+      }
+      drawMap(); drawCards();
+    },
+    progress(d){
+      ensure(d);
+      const sup = d.sup.filter(s => String(s.txt || "").trim());
+      const cards = d.cards.filter(c => String(c.hip || "").trim());
+      return R.share([sup.length >= 5 ? "x" : "", sup.some(isHot) ? "x" : "", d.mvp, cards.filter(c => String(c.criterio || "").trim()).length >= 2 ? "x" : "", cards.filter(c => String(c.metrica || "").trim() && String(c.plazo || "").trim()).length >= 2 ? "x" : ""]);
+    },
+    prompt(d, R){
+      ensure(d);
+      const tipoL = Object.fromEntries(TIPOS);
+      const sup = R.lines(d.sup, (s, i) => `S${i + 1} [${tipoL[s.tipo] || s.tipo} · importancia ${s.imp} · evidencia ${s.ev}] ${s.txt}${isHot(s) ? "  ← PROBAR PRIMERO" : ""}`);
+      const m = MVPS.find(x => x[0] === d.mvp);
+      const cards = R.lines(d.cards, (c, i) => {
+        const mv = MVPS.find(x => x[0] === c.mvp);
+        return [`H${i + 1}${mv ? " · " + mv[1] : ""}`, `  Creemos que: ${c.hip || "…"}`, `  Para comprobarlo: ${c.exp || "…"}`, `  Mediremos: ${c.metrica || "…"}`, `  Acertamos si: ${c.criterio || "(sin criterio)"}`, `  Plazo: ${c.plazo || "…"}`].join("\n");
+      });
+      return {
+        task: "Revisa nuestros supuestos y experimentos. 1) ¿Falta algún supuesto crítico, sobre todo de viabilidad (quién paga y cuánto)? ¿Está bien clasificado y puntuado cada uno? 2) Ordena los 3 supuestos que probarías primero y por qué. 3) Revisa cada test card: ¿la métrica es observable, el criterio está fijado de antemano y es exigente pero realista, cabe en el plazo? Reescribe las que fallen. 4) Propón el experimento más barato y rápido para el supuesto más arriesgado que aún no tenga test card. No inventes umbrales «del sector»: si propones un número, explica de dónde sale.",
+        material: ["Supuestos:", sup || "(vacío)", `MVP que estamos considerando: ${m ? m[1] : "(sin elegir)"}`, "Test cards:", cards || "(vacío)"].join("\n"),
+        format: "Cuatro apartados. Las test cards reescritas en el formato: Creemos que… / Para comprobarlo… / Mediremos… / Acertamos si… / Plazo."
+      };
+    },
+    links: [
+      ["Strategyzer · Test Card", "Plantilla de test card", "https://www.strategyzer.com/library/the-test-card"],
+      ["Tally", "Encuestas y listas de espera gratis", "https://tally.so"],
+      ["Google Forms", "Encuestas rápidas", "https://forms.google.com"],
+      ["Carrd", "Landing de una página para un smoke test", "https://carrd.co"],
+      ["Miro", "Mapa de supuestos en equipo", "https://miro.com"]
+    ]
+  });
+})();
+
+</script>
+<script>/* 08_wireframe.js */
+(() => {
+  /* Tipos de bloque: etiqueta y campos editables [clave, etiqueta, multilínea] */
+  const B = {
+    nav: { l: "Cabecera / menú", f: [["title", "Logo o nombre"], ["text", "Enlaces del menú (separados por ·)"]] },
+    hero: { l: "Hero (titular + CTA)", f: [["title", "Titular"], ["text", "Subtítulo", true], ["cta", "Botón principal (CTA)"]] },
+    img: { l: "Imagen", f: [["title", "Qué se ve (descripción)"]] },
+    text: { l: "Texto", f: [["title", "Título"], ["text", "Texto", true]] },
+    benefits: { l: "Lista de beneficios (3)", f: [["title", "Título"], ["text", "3 beneficios, uno por línea", true]] },
+    steps: { l: "Cómo funciona (pasos)", f: [["title", "Título"], ["text", "Pasos, uno por línea", true]] },
+    testimonials: { l: "Testimonios", f: [["title", "Título"], ["text", "Testimonios, uno por línea (ficticios y marcados)", true]] },
+    pricing: { l: "Precios", f: [["title", "Título"], ["text", "Planes, uno por línea: Plan — precio — qué incluye", true]] },
+    form: { l: "Formulario", f: [["title", "Título"], ["text", "Campos, uno por línea", true], ["cta", "Botón"]] },
+    button: { l: "Botón", f: [["cta", "Texto del botón"]] },
+    cards: { l: "Tarjetas / listado", f: [["title", "Título"], ["text", "Elementos, uno por línea", true]] },
+    chat: { l: "Chat", f: [["title", "Con quién se habla"], ["text", "Mensajes, uno por línea (se alternan)", true]] },
+    footer: { l: "Pie", f: [["text", "Texto del pie (enlaces, aviso legal)"]] }
+  };
+  const ORDER = ["nav", "hero", "img", "text", "benefits", "steps", "testimonials", "pricing", "form", "button", "cards", "chat", "footer"];
+  const splitLines = v => String(v || "").split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  const blk = (t, title, text, cta) => ({ t, title: title || "", text: text || "", cta: cta || "" });
+
+  function headline(R){
+    const c = (R.state.st.ideas && R.state.st.ideas.concept) || {};
+    return String(c.titular || c.frase || c.beneficio || c.propuesta || c.nombre || R.project.reto || "").trim();
+  }
+
+  function describe(b){
+    const def = B[b.t] || { l: b.t };
+    const parts = [];
+    if (String(b.title || "").trim()) parts.push(`«${b.title.trim()}»`);
+    const ls = splitLines(b.text);
+    if (ls.length) parts.push(ls.length > 1 ? ls.map(s => `«${s}»`).join(" / ") : `«${ls[0]}»`);
+    if (String(b.cta || "").trim()) parts.push(`botón «${b.cta.trim()}»`);
+    if (b.t === "button") return `Botón «${String(b.cta || "").trim() || "…"}»`;
+    return `${def.l}${parts.length ? ": " + parts.join("; ") : " (sin texto todavía)"}`;
+  }
+
+  /* Texto estructurado del wireframe (lo usa también la estación 09 vía window.RutaED.wireframeText) */
+  function wireText(d){
+    if (!d || typeof d !== "object") return "";
+    const app = d.tipo === "app";
+    const screens = app ? (d.app || []) : [{ name: "Landing", blocks: d.landing || [] }];
+    if (!screens.some(s => (s.blocks || []).length)) return "";
+    const L = [`Wireframe de baja fidelidad · ${app ? `app de ${screens.length} pantallas` : "landing de una página"} · formato ${d.formato === "web" ? "web (escritorio)" : "móvil"}`];
+    screens.forEach((s, i) => {
+      L.push("", app ? `Pantalla ${i + 1}${s.name ? " — " + s.name : ""}` : "Landing (de arriba abajo)");
+      (s.blocks || []).forEach((b, j) => L.push(`${j + 1}. ${describe(b)}`));
+    });
+    if (String(d.cinco || "").trim()) L.push("", `En 5 segundos debe entenderse: ${d.cinco.trim()}`);
+    if (String(d.accion || "").trim()) L.push(`Acción principal: ${d.accion.trim()}`);
+    if (d.boceto) L.push("Además: un boceto a mano dibujado en la ruta.");
+    return L.join("\n");
+  }
+  window.RutaED = window.RutaED || {};
+  window.RutaED.wireframeText = wireText;
+
+  function ensure(d){
+    if (!Array.isArray(d.landing)) d.landing = [];
+    if (!Array.isArray(d.app) || !d.app.length) d.app = [{ name: "Inicio", blocks: [] }];
+    d.app.forEach(s => { if (!Array.isArray(s.blocks)) s.blocks = []; });
+    if (!d.formato) d.formato = "movil";
+    if (!d.tipo) d.tipo = "landing";
+    return d;
+  }
+
+  R.station({
+    id: "wireframe", session: "S2", short: "Wireframe", sub: "El esqueleto antes del prototipo",
+    title: "Wireframe de baja fidelidad",
+    chips: ["S2 · 2.2", "Antes del LAB", "Nota NT-ED-05"],
+    goal: "Antes de pedirle nada a Claude Code, decidid <b>qué bloques tiene vuestra página o app y en qué orden</b>, con los textos reales (titular, botón). Es rápido de cambiar y es lo que la estación siguiente convierte en el prompt de construcción.",
+    example: {
+      formato: "movil", tipo: "landing", preHero: true,
+      landing: [
+        blk("nav", "RoomieMatch", "Cómo funciona · Precios · Entrar"),
+        blk("hero", "Encuentra con quién vivir, no solo dónde", "Test de convivencia de 3 minutos y perfiles verificados para estudiantes de máster que llegan a Madrid.", "Haz el test gratis"),
+        blk("img", "Dos compañeros de piso cocinando juntos"),
+        blk("steps", "Cómo funciona", "Haz el test de hábitos (3 min)\nTe enseñamos perfiles compatibles y verificados\nChatea y decidid juntos antes de firmar"),
+        blk("cards", "Así es el test", "¿A qué hora sueles acostarte?\n¿Cada cuánto limpias las zonas comunes?\n¿Visitas entre semana: sí o no?"),
+        blk("pricing", "Precios", "Gratis — 0 € — test y 3 perfiles compatibles\nPremium — 9,99 €/mes — perfiles ilimitados y verificación prioritaria"),
+        blk("form", "Únete a la lista de espera", "Email\nMáster y universidad\nMes de llegada a Madrid", "Quiero entrar"),
+        blk("footer", "", "RoomieMatch · Proyecto de clase (máster de Marketing Digital) · Privacidad")
+      ],
+      app: [
+        { name: "Bienvenida", blocks: [blk("img", "Ilustración de un piso compartido"), blk("hero", "Encuentra con quién vivir", "Responde 12 preguntas y te enseñamos con quién encajas.", "Empezar el test")] },
+        { name: "Test de hábitos", blocks: [blk("nav", "Test · 3 de 12", ""), blk("text", "¿A qué hora sueles acostarte?", ""), blk("cards", "", "Antes de las 23 h\nEntre las 23 h y la 1 h\nDespués de la 1 h"), blk("button", "", "", "Siguiente")] },
+        { name: "Tus compatibles", blocks: [blk("nav", "Compatibles", "Filtros"), blk("cards", "Ordenados por compatibilidad", "Ana · 92 % · Máster en Finanzas\nTom · 87 % · MBA\nLéa · 81 % · Máster en Diseño"), blk("button", "", "", "Filtrar por barrio")] },
+        { name: "Chat", blocks: [blk("nav", "Ana · 92 % compatible", ""), blk("chat", "Ana", "¡Hola! Vi que también llegas en septiembre\n¡Sí! ¿Buscas por Moncloa?\nMoncloa o Argüelles. ¿Hablamos mañana?\nPerfecto, te propongo una videollamada"), blk("button", "", "", "Proponer videollamada")] }
+      ],
+      cinco: "Que es para encontrar compañeros de piso compatibles (no pisos) y que el test es gratis.",
+      accion: "Hacer el test y apuntarse a la lista de espera.",
+      boceto: ""
+    },
+    blank(){ return { formato: "movil", tipo: "landing", preHero: false, landing: [blk("nav"), blk("hero"), blk("form"), blk("footer")], app: [{ name: "Inicio", blocks: [] }], cinco: "", accion: "", boceto: "" }; },
+    render(el, d, R){
+      ensure(d);
+      R.css("wireframe", `
+        .wf-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+        .wf-msg{font-size:12.5px;color:var(--soft)}
+        .wf-pal{display:flex;flex-wrap:wrap;gap:6px}
+        .wf-tabs{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+        .wf-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+        @media(max-width:820px){.wf-layout{grid-template-columns:1fr}}
+        .wf-items{display:flex;flex-direction:column;gap:6px}
+        .wf-item{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:6px 8px;display:flex;flex-direction:column;gap:8px;min-width:0}
+        .wf-item.open{border-color:var(--red)}
+        .wf-ih{display:flex;gap:5px;align-items:center;min-width:0}
+        .wf-ih .num{font:600 11px var(--f-mono);color:var(--soft);min-width:16px;text-align:center}
+        .wf-ih .lab{flex:1;min-width:0;display:flex;flex-direction:column;text-align:left;background:transparent;border:0;cursor:pointer;padding:2px 4px;border-radius:6px}
+        .wf-ih .lab:hover{background:var(--sunk)}
+        .wf-ih .lab b{font-size:13px}
+        .wf-ih .lab span{font-size:12px;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .wf-ib{border:1px solid var(--line);background:var(--panel);border-radius:6px;font-size:12px;padding:3px 7px;cursor:pointer;line-height:1.2}
+        .wf-ib:hover{border-color:var(--soft)}
+        .wf-ib[disabled]{opacity:.4;cursor:not-allowed}
+        .wf-ib.x:hover{color:var(--red);background:var(--red-soft)}
+        .wf-fields{display:flex;flex-direction:column;gap:8px;padding:0 2px 4px}
+        .wf-fields .fld input,.wf-fields .fld textarea{background:var(--panel)}
+        .wf-stage{position:sticky;top:14px;display:flex;justify-content:center;min-width:0}
+        .wf-phone{width:290px;max-width:100%;border:2px solid var(--soft);border-radius:30px;padding:12px 8px 16px;background:var(--panel)}
+        .wf-phone .notch{width:70px;height:6px;border-radius:9px;background:var(--line);margin:0 auto 8px}
+        .wf-browser{width:100%;border:2px solid var(--soft);border-radius:12px;overflow:hidden;background:var(--panel)}
+        .wf-browser .bar{display:flex;gap:5px;align-items:center;padding:7px 10px;border-bottom:1px solid var(--line);background:var(--sunk)}
+        .wf-browser .bar i{width:8px;height:8px;border-radius:50%;background:var(--line);display:block;flex:none}
+        .wf-browser .bar .url{flex:1;min-width:0;border-radius:9px;background:var(--panel);margin-left:6px;font:10px/16px var(--f-mono);color:var(--soft);padding:0 8px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+        .wf-screen{max-height:580px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding:6px;font-size:11.5px;line-height:1.35;color:var(--ink);overflow-wrap:anywhere}
+        .wf-sname{font:600 10px var(--f-mono);color:var(--soft);text-align:center;letter-spacing:.06em;text-transform:uppercase}
+        .wf-b{border:1.5px dashed transparent;border-radius:7px;padding:6px;cursor:pointer;display:flex;flex-direction:column;gap:6px;min-width:0}
+        .wf-b:hover{border-color:var(--line)}
+        .wf-b.sel{border-color:var(--red)}
+        .wf-ln{height:6px;border-radius:4px;background:var(--line)}
+        .wf-h{font:800 16px/1.15 var(--f-display);letter-spacing:-.01em}
+        .wf-browser .wf-h{font-size:21px}
+        .wf-t{font-weight:700;font-size:12px}
+        .wf-p{color:var(--soft)}
+        .wf-btn{align-self:flex-start;border:1.5px solid var(--ink);border-radius:999px;padding:4px 12px;font-weight:700;font-size:11px}
+        .wf-btn.c{align-self:center}
+        .wf-img{position:relative;border:1.5px solid var(--soft);border-radius:6px;background:var(--sunk);aspect-ratio:16/9;color:var(--soft);overflow:hidden}
+        .wf-img.sq{aspect-ratio:1;width:34px;flex:none}
+        .wf-img svg{position:absolute;inset:0;width:100%;height:100%}
+        .wf-img .cap{position:absolute;left:6px;right:6px;bottom:5px;font-size:10px;background:var(--panel);padding:1px 5px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .wf-cols{display:grid;gap:6px;grid-template-columns:minmax(0,1fr)}
+        .wf-browser .wf-cols{grid-template-columns:repeat(3,minmax(0,1fr))}
+        .wf-box{border:1.5px solid var(--line);border-radius:6px;padding:6px;display:flex;flex-direction:column;gap:4px;min-width:0}
+        .wf-row{display:flex;gap:6px;align-items:center;min-width:0}
+        .wf-dot{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--soft);display:grid;place-items:center;font-size:10px;font-weight:700;flex:none;color:var(--soft)}
+        .wf-in{height:18px;border:1.5px solid var(--line);border-radius:4px;background:var(--bg)}
+        .wf-nav{display:flex;justify-content:space-between;align-items:center;gap:8px;border-bottom:1px solid var(--line);padding-bottom:6px}
+        .wf-links{display:flex;gap:8px;color:var(--soft);font-size:10.5px;flex-wrap:wrap;justify-content:flex-end}
+        .wf-burger{display:flex;flex-direction:column;gap:3px;width:16px;flex:none}
+        .wf-burger i{height:2px;background:var(--soft);display:block}
+        .wf-bub{max-width:80%;border:1.5px solid var(--line);border-radius:10px;padding:4px 8px;align-self:flex-start}
+        .wf-bub.me{align-self:flex-end;background:var(--sunk)}
+        .wf-foot{background:var(--sunk);border-radius:6px;padding:8px;color:var(--soft);font-size:10.5px}
+        .wf-empty{color:var(--soft);text-align:center;padding:30px 10px;border:1.5px dashed var(--line);border-radius:8px}
+      `);
+      let scr = 0, open = -1;
+      const cur = () => d.tipo === "app" ? d.app[Math.min(scr, d.app.length - 1)].blocks : d.landing;
+
+      /* ---------- 1. Formato y tipo ---------- */
+      let b = R.step(el, 1, "Formato y tipo", "Un wireframe es el esqueleto de una pantalla: qué bloques hay y en qué orden, sin colores ni diseño. En baja fidelidad (grises, cajas con una X para las imágenes y líneas para el texto) se discute la estructura y el mensaje, no la estética.");
+      const r = R.h("div", { class: "row2" }); b.append(r);
+      R.select(r, { label: "Formato", options: [["movil", "Móvil"], ["web", "Web (escritorio)"]], onChange: () => paintAll() }, d, "formato");
+      R.select(r, { label: "Tipo", options: [["landing", "Landing (una sola página)"], ["app", "App (varias pantallas)"]], onChange: () => { scr = 0; open = -1; paintAll(); } }, d, "tipo");
+      R.tip(b, "Para el smoke test de esta sesión basta con una <b>landing</b> en móvil: la mayoría de vuestro tráfico llegará desde Instagram o WhatsApp. Si vuestro concepto es una app, dibujad además sus 3–5 pantallas clave.");
+
+      /* ---------- 2. Constructor ---------- */
+      b = R.step(el, 2, "Construid por bloques", "Añadid bloques desde la paleta en el orden en que se verán al hacer scroll. Pulsad un bloque (en la lista o en la vista previa) para escribir sus textos reales. Subid, bajad o quitad hasta que la historia se entienda de arriba abajo.");
+      const tabs = R.h("div", { class: "wf-tabs", role: "group", "aria-label": "Pantallas de la app" });
+      const heroMsg = R.h("span", { class: "wf-msg", "aria-live": "polite" });
+      const hl = headline(R);
+      b.append(tabs);
+      b.append(R.h("div", { class: "wf-bar" }, R.h("button", { class: "btn small", type: "button", on: { click: () => {
+        const h0 = headline(R);
+        if (!h0){ heroMsg.textContent = "El concepto todavía está vacío: escribid el titular a mano."; return; }
+        const arr = cur(); let i = arr.findIndex(x => x.t === "hero");
+        if (i < 0){ i = arr[0] && arr[0].t === "nav" ? 1 : 0; arr.splice(i, 0, blk("hero", h0)); }
+        else arr[i].title = h0;
+        open = i; R.save(); paintEditor(); paintPreview();
+        heroMsg.textContent = "Titular traído del concepto. Acortadlo si pasa de 8–10 palabras.";
+      } } }, "Usar el titular del concepto"), heroMsg));
+      const pal = R.h("div", { class: "wf-pal", role: "group", "aria-label": "Paleta de bloques" });
+      ORDER.forEach(t => pal.append(R.h("button", { class: "btn small", type: "button", on: { click: () => {
+        const arr = cur(); arr.push(blk(t, t === "hero" ? headline(R) : "")); open = arr.length - 1;
+        R.save(); paintEditor(); paintPreview();
+        const it = items.lastElementChild; if (it){ const f = it.querySelector(".wf-fields input,.wf-fields textarea"); if (f) f.focus(); }
+      } } }, "+ " + B[t].l)));
+      b.append(R.h("p", { class: "sec-label", style: "margin:0", text: "Paleta de bloques" }), pal);
+      const items = R.h("div", { class: "wf-items" });
+      const stage = R.h("div", { class: "wf-stage" });
+      b.append(R.h("div", { class: "wf-layout" }, R.h("div", { style: "display:flex;flex-direction:column;gap:8px;min-width:0" }, R.h("p", { class: "sec-label", style: "margin:0", text: "Bloques (de arriba abajo)" }), items), stage));
+
+      if (!d.preHero && hl){
+        const h0 = d.landing.find(x => x.t === "hero");
+        if (h0 && !String(h0.title || "").trim()){ h0.title = hl; }
+        d.preHero = true; R.save();
+      }
+
+      function paintTabs(){
+        tabs.replaceChildren();
+        if (d.tipo !== "app") return;
+        scr = Math.min(scr, d.app.length - 1);
+        const btns = d.app.map((s, i) => R.h("button", { class: "btn small", type: "button", "aria-pressed": String(i === scr), on: { click: () => { scr = i; open = -1; paintAll(); } } }, `Pantalla ${i + 1}${s.name ? " · " + s.name : ""}`));
+        tabs.append(...btns, R.h("button", { class: "btn small", type: "button", on: { click: () => { d.app.push({ name: "", blocks: [] }); scr = d.app.length - 1; open = -1; R.save(); paintAll(); } } }, "+ Pantalla"));
+        const row = R.h("div", { class: "wf-bar", style: "width:100%" });
+        const nameWrap = R.h("div", { style: "flex:1 1 200px;min-width:0" });
+        const inp = R.field(nameWrap, { label: `Nombre de la pantalla ${scr + 1}`, single: true, ph: "Inicio, Test, Resultados…" }, d.app[scr], "name");
+        inp.addEventListener("input", () => { btns[scr].textContent = `Pantalla ${scr + 1}${d.app[scr].name ? " · " + d.app[scr].name : ""}`; paintPreview(); });
+        row.append(nameWrap);
+        if (d.app.length > 1){
+          const zone = R.h("span", { class: "wf-bar" });
+          const ask = () => zone.replaceChildren(R.h("button", { class: "btn small", type: "button", on: { click: () => zone.replaceChildren(
+            R.h("span", { class: "wf-msg", text: "¿Quitar esta pantalla y sus bloques?" }),
+            R.h("button", { class: "btn accent small", type: "button", on: { click: () => { d.app.splice(scr, 1); scr = Math.max(0, scr - 1); open = -1; R.save(); paintAll(); } } }, "Sí, quitar"),
+            R.h("button", { class: "btn small", type: "button", on: { click: ask } }, "Cancelar")) } }, "Quitar pantalla"));
+          ask(); row.append(zone);
+        }
+        tabs.append(row);
+      }
+
+      function paintEditor(){
+        items.replaceChildren();
+        const arr = cur();
+        if (!arr.length){ items.append(R.h("div", { class: "tip", text: "Todavía no hay bloques. Empezad por una cabecera y un hero." })); return; }
+        arr.forEach((x, i) => {
+          const def = B[x.t] || { l: x.t, f: [] };
+          const snip = R.h("span", { text: [x.title, x.cta].filter(s => String(s || "").trim()).join(" · ") || splitLines(x.text)[0] || "Sin texto" });
+          const isOpen = open === i;
+          const it = R.h("div", { class: "wf-item" + (isOpen ? " open" : "") });
+          const mv = (to) => { const [y] = arr.splice(i, 1); arr.splice(to, 0, y); open = to; R.save(); paintEditor(); paintPreview(); };
+          it.append(R.h("div", { class: "wf-ih" },
+            R.h("span", { class: "num", text: String(i + 1) }),
+            R.h("button", { class: "lab", type: "button", "aria-expanded": String(isOpen), on: { click: () => { open = isOpen ? -1 : i; paintEditor(); paintPreview(); } } }, R.h("b", { text: def.l }), snip),
+            R.h("button", { class: "wf-ib", type: "button", disabled: i === 0, "aria-label": `Subir bloque ${i + 1} (${def.l})`, on: { click: () => mv(i - 1) } }, "↑"),
+            R.h("button", { class: "wf-ib", type: "button", disabled: i === arr.length - 1, "aria-label": `Bajar bloque ${i + 1} (${def.l})`, on: { click: () => mv(i + 1) } }, "↓"),
+            R.h("button", { class: "wf-ib x", type: "button", "aria-label": `Quitar bloque ${i + 1} (${def.l})`, on: { click: () => { arr.splice(i, 1); open = -1; R.save(); paintEditor(); paintPreview(); } } }, "×")));
+          if (isOpen){
+            const fl = R.h("div", { class: "wf-fields" });
+            def.f.forEach(([k, lab, multi]) => {
+              const ctl = R.field(fl, { label: lab, single: !multi, rows: 3 }, x, k);
+              ctl.addEventListener("input", () => { snip.textContent = [x.title, x.cta].filter(s => String(s || "").trim()).join(" · ") || splitLines(x.text)[0] || "Sin texto"; paintPreview(); });
+            });
+            it.append(fl);
+          }
+          items.append(it);
+        });
+      }
+
+      function paintPreview(){
+        const web = d.formato === "web";
+        const arr = cur();
+        const screen = R.h("div", { class: "wf-screen" });
+        if (d.tipo === "app"){ const s = d.app[scr]; screen.append(R.h("div", { class: "wf-sname", text: `Pantalla ${scr + 1}${s && s.name ? " · " + s.name : ""}` })); }
+        if (!arr.length) screen.append(R.h("div", { class: "wf-empty", text: "Añadid bloques desde la paleta." }));
+        arr.forEach((x, i) => {
+          const w = R.h("div", { class: "wf-b" + (open === i ? " sel" : ""), title: "Editar este bloque", on: { click: () => { open = i; paintEditor(); paintPreview(); const it = items.children[i]; if (it){ const f = it.querySelector(".wf-fields input,.wf-fields textarea"); if (f) f.focus({ preventScroll: true }); } } } });
+          w.append(...renderBlock(x, web));
+          screen.append(w);
+        });
+        const frame = web
+          ? R.h("div", { class: "wf-browser" }, R.h("div", { class: "bar" }, R.h("i"), R.h("i"), R.h("i"), R.h("span", { class: "url", text: (R.project.nombre || "vuestro-proyecto").toLowerCase().replace(/[^a-z0-9]+/g, "-") + ".netlify.app" })), screen)
+          : R.h("div", { class: "wf-phone" }, R.h("div", { class: "notch" }), screen);
+        stage.replaceChildren(R.h("div", { role: "img", "aria-label": "Vista previa del wireframe: " + (arr.map(x => (B[x.t] || { l: x.t }).l).join(", ") || "vacío"), style: "width:100%;display:flex;justify-content:center" }, frame));
+      }
+
+      function renderBlock(x, web){
+        const h = R.h, T = s => String(s || "").trim();
+        const ln = (wd, ht) => h("div", { class: "wf-ln", style: `width:${wd}%${ht ? ";height:" + ht + "px" : ""}` });
+        const lines = splitLines(x.text);
+        const ttl = (cls) => T(x.title) ? h("div", { class: cls || "wf-t", text: x.title }) : null;
+        const img = (cap, sq) => { const e = h("div", { class: "wf-img" + (sq ? " sq" : "") }); e.innerHTML = '<svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><line x1="0" y1="0" x2="100" y2="100" stroke="currentColor" stroke-width="1.2" vector-effect="non-scaling-stroke"/><line x1="100" y1="0" x2="0" y2="100" stroke="currentColor" stroke-width="1.2" vector-effect="non-scaling-stroke"/></svg>'; if (cap) e.append(h("span", { class: "cap", text: cap })); return e; };
+        const items = (n, fn) => { const src = lines.length ? lines : Array(n).fill(""); return h("div", { class: "wf-cols" }, ...src.map(fn)); };
+        switch (x.t){
+          case "nav": {
+            const links = T(x.text).split(/[·,|\n]/).map(s => s.trim()).filter(Boolean);
+            return [h("div", { class: "wf-nav" }, T(x.title) ? h("b", { text: x.title }) : ln(28, 10),
+              web ? h("div", { class: "wf-links" }, ...(links.length ? links : ["", "", ""]).map(s => s ? h("span", { text: s }) : h("span", { class: "wf-ln", style: "width:34px;display:inline-block" })))
+                  : h("div", { class: "wf-burger" }, h("i"), h("i"), h("i")))];
+          }
+          case "hero":
+            return [T(x.title) ? h("div", { class: "wf-h", text: x.title }) : h("div", null, ln(90, 12), ln(60, 12)),
+              T(x.text) ? h("div", { class: "wf-p", text: x.text }) : h("div", { style: "display:flex;flex-direction:column;gap:4px" }, ln(95), ln(70)),
+              h("span", { class: "wf-btn", text: T(x.cta) || "Botón" })];
+          case "img": return [img(T(x.title))];
+          case "text": return [ttl(), lines.length ? h("div", { class: "wf-p", text: x.text }) : h("div", { style: "display:flex;flex-direction:column;gap:4px" }, ln(100), ln(92), ln(70))];
+          case "benefits": {
+            const src = lines.length ? lines.slice(0, 3) : [];
+            while (src.length < 3) src.push("");
+            return [ttl(), h("div", { class: "wf-cols" }, ...src.map(s => h("div", { class: "wf-row" }, h("span", { class: "wf-dot", text: "✓" }), s ? h("span", { text: s }) : ln(70))))];
+          }
+          case "steps": return [ttl(), items(3, (s, i) => h("div", { class: "wf-box" }, h("span", { class: "wf-dot", text: String(i + 1) }), s ? h("span", { text: s }) : ln(80)))];
+          case "testimonials": return [ttl(), items(2, s => h("div", { class: "wf-box" }, h("div", { class: "wf-row" }, h("span", { class: "wf-dot", text: "" }), ln(40)), s ? h("span", { class: "wf-p", text: "«" + s + "»" }) : ln(90)))];
+          case "pricing": return [ttl(), items(2, s => { const p = s.split(/\s+[—–-]\s+/); return h("div", { class: "wf-box" }, p[0] ? h("b", { text: p[0] }) : ln(40, 8), p[1] ? h("span", { class: "wf-h", style: "font-size:15px", text: p[1] }) : ln(30, 12), p[2] ? h("span", { class: "wf-p", text: p.slice(2).join(" — ") }) : ln(80), h("span", { class: "wf-btn", text: "Elegir" })); })];
+          case "form": {
+            const fs = lines.length ? lines : ["", ""];
+            return [ttl(), ...fs.map(s => h("div", { style: "display:flex;flex-direction:column;gap:2px" }, s ? h("span", { class: "wf-p", style: "font-size:10.5px", text: s }) : ln(30, 5), h("div", { class: "wf-in" }))), h("span", { class: "wf-btn", text: T(x.cta) || "Enviar" })];
+          }
+          case "button": return [h("span", { class: "wf-btn c", text: T(x.cta) || "Botón" })];
+          case "cards": return [ttl(), items(3, s => h("div", { class: "wf-box" }, h("div", { class: "wf-row" }, img("", true), s ? h("span", { text: s }) : ln(70))))];
+          case "chat": {
+            const ms = lines.length ? lines : ["", "", ""];
+            return [T(x.title) ? h("div", { class: "wf-row" }, h("span", { class: "wf-dot", text: "" }), h("b", { text: x.title })) : null,
+              ...ms.map((s, i) => h("div", { class: "wf-bub" + (i % 2 ? " me" : "") }, s ? s : ln(60))),
+              h("div", { class: "wf-in" })];
+          }
+          case "footer": return [h("div", { class: "wf-foot" }, T(x.text) ? x.text : ln(60))];
+          default: return [h("div", { class: "wf-p", text: x.t })];
+        }
+      }
+
+      function paintAll(){ paintTabs(); paintEditor(); paintPreview(); }
+      paintAll();
+
+      /* ---------- 3. Test de 5 segundos ---------- */
+      b = R.step(el, 3, "Test de 5 segundos", "Enseñad solo la primera pantalla durante 5 segundos a alguien de fuera del equipo y preguntad: ¿qué es?, ¿para quién?, ¿qué harías ahora? Si no lo sabe, cambiad el titular o el botón, no el diseño.");
+      const r3 = R.h("div", { class: "row2" }); b.append(r3);
+      R.field(r3, { label: "Qué tiene que entender en 5 segundos", rows: 2 }, d, "cinco");
+      R.field(r3, { label: "La acción principal (una sola)", rows: 2 }, d, "accion");
+
+      /* ---------- 4. Boceto a mano ---------- */
+      b = R.step(el, 4, "Boceto a mano (opcional)", "Si os resulta más rápido, dibujad aquí con el dedo o el ratón la pantalla principal antes de montarla por bloques. Sirve para discutir en equipo; Claude trabajará con la lista de bloques.");
+      R.draw(b, { label: "Boceto a mano", width: 360, height: 300 }, d, "boceto");
+    },
+    progress(d){
+      ensure(d);
+      const all = d.tipo === "app" ? d.app.flatMap(s => s.blocks) : d.landing;
+      const hero = all.some(x => x.t === "hero" && String(x.title || "").trim()) || (d.tipo === "app" && all.some(x => String(x.title || "").trim()));
+      return R.share([d.formato, d.tipo, all.length >= 4 ? "x" : "", hero ? "x" : "", d.cinco, d.accion]);
+    },
+    prompt(d, R){
+      ensure(d);
+      return {
+        task: "Revisa nuestro wireframe de baja fidelidad como experto en UX y conversión. 1) Test de 5 segundos: con la primera pantalla, ¿se entiende qué es, para quién y qué hacer? 2) Orden de los bloques: ¿qué sobra, qué falta (prueba social, precio, respuesta a objeciones, privacidad) y en qué orden irían? 3) ¿Hay un único CTA principal y se repite al final? 4) Propón 3 titulares alternativos (máximo 8 palabras) y 2 textos de CTA. 5) Si es una app: ¿el flujo lleva a la acción clave en el menor número de pasos? No inventes testimonios ni cifras.",
+        material: wireText(d) || "(wireframe vacío)",
+        format: "Cinco apartados con viñetas cortas. Al final, el orden de bloques recomendado en una lista numerada. Máximo 300 palabras."
+      };
+    },
+    toText(d){ ensure(d); return wireText(d) || "(wireframe vacío)"; },
+    links: [
+      ["Excalidraw", "Bocetos rápidos a mano alzada", "https://excalidraw.com"],
+      ["FigJam", "Wireframes en equipo", "https://www.figma.com/figjam/"],
+      ["Balsamiq", "Wireframes de baja fidelidad", "https://balsamiq.com/wireframes/"],
+      ["Whimsical", "Wireframes y flujos de pantallas", "https://whimsical.com/wireframes"],
+      ["Figma", "Cuando paséis a alta fidelidad", "https://www.figma.com"]
+    ]
+  });
+})();
+
+</script>
+<script>/* 09_prototipo.js */
+(() => {
+  const RUTAS = {
+    web: { l: "Web (landing de validación)", d: "Una landing de una sola página para el smoke test: titular, cómo funciona, CTA y lista de espera. Es la opción más habitual y la que mejor se mide.", what: "una landing de una sola página (index.html)" },
+    app: { l: "App (prototipo clicable)", d: "Las 3–5 pantallas clave de la app en un único HTML, con botones que pasan de una pantalla a otra y datos ficticios. Sirve para tests de usabilidad.", what: "un prototipo clicable de app en un único index.html (una sección por pantalla, solo una visible a la vez, navegación con botones, marco de móvil de 375 px, sin backend)" },
+    campana: { l: "Campaña (piezas + landing mínima)", d: "Las piezas de lanzamiento (anuncio de Instagram, carrusel, email) maquetadas en HTML, más una landing mínima a la que apuntan. Para equipos cuyo reto es sobre todo de captación.", what: "un kit de campaña en un único index.html: un anuncio de Instagram 4:5 (1080×1350) maquetado en HTML/CSS, un carrusel de 3 diapositivas, un email de lanzamiento (asunto, preheader y cuerpo) y una landing mínima con el CTA" }
+  };
+  const CHECKS = [
+    ["c1", true, "Se entiende qué es y para quién en 5 segundos"],
+    ["c2", true, "Un único CTA principal, visible sin hacer scroll"],
+    ["c3", true, "Se ve bien en móvil (375 px) y sin scroll horizontal"],
+    ["c4", true, "Sin datos personales reales ni cifras o testimonios inventados"],
+    ["c5", true, "El CTA registra la conversión (Tally recibe respuestas, Clarity registra visitas)"],
+    ["c6", true, "Publicado: la URL abre en el móvil de otra persona"],
+    ["c7", false, "Imágenes con texto alternativo y contraste suficiente"],
+    ["c8", false, "Title y meta description escritos"],
+    ["c9", false, "Aviso de privacidad y consentimiento de cookies"],
+    ["c10", false, "Enlaces con UTM para cada canal"],
+    ["c11", false, "Revisión cruzada hecha y al menos un cambio aplicado"]
+  ];
+  const BRIEF_L = { objetivo: "Objetivo", publico: "Público", mensaje: "Mensaje clave", tono: "Tono", colores: "Colores y estilo", cta: "Llamada a la acción (CTA)", medir: "Qué mediremos" };
+  const T = s => String(s || "").trim();
+
+  function ensure(d){
+    d.brief = d.brief || {}; d.checks = d.checks || {};
+    if (!RUTAS[d.ruta]) d.ruta = d.ruta || "";
+    return d;
+  }
+  function wire(R){
+    const w = R.state.st.wireframe;
+    const fn = window.RutaED && window.RutaED.wireframeText;
+    const txt = fn && w ? fn(w) : "";
+    return txt || "(Sin wireframe: describid aquí, de arriba abajo, los bloques de la página y sus textos.)";
+  }
+  function heroOf(R){
+    const w = R.state.st.wireframe || {};
+    const all = w.tipo === "app" ? (w.app || []).flatMap(s => s.blocks || []) : (w.landing || []);
+    const hero = all.find(x => x.t === "hero") || {};
+    const form = all.find(x => x.t === "form") || {};
+    return { title: T(hero.title), cta: T(hero.cta) || T(form.cta) };
+  }
+  const slug = s => String(s || "proyecto").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "proyecto";
+
+  function claudeMd(d, R){
+    const p = R.project, c = (R.state.st.ideas && R.state.st.ideas.concept) || {};
+    const pov = R.state.st.empatia && T(R.state.st.empatia.pov);
+    const ru = RUTAS[d.ruta] || RUTAS.web;
+    const L = [`# CLAUDE.md · ${T(p.nombre) || "Nuestro proyecto"} — prototipo del LAB (sesión 2)`, "", "## Proyecto"];
+    if (T(p.frase)) L.push(`- Qué es: ${T(p.frase)}`);
+    if (T(p.segmento)) L.push(`- Cliente objetivo: ${T(p.segmento)}`);
+    if (pov) L.push(`- Problema (POV): ${pov}`);
+    if (T(c.nombre) || T(c.frase) || T(c.beneficio)) L.push(`- Concepto: ${[T(c.nombre), T(c.frase), T(c.beneficio)].filter(Boolean).join(" — ")}`);
+    if (T(p.miembros)) L.push(`- Equipo: ${T(p.miembros)}`);
+    L.push(`- Qué construimos: ${ru.what}.`, "", "## Brief");
+    Object.entries(BRIEF_L).forEach(([k, l]) => { if (T(d.brief[k])) L.push(`- ${l}: ${T(d.brief[k])}`); });
+    L.push("", "## Wireframe aprobado", wire(R), "", "## Reglas de trabajo",
+      "- Todo en castellano de España: los textos de la página y tus explicaciones.",
+      "- Un único archivo HTML autocontenido: HTML, CSS y JavaScript en el mismo archivo, sin frameworks ni dependencias externas (solo los scripts de Tally y Clarity cuando te lo pidamos).",
+      "- Responsive y mobile-first: tiene que verse bien a 375 px de ancho sin scroll horizontal.",
+      "- Accesible: HTML semántico, contraste suficiente, texto alternativo en imágenes, labels en los formularios y navegable con teclado.",
+      "- Sin datos personales reales: nombres y fotos ficticios o marcadores. En formularios, pide solo los datos imprescindibles.",
+      "- No inventes cifras, testimonios, logos ni premios. Si hace falta un dato, deja [DATO PENDIENTE] y avísanos.",
+      "- Respeta el orden de bloques y los textos del wireframe; si propones cambios, explícalos antes de aplicarlos.",
+      "- Pide confirmación antes de borrar o sobrescribir cualquier archivo.",
+      "- Trabaja por pasos (plan → construir → revisar) y, tras cada paso, resume en 3 líneas qué has hecho y qué falta.");
+    if (T(d.extra)) L.push(...T(d.extra).split(/\r?\n/).map(s => s.trim()).filter(Boolean).map(s => s.startsWith("-") ? s : "- " + s));
+    return L.join("\n");
+  }
+
+  function buildTask(d){
+    const ru = RUTAS[d.ruta] || RUTAS.web;
+    return `Lee el CLAUDE.md del proyecto. Construye ${ru.what}, siguiendo EXACTAMENTE el orden de bloques del wireframe y con sus textos reales; donde falte texto, propón uno breve y márcalo con [REVISAR]. Mobile-first, accesible y sin cifras ni testimonios inventados (usa [DATO PENDIENTE]). El CTA principal tiene que verse sin hacer scroll y repetirse al final. Deja un hueco comentado para el formulario de Tally y otro para el script de Clarity. Al terminar, resume en 5 líneas qué has hecho y qué falta.`;
+  }
+  function buildMaterial(d, R){
+    return ["Brief:", R.kv(d.brief, BRIEF_L) || "(vacío)", "", "Wireframe:", wire(R)].join("\n");
+  }
+
+  function prompts(d, R){
+    const p = R.project, name = T(p.nombre) || "nuestro proyecto";
+    const url = T(d.url) || "[URL_PUBLICADA]";
+    const seg = T(d.brief.publico) || T(p.segmento) || "nuestro cliente objetivo";
+    const camp = slug(name).replace(/-/g, "_") + "_s2";
+    return [
+      ["Sprint A · 40′", "A1 · Plan", "5′", `Lee CLAUDE.md. Antes de escribir código, propón un plan breve: estructura de secciones siguiendo el wireframe, textos de cada bloque (marcando lo que falte), paleta y tipografía coherentes con el brief, y cómo vamos a medir el CTA. No crees ni modifiques archivos todavía: espera nuestro OK.`],
+      ["Sprint A · 40′", "A2 · Construir", "25′", buildTask(d) + "\n\n" + buildMaterial(d, R)],
+      ["Sprint A · 40′", "A3 · Revisar", "10′", `Revisa el archivo como si fueras ${seg} abriéndolo en el móvil. Comprueba: 1) en 5 segundos se entiende qué es, para quién y qué hacer; 2) el CTA se ve sin scroll; 3) no hay scroll horizontal a 375 px; 4) accesibilidad (contraste, alt, labels, foco visible); 5) no hay cifras, testimonios ni datos personales inventados. Lista los problemas por gravedad y corrige solo los 3 más graves. Pide confirmación antes de borrar nada.`],
+      ["Revisión cruzada · 10′", "R · Revisar el prototipo de otro equipo", "10′", `Vamos a revisar el prototipo de otro equipo (pego abajo su URL o su HTML). Actúa como alguien de su público objetivo. Dame: 3 cosas que funcionan, 3 que confunden o frenan, y 1 cambio prioritario que harías antes de lanzar. Tono constructivo y concreto, máximo 150 palabras.\n\n[PEGA AQUÍ LA URL O EL HTML DEL OTRO EQUIPO]`],
+      ["Sprint B · 30′", "B1 · Publicar en Netlify Drop", "8′", `Prepara la carpeta para publicarla: comprueba que index.html abre con doble clic sin servidor, que todas las rutas son relativas y que hay <title>, meta description, meta viewport y un favicon sencillo (puede ser un SVG en línea). Luego dime en 4 pasos cómo publicarla arrastrando la carpeta a https://app.netlify.com/drop y cómo cambiar el nombre del sitio a algo como ${slug(name)}.netlify.app.`],
+      ["Sprint B · 30′", "B2 · Formulario con Tally", "8′", `Vamos a recoger los registros con Tally. Dime qué campos crear en tally.so según el formulario del wireframe (solo los imprescindibles) y cómo añadir campos ocultos utm_source y utm_campaign. Cuando te pase el enlace [ENLACE_TALLY], conecta el CTA principal para abrirlo (popup de Tally o enlace) y añade bajo el botón una línea de privacidad: para qué usamos los datos y que es un proyecto de clase.`],
+      ["Sprint B · 30′", "B3 · Analítica con Microsoft Clarity", "7′", `Añade Microsoft Clarity con el ID de proyecto que te daré [ID_CLARITY]. Inserta el script en <head>, pero que solo se cargue si el visitante acepta un aviso de cookies sencillo y accesible (Aceptar / Rechazar, recordando la elección). Explícame en 3 líneas qué veremos en Clarity (grabaciones, mapas de calor, clics en el CTA).`],
+      ["Sprint B · 30′", "B4 · Enlaces con UTM", "7′", `Genera los enlaces con UTM para ${url}: Instagram (utm_source=instagram, utm_medium=social), WhatsApp de grupos de máster (utm_source=whatsapp, utm_medium=mensajeria), LinkedIn (utm_source=linkedin, utm_medium=social) y email (utm_source=email, utm_medium=email), todos con utm_campaign=${camp}. Devuélvelos en una tabla (canal, enlace completo) y recuérdanos qué número mirar en cada canal para H2.`]
+    ];
+  }
+
+  async function copy(btn, text, pre, label){
+    try { await navigator.clipboard.writeText(text); btn.textContent = "Copiado ✓"; }
+    catch(e){ const r = document.createRange(); r.selectNodeContents(pre); const s = getSelection(); s.removeAllRanges(); s.addRange(r); btn.textContent = "Seleccionado: Ctrl+C"; }
+    setTimeout(() => { btn.textContent = label; }, 1600);
+  }
+
+  R.station({
+    id: "prototipo", session: "S2", short: "Prototipo con Claude Code", sub: "Del wireframe a una URL publicada",
+    title: "Prototipo con Claude Code",
+    chips: ["S2 · 2.2", "LAB P6 · 90′", "Nota NT-ED-05"],
+    goal: "En el LAB convertís el wireframe en <b>un prototipo publicado con una URL</b> que mide lo que preguntan vuestras test cards. Claude Code construye; vosotros decidís el brief, revisáis cada paso y no dais nada por bueno sin probarlo en el móvil.",
+    example: {
+      ruta: "web",
+      brief: {
+        objetivo: "Validar H2: que al menos el 25 % de los visitantes se apunte a la lista de espera (smoke test), y medir con un fake door el interés por Premium (H4).",
+        publico: "Estudiantes de máster internacionales que llegan a Madrid (22–30 años) y buscan piso desde su país.",
+        mensaje: "Encuentra con quién vivir, no solo dónde: test de convivencia de 3 minutos y perfiles verificados.",
+        tono: "Cercano y claro, tuteo, frases cortas; nada de tecnicismos inmobiliarios.",
+        colores: "Fondo claro, azul marino para textos y un acento cálido para el CTA; tipografía sans legible; mucho espacio en blanco.",
+        cta: "Haz el test gratis",
+        medir: "Visitantes únicos y origen (UTM, Clarity), clics en el CTA, registros en la lista de espera (Tally), clics en «Premium 9,99 €/mes» (fake door) y A/B de dos titulares."
+      },
+      extra: "Usa el nombre RoomieMatch tal cual, sin logotipos de terceros.",
+      checks: { c1: true, c2: true, c3: true, c4: true, c5: false, c6: false, c7: true, c8: true, c9: false, c10: false, c11: true },
+      url: ""
+    },
+    blank(){ const b = {}; Object.keys(BRIEF_L).forEach(k => b[k] = ""); const c = {}; CHECKS.forEach(([k]) => c[k] = false); return { ruta: "web", brief: b, extra: "", checks: c, url: "" }; },
+    render(el, d, R){
+      ensure(d);
+      R.css("prototipo", `
+        .pt-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+        .pt-msg{font-size:12.5px;color:var(--soft)}
+        .pt-ru{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--bg);font-size:14px}
+        .pt-seq{display:flex;flex-direction:column;gap:12px}
+        .pt-ph{font:700 11px var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:var(--red);margin:6px 0 -4px}
+        .pt-pr{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--bg);display:flex;flex-direction:column;gap:8px;min-width:0}
+        .pt-prh{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+        .pt-prh b{font-size:14px}
+        .pt-prh .t{font:500 12px var(--f-mono);color:var(--soft);margin-left:6px}
+        .pt-pr pre.prompt{max-height:220px}
+        .pt-md pre.prompt{max-height:420px}
+        .pt-checks{display:flex;flex-direction:column;gap:6px}
+        .pt-ck{display:flex;gap:10px;align-items:flex-start;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:7px 10px;cursor:pointer;font-size:14px}
+        .pt-ck input{margin-top:4px;flex:none;width:16px;height:16px;accent-color:var(--ok)}
+        .pt-ck.must{border-left:3px solid var(--red)}
+        .pt-star{color:var(--red);font-weight:700}
+      `);
+      const refreshers = [];
+      const refresh = () => refreshers.forEach(f => f());
+
+      /* ---------- 1. Itinerario ---------- */
+      let b = R.step(el, 1, "Itinerario", "Elegid qué vais a construir hoy. Las tres rutas acaban en una URL publicada que mide algo.");
+      const ruBox = R.h("div");
+      R.select(b, { label: "Qué construimos", options: Object.entries(RUTAS).map(([k, v]) => [k, v.l]), onChange: () => { paintRu(); refresh(); } }, d, "ruta");
+      b.append(ruBox);
+      function paintRu(){ const ru = RUTAS[d.ruta]; ruBox.replaceChildren(ru ? R.h("div", { class: "pt-ru" }, R.h("b", { text: ru.l + ". " }), ru.d) : R.h("span")); }
+      paintRu();
+
+      /* ---------- 2. Brief ---------- */
+      b = R.step(el, 2, "Brief del prototipo", "El brief es el encargo en una página: qué queréis conseguir, para quién, qué decir y qué medir. Cuanto más concreto, mejor trabaja Claude Code.");
+      const brMsg = R.h("span", { class: "pt-msg", "aria-live": "polite" });
+      const brBox = R.h("div", { style: "display:flex;flex-direction:column;gap:12px" });
+      b.append(R.h("div", { class: "pt-bar" }, R.h("button", { class: "btn small", type: "button", on: { click: () => {
+        const hero = heroOf(R), c = (R.state.st.ideas && R.state.st.ideas.concept) || {};
+        const sup = R.state.st.supuestos || {};
+        const card = (sup.cards || []).find(x => x.mvp === "smoke" && T(x.hip)) || (sup.cards || []).find(x => T(x.hip));
+        const src = {
+          objetivo: card ? `Validar: ${T(card.hip)}${T(card.criterio) ? " (acertamos si " + T(card.criterio) + ")" : ""}` : "",
+          publico: T(R.project.segmento),
+          mensaje: hero.title || T(c.frase) || T(c.beneficio),
+          cta: hero.cta,
+          medir: card && T(card.metrica) ? T(card.metrica) : ""
+        };
+        const done = [];
+        for (const [k, v] of Object.entries(src)) if (v && !T(d.brief[k])){ d.brief[k] = v; done.push(BRIEF_L[k]); }
+        R.save(); drawBrief(); refresh();
+        brMsg.textContent = done.length ? "Rellenado: " + done.join(", ") + "." : "Nada que traer: esos campos ya tienen texto o las estaciones anteriores están vacías.";
+      } } }, "Traer del proyecto, el wireframe y las test cards"), brMsg), brBox);
+      function drawBrief(){
+        brBox.replaceChildren();
+        const f = (parent, o, k) => R.field(parent, o, d.brief, k).addEventListener("input", refresh);
+        f(brBox, { label: "Objetivo", hint: "qué hipótesis valida el prototipo", rows: 2 }, "objetivo");
+        const r1 = R.h("div", { class: "row2" }); brBox.append(r1);
+        f(r1, { label: "Público", rows: 2 }, "publico");
+        f(r1, { label: "Mensaje clave", hint: "una frase", rows: 2 }, "mensaje");
+        const r2 = R.h("div", { class: "row3" }); brBox.append(r2);
+        f(r2, { label: "Tono", rows: 2 }, "tono");
+        f(r2, { label: "Colores y estilo", rows: 2 }, "colores");
+        f(r2, { label: "CTA", hint: "texto del botón", rows: 2 }, "cta");
+        f(brBox, { label: "Qué mediremos", hint: "y con qué herramienta", rows: 2 }, "medir");
+      }
+      drawBrief();
+
+      /* ---------- 3. CLAUDE.md ---------- */
+      b = R.step(el, 3, "El CLAUDE.md del equipo", "CLAUDE.md es un archivo de instrucciones que Claude Code lee al empezar en una carpeta: así no tenéis que repetir el contexto ni las reglas en cada prompt. Se genera con vuestro proyecto, concepto, brief y wireframe.");
+      R.field(b, { label: "Reglas propias del equipo (opcional)", hint: "una por línea; se añaden al final", rows: 2 }, d, "extra").addEventListener("input", refresh);
+      const mdPre = R.h("pre", { class: "prompt", tabindex: "0", "aria-label": "Contenido del CLAUDE.md" });
+      const mdBtn = R.h("button", { class: "btn accent small", type: "button" }, "Copiar CLAUDE.md");
+      mdBtn.addEventListener("click", () => copy(mdBtn, claudeMd(d, R), mdPre, "Copiar CLAUDE.md"));
+      b.append(R.h("div", { class: "pt-md", style: "display:flex;flex-direction:column;gap:8px" }, R.h("div", { class: "pt-bar" }, mdBtn), mdPre));
+      R.tip(b, "<b>Cómo usarlo:</b> cread una carpeta para el prototipo, guardad dentro este texto como <b>CLAUDE.md</b> y abrid Claude Code en esa carpeta. Si cambiáis el brief o el wireframe, volved a copiarlo.");
+      refreshers.push(() => { mdPre.textContent = claudeMd(d, R); });
+
+      /* ---------- 4. Prompts del LAB ---------- */
+      b = R.step(el, 4, "Secuencia de prompts del LAB", "Copiad los prompts de uno en uno, en este orden, y no paséis al siguiente sin revisar el resultado en el navegador. Sprint A construye, la revisión cruzada aporta ojos de fuera y el Sprint B publica y mide.");
+      const seq = R.h("div", { class: "pt-seq" });
+      b.append(seq);
+      function drawSeq(){
+        seq.replaceChildren();
+        let phase = "";
+        prompts(d, R).forEach(([ph, title, min, text]) => {
+          if (ph !== phase){ phase = ph; seq.append(R.h("p", { class: "pt-ph", text: ph })); }
+          const pre = R.h("pre", { class: "prompt", tabindex: "0", "aria-label": "Prompt " + title, text });
+          const btn = R.h("button", { class: "btn small", type: "button", "aria-label": "Copiar prompt " + title }, "Copiar");
+          btn.addEventListener("click", () => copy(btn, text, pre, "Copiar"));
+          seq.append(R.h("div", { class: "pt-pr" }, R.h("div", { class: "pt-prh" }, R.h("span", null, R.h("b", { text: title }), R.h("span", { class: "t", text: min })), btn), pre));
+        });
+      }
+      refreshers.push(drawSeq);
+      R.tip(b, "Si Claude Code se lía, no sigáis parcheando: pedidle que <b>explique qué ha hecho</b> y volved al último paso que funcionaba. Y no peguéis claves ni contraseñas en el chat: el ID de Clarity y el enlace de Tally son públicos, pero nada más.", "warn");
+
+      /* ---------- 5. Checklist y URL ---------- */
+      b = R.step(el, 5, "Checklist de calidad y URL publicada", "Antes de compartir el enlace, repasad la lista. Las marcadas con ★ son imprescindibles: sin ellas el experimento no mide bien o no es ético.");
+      const stat = R.h("div");
+      const cks = R.h("div", { class: "pt-checks" });
+      CHECKS.forEach(([k, must, txt]) => {
+        const id = "pt-" + k;
+        const inp = R.h("input", { type: "checkbox", id });
+        inp.checked = !!d.checks[k];
+        inp.addEventListener("change", () => { d.checks[k] = inp.checked; R.save(); paintStat(); });
+        cks.append(R.h("label", { class: "pt-ck" + (must ? " must" : ""), for: id }, inp, R.h("span", null, must ? R.h("span", { class: "pt-star", "aria-label": "Imprescindible", text: "★ " }) : null, txt)));
+      });
+      b.append(stat, cks);
+      const urlInfo = R.h("div");
+      R.field(b, { label: "URL publicada", hint: "la de Netlify, empezando por https://", single: true, ph: "https://vuestro-proyecto.netlify.app" }, d, "url").addEventListener("input", () => { paintUrl(); refresh(); });
+      b.append(urlInfo);
+      function paintStat(){
+        const must = CHECKS.filter(c => c[1]), okM = must.filter(c => d.checks[c[0]]).length, okA = CHECKS.filter(c => d.checks[c[0]]).length;
+        const cls = okM === must.length ? "ok" : okM >= must.length - 2 ? "mid" : "no";
+        stat.replaceChildren(R.h("div", { class: "verdict " + cls, text: `Imprescindibles: ${okM} de ${must.length} · Total: ${okA} de ${CHECKS.length}${okM === must.length ? " · Listo para compartir" : " · Aún no lo compartáis"}` }));
+      }
+      function paintUrl(){
+        const u = T(d.url);
+        if (!u){ urlInfo.replaceChildren(R.h("div", { class: "tip", text: "Cuando publiquéis en Netlify Drop, pegad aquí la URL: se usará en los enlaces con UTM y en las estaciones de validación." })); return; }
+        if (!/^https:\/\/[^\s]+\.[^\s]+/.test(u)){ urlInfo.replaceChildren(R.h("div", { class: "tip warn", text: "La URL debería empezar por https:// (Netlify la da así)." })); return; }
+        urlInfo.replaceChildren(R.h("div", { class: "tip ok" }, "URL guardada. ", R.h("a", { href: u, target: "_blank", rel: "noopener", text: "Abrir en una pestaña nueva ↗" }), " Probadla también en el móvil de alguien de otro equipo."));
+      }
+      paintStat(); paintUrl(); refresh();
+    },
+    progress(d){
+      ensure(d);
+      const must = CHECKS.filter(c => c[1]).filter(c => d.checks[c[0]]).length;
+      return R.share([d.ruta, d.brief.objetivo, d.brief.mensaje, d.brief.cta, d.brief.medir, must >= 4 ? "x" : "", d.url]);
+    },
+    prompt(d, R){
+      ensure(d);
+      return {
+        task: buildTask(d),
+        material: buildMaterial(d, R),
+        format: "Primero un plan de 5–8 líneas; después, el archivo completo en un único bloque de código; al final, 5 líneas con lo hecho y lo pendiente."
+      };
+    },
+    toText(d, R){
+      ensure(d);
+      const ok = CHECKS.filter(c => d.checks[c[0]]).map(c => (c[1] ? "★ " : "") + c[2]);
+      return [`Itinerario: ${(RUTAS[d.ruta] || {}).l || "(sin elegir)"}`, "Brief:", R.kv(d.brief, BRIEF_L) || "(vacío)", `Checklist cumplida (${ok.length}/${CHECKS.length}):`, ok.map(s => "- " + s).join("\n") || "(nada marcado)", `URL publicada: ${T(d.url) || "(pendiente)"}`].join("\n");
+    },
+    links: [
+      ["Claude Code", "Documentación para empezar", "https://docs.anthropic.com/en/docs/claude-code/overview"],
+      ["Netlify Drop", "Publicar arrastrando la carpeta", "https://app.netlify.com/drop"],
+      ["Tally", "Formularios y lista de espera", "https://tally.so"],
+      ["Microsoft Clarity", "Grabaciones y mapas de calor gratis", "https://clarity.microsoft.com"],
+      ["Campaign URL Builder", "Enlaces con UTM de Google", "https://ga-dev-tools.google/campaign-url-builder/"]
+    ]
+  });
+})();
 
 </script>
 <script>/* 11z_entregable_s2.js */
