@@ -286,7 +286,7 @@ footer.foot b{color:var(--red)}
   </div>
 
   <footer class="foot">
-    <b>Vuestro trabajo se guarda solo en este navegador.</b> Al acabar cada sesión pulsad «Guardar copia» y conservad el archivo .json; en otro ordenador, «Abrir copia». Claude ayuda a pensar, pero no sustituye a vuestros usuarios: los datos de mercado se verifican en la fuente y en el informe se declara qué hizo la IA. No peguéis datos personales de entrevistados.
+    <b>Vuestro trabajo se guarda solo en este navegador.</b> Al acabar cada sesión subid a Blackboard el PDF del entregable y la copia .json; en la sesión siguiente, «Abrir copia». Claude ayuda a pensar, pero no sustituye a vuestros usuarios: los datos de mercado se verifican en la fuente y en el informe se declara qué hizo la IA. No peguéis datos personales de entrevistados.
   </footer>
 </div>
 
@@ -577,7 +577,7 @@ const R = (() => {
           h("button", {class:"btn small", type:"button", on:{click:paintBanner}}, "Cancelar"));
       });
       zone.append(ex);
-      b.append(h("div", {class:"banner mine"}, h("span", {class:"sp"}, h("b", {text:"Vuestro proyecto. "}), h("span", {id:"status", class:"status"})), zone));
+      b.append(h("div", {class:"banner mine"}, h("span", {class:"sp"}, h("b", {text:"Vuestro proyecto. "}), h("span", {id:"status", class:"status"}), h("br"), h("span", {text:"¿Seguís en otro ordenador o en la sesión siguiente? «Abrir copia» con el .json que subisteis a Blackboard."})), zone));
       paintStatus();
     }
   }
@@ -756,7 +756,7 @@ const R = (() => {
   }
 
   const css = (id, text) => { if (document.getElementById('css-' + id)) return; const st = document.createElement('style'); st.id = 'css-' + id; st.textContent = text; document.head.append(st); };
-  const api = { h, field, select, number, step, tip, grid, list, links, stats, timer, draw, css, md: mdLite, saveFile, slug: () => slug(), get standalone(){ return standalone; }, get stations(){ return stations; }, stationText: (st) => { try { return st.toText ? st.toText(S.st[st.id], api) : (st.prompt(S.st[st.id], api).material || ""); } catch(e){ return ""; } }, progressOf, save, clone, filled, esc, get project(){ return S.project; }, get state(){ return S; }, go,
+  const api = { h, field, select, number, step, tip, grid, list, links, stats, timer, draw, css, md: mdLite, saveFile, saveCopy: () => saveCopy(), openCopy: () => openCopy(), slug: () => slug(), get standalone(){ return standalone; }, get stations(){ return stations; }, stationText: (st) => { try { return st.toText ? st.toText(S.st[st.id], api) : (st.prompt(S.st[st.id], api).material || ""); } catch(e){ return ""; } }, progressOf, save, clone, filled, esc, get project(){ return S.project; }, get state(){ return S; }, go,
     station(def){ def.extra = !!(def.intro || def.deliverable); def.n = def.extra ? null : stations.filter(s => !s.extra).length; stations.push(def); }, boot,
     /* helpers for prompt material */
     lines: (arr, fn) => (arr || []).filter(filled).map((x,i) => fn(x,i)).join("\n"),
@@ -967,14 +967,16 @@ R.deliverable = function (cfg) {
       CONC.forEach(([k, l, hint]) => { const c = R.field(r, { label: l, hint, rows: 3 }, d, k); c.addEventListener("input", paintDoc); });
 
       // 3. documento
-      b = R.step(el, 3, "Vuestro entregable", "Revisadlo entero. Exportadlo y subidlo al aula virtual.");
+      b = R.step(el, 3, "Vuestro entregable", "Revisadlo entero, descargad el PDF y subidlo a Blackboard junto con la copia .json.");
       const acts = R.h("div", { class: "chips no-print" });
-      const exp = R.h("button", { class: "btn primary small", type: "button", on: { click: () => R.saveFile(`${cfg.file}_${R.slug()}.md`, docText(), cfg.title) } }, "Exportar entregable (.md)");
+      if (R.standalone) acts.append(R.h("button", { class: "btn primary small", type: "button", on: { click: () => window.print() } }, "Descargar PDF"));
+      acts.append(R.h("button", { class: "btn accent small", type: "button", on: { click: () => R.saveCopy() } }, "Guardar copia del proyecto (.json)"));
+      const exp = R.h("button", { class: "btn small", type: "button", on: { click: () => R.saveFile(`${cfg.file}_${R.slug()}.md`, docText(), cfg.title) } }, "Exportar texto (.md)");
       const cp = R.h("button", { class: "btn small", type: "button" }, "Copiar texto");
       cp.addEventListener("click", async () => { try { await navigator.clipboard.writeText(docText()); cp.textContent = "Copiado ✓"; } catch (e) { cp.textContent = "No se pudo copiar: usad Exportar"; } setTimeout(() => cp.textContent = "Copiar texto", 1600); });
       acts.append(exp, cp);
-      if (R.standalone) acts.append(R.h("button", { class: "btn small", type: "button", on: { click: () => window.print() } }, "Imprimir o guardar PDF"));
       b.append(acts);
+      R.tip(b, "<b>Para Blackboard:</b> «Descargar PDF» abre la ventana de impresión: elegid <b>Guardar como PDF</b> como destino. Subid el PDF como tarea de la sesión y también la copia .json: es la que abriréis en la sesión siguiente para seguir trabajando.");
       const doc = R.h("article", { class: "dossier" });
       b.append(doc);
       function docText() {
@@ -3208,7 +3210,7 @@ R.deliverable({
           screen.append(w);
         });
         const frame = web
-          ? R.h("div", { class: "wf-browser" }, R.h("div", { class: "bar" }, R.h("i"), R.h("i"), R.h("i"), R.h("span", { class: "url", text: (R.project.nombre || "vuestro-proyecto").toLowerCase().replace(/[^a-z0-9]+/g, "-") + ".netlify.app" })), screen)
+          ? R.h("div", { class: "wf-browser" }, R.h("div", { class: "bar" }, R.h("i"), R.h("i"), R.h("i"), R.h("span", { class: "url", text: "usuario.github.io/ed-" + ((R.project.nombre || "equipo").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "equipo") + "/" })), screen)
           : R.h("div", { class: "wf-phone" }, R.h("div", { class: "notch" }), screen);
         stage.replaceChildren(R.h("div", { role: "img", "aria-label": "Vista previa del wireframe: " + (arr.map(x => (B[x.t] || { l: x.t }).l).join(", ") || "vacío"), style: "width:100%;display:flex;justify-content:center" }, frame));
       }
@@ -3361,6 +3363,7 @@ R.deliverable({
       "- No inventes cifras, testimonios, logos ni premios. Si hace falta un dato, deja [DATO PENDIENTE] y avísanos.",
       "- Respeta el orden de bloques y los textos del wireframe; si propones cambios, explícalos antes de aplicarlos.",
       "- Pide confirmación antes de borrar o sobrescribir cualquier archivo.",
+      "- Publicamos en GitHub Pages desde un repositorio público: no subas datos/, CSV de encuestas, transcripciones, .env, contraseñas ni claves; pide confirmación antes de cada comando git o gh y nunca uses --force ni reset --hard.",
       "- Trabaja por pasos (plan → construir → revisar) y, tras cada paso, resume en 3 líneas qué has hecho y qué falta.");
     if (T(d.extra)) L.push(...T(d.extra).split(/\r?\n/).map(s => s.trim()).filter(Boolean).map(s => s.startsWith("-") ? s : "- " + s));
     return L.join("\n");
@@ -3379,15 +3382,24 @@ R.deliverable({
     const url = T(d.url) || "[URL_PUBLICADA]";
     const seg = T(d.brief.publico) || T(p.segmento) || "nuestro cliente objetivo";
     const camp = slug(name).replace(/-/g, "_") + "_s2";
+    const repo = "ed-" + slug(T(p.nombre) || T(p.equipo) || "equipo");
     return [
       ["Sprint A · 40′", "A1 · Plan", "5′", `Lee CLAUDE.md. Antes de escribir código, propón un plan breve: estructura de secciones siguiendo el wireframe, textos de cada bloque (marcando lo que falte), paleta y tipografía coherentes con el brief, y cómo vamos a medir el CTA. No crees ni modifiques archivos todavía: espera nuestro OK.`],
       ["Sprint A · 40′", "A2 · Construir", "25′", buildTask(d) + "\n\n" + buildMaterial(d, R)],
       ["Sprint A · 40′", "A3 · Revisar", "10′", `Revisa el archivo como si fueras ${seg} abriéndolo en el móvil. Comprueba: 1) en 5 segundos se entiende qué es, para quién y qué hacer; 2) el CTA se ve sin scroll; 3) no hay scroll horizontal a 375 px; 4) accesibilidad (contraste, alt, labels, foco visible); 5) no hay cifras, testimonios ni datos personales inventados. Lista los problemas por gravedad y corrige solo los 3 más graves. Pide confirmación antes de borrar nada.`],
       ["Revisión cruzada · 10′", "R · Revisar el prototipo de otro equipo", "10′", `Vamos a revisar el prototipo de otro equipo (pego abajo su URL o su HTML). Actúa como alguien de su público objetivo. Dame: 3 cosas que funcionan, 3 que confunden o frenan, y 1 cambio prioritario que harías antes de lanzar. Tono constructivo y concreto, máximo 150 palabras.\n\n[PEGA AQUÍ LA URL O EL HTML DEL OTRO EQUIPO]`],
-      ["Sprint B · 30′", "B1 · Publicar en Netlify Drop", "8′", `Prepara la carpeta para publicarla: comprueba que index.html abre con doble clic sin servidor, que todas las rutas son relativas y que hay <title>, meta description, meta viewport y un favicon sencillo (puede ser un SVG en línea). Luego dime en 4 pasos cómo publicarla arrastrando la carpeta a https://app.netlify.com/drop y cómo cambiar el nombre del sitio a algo como ${slug(name)}.netlify.app.`],
-      ["Sprint B · 30′", "B2 · Formulario con Tally", "8′", `Vamos a recoger los registros con Tally. Dime qué campos crear en tally.so según el formulario del wireframe (solo los imprescindibles) y cómo añadir campos ocultos utm_source y utm_campaign. Cuando te pase el enlace [ENLACE_TALLY], conecta el CTA principal para abrirlo (popup de Tally o enlace) y añade bajo el botón una línea de privacidad: para qué usamos los datos y que es un proyecto de clase.`],
+      ["Sprint B · 30′", "B1 · Publicar en GitHub Pages", "10′", `Quiero publicar esta carpeta en GitHub Pages. Ve paso a paso y pídeme confirmación antes de cada comando:
+1) Comprueba si git y gh (GitHub CLI) están disponibles y si gh tiene sesión iniciada (gh auth status). Si falta algo, no instales nada: dímelo y lo haremos con GitHub Desktop.
+2) Revisa que index.html abre con doble clic sin servidor, que las rutas son relativas y que hay <title>, meta description, meta viewport y favicon.
+3) Comprueba que existe .gitignore y que excluye datos/, .env y cualquier archivo con datos personales. Enséñame la lista de archivos que se van a subir.
+4) La primera vez: si la carpeta no es un repositorio, inicialízalo con la rama main, haz un primer commit y crea el repositorio PÚBLICO con: gh repo create ${repo} --public --source=. --push
+   Las siguientes veces: git add, git commit -m "[qué ha cambiado]" y git push.
+5) Activa GitHub Pages desde la rama main y la carpeta raíz: gh api -X POST repos/[USUARIO]/${repo}/pages -f "source[branch]=main" -f "source[path]=/" (si no puedes, dime los pasos en Settings → Pages → Deploy from a branch → main / (root)).
+6) Dime la URL final, https://[USUARIO].github.io/${repo}/, y recuérdame que tarda entre 1 y 10 minutos en aparecer.
+Nunca uses --force ni reset --hard, y no borres archivos. El repositorio es público: nada de datos personales, CSV de encuestas, transcripciones, contraseñas ni claves.`],
+      ["Sprint B · 30′", "B2 · Formulario con Tally", "7′", `Vamos a recoger los registros con Tally. Dime qué campos crear en tally.so según el formulario del wireframe (solo los imprescindibles) y cómo añadir campos ocultos utm_source y utm_campaign. Cuando te pase el enlace [ENLACE_TALLY], conecta el CTA principal para abrirlo (popup de Tally o enlace) y añade bajo el botón una línea de privacidad: para qué usamos los datos y que es un proyecto de clase.`],
       ["Sprint B · 30′", "B3 · Analítica con Microsoft Clarity", "7′", `Añade Microsoft Clarity con el ID de proyecto que te daré [ID_CLARITY]. Inserta el script en <head>, pero que solo se cargue si el visitante acepta un aviso de cookies sencillo y accesible (Aceptar / Rechazar, recordando la elección). Explícame en 3 líneas qué veremos en Clarity (grabaciones, mapas de calor, clics en el CTA).`],
-      ["Sprint B · 30′", "B4 · Enlaces con UTM", "7′", `Genera los enlaces con UTM para ${url}: Instagram (utm_source=instagram, utm_medium=social), WhatsApp de grupos de máster (utm_source=whatsapp, utm_medium=mensajeria), LinkedIn (utm_source=linkedin, utm_medium=social) y email (utm_source=email, utm_medium=email), todos con utm_campaign=${camp}. Devuélvelos en una tabla (canal, enlace completo) y recuérdanos qué número mirar en cada canal para H2.`]
+      ["Sprint B · 30′", "B4 · Enlaces con UTM", "6′", `Genera los enlaces con UTM para ${url}: Instagram (utm_source=instagram, utm_medium=social), WhatsApp de grupos de máster (utm_source=whatsapp, utm_medium=mensajeria), LinkedIn (utm_source=linkedin, utm_medium=social) y email (utm_source=email, utm_medium=email), todos con utm_campaign=${camp}. Devuélvelos en una tabla (canal, enlace completo) y recuérdanos qué número mirar en cada canal para H2.`]
     ];
   }
 
@@ -3510,6 +3522,7 @@ R.deliverable({
         });
       }
       refreshers.push(drawSeq);
+      R.tip(b, "<b>Plan rápido si GitHub se atasca:</b> arrastrad la carpeta a <a href=\"https://app.netlify.com/drop\" target=\"_blank\" rel=\"noopener\">Netlify Drop</a> y tendréis una URL en un minuto; después pasad a GitHub Pages.");
       R.tip(b, "Si Claude Code se lía, no sigáis parcheando: pedidle que <b>explique qué ha hecho</b> y volved al último paso que funcionaba. Y no peguéis claves ni contraseñas en el chat: el ID de Clarity y el enlace de Tally son públicos, pero nada más.", "warn");
 
       /* ---------- 5. Checklist y URL ---------- */
@@ -3525,7 +3538,7 @@ R.deliverable({
       });
       b.append(stat, cks);
       const urlInfo = R.h("div");
-      R.field(b, { label: "URL publicada", hint: "la de Netlify, empezando por https://", single: true, ph: "https://vuestro-proyecto.netlify.app" }, d, "url").addEventListener("input", () => { paintUrl(); refresh(); });
+      R.field(b, { label: "URL publicada", hint: "la de GitHub Pages, empezando por https://", single: true, ph: "https://usuario.github.io/ed-equipo/" }, d, "url").addEventListener("input", () => { paintUrl(); refresh(); });
       b.append(urlInfo);
       function paintStat(){
         const must = CHECKS.filter(c => c[1]), okM = must.filter(c => d.checks[c[0]]).length, okA = CHECKS.filter(c => d.checks[c[0]]).length;
@@ -3534,8 +3547,8 @@ R.deliverable({
       }
       function paintUrl(){
         const u = T(d.url);
-        if (!u){ urlInfo.replaceChildren(R.h("div", { class: "tip", text: "Cuando publiquéis en Netlify Drop, pegad aquí la URL: se usará en los enlaces con UTM y en las estaciones de validación." })); return; }
-        if (!/^https:\/\/[^\s]+\.[^\s]+/.test(u)){ urlInfo.replaceChildren(R.h("div", { class: "tip warn", text: "La URL debería empezar por https:// (Netlify la da así)." })); return; }
+        if (!u){ urlInfo.replaceChildren(R.h("div", { class: "tip", text: "Cuando publiquéis en GitHub Pages, pegad aquí la URL (https://usuario.github.io/repositorio/): se usará en los enlaces con UTM y en las estaciones de validación." })); return; }
+        if (!/^https:\/\/[^\s]+\.[^\s]+/.test(u)){ urlInfo.replaceChildren(R.h("div", { class: "tip warn", text: "La URL debería empezar por https:// (GitHub Pages la da así)." })); return; }
         urlInfo.replaceChildren(R.h("div", { class: "tip ok" }, "URL guardada. ", R.h("a", { href: u, target: "_blank", rel: "noopener", text: "Abrir en una pestaña nueva ↗" }), " Probadla también en el móvil de alguien de otro equipo."));
       }
       paintStat(); paintUrl(); refresh();
@@ -3560,7 +3573,7 @@ R.deliverable({
     },
     links: [
       ["Claude Code", "Documentación para empezar", "https://docs.anthropic.com/en/docs/claude-code/overview"],
-      ["Netlify Drop", "Publicar arrastrando la carpeta", "https://app.netlify.com/drop"],
+      ["GitHub Pages", "Publicar la web desde el repositorio", "https://docs.github.com/es/pages"],
       ["Tally", "Formularios y lista de espera", "https://tally.so"],
       ["Microsoft Clarity", "Grabaciones y mapas de calor gratis", "https://clarity.microsoft.com"],
       ["Campaign URL Builder", "Enlaces con UTM de Google", "https://ga-dev-tools.google/campaign-url-builder/"]
