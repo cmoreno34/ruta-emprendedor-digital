@@ -1611,13 +1611,14 @@ R.qual = function (parent, q, opts){
     raw.value = ""; q.raw = ""; msgA.textContent = `${parts.length} documentos añadidos.`; R.save(); paintDocs(); paintAll();
   });
   const acts = H("div", { class: "chips" }, addB);
-  if (o.importar){
+  const importers = (o.importers || []).concat(o.importar ? [{ label: o.importarLabel || "Traer de arriba", fn: o.importar }] : []);
+  importers.forEach(im => {
     acts.append(H("button", { class: "btn small", type: "button", on: { click: () => {
-      const ts = (o.importar() || []).map(t => anon(String(t).replace(/\s+/g, " ").trim())).filter(t => t.length > 8 && !q.docs.some(d => d.text === t));
+      const ts = (im.fn() || []).map(t => anon(String(t).replace(/\s+/g, " ").trim())).filter(t => t.length > 8 && !q.docs.some(d => d.text === t));
       let n = q.docs.length; ts.forEach(t => q.docs.push({ id: "D" + pad(++n), text: t }));
       msgA.textContent = ts.length ? `${ts.length} documentos traídos.` : "No hay textos nuevos que traer."; R.save(); paintDocs(); paintAll();
-    } } }, o.importarLabel || "Traer de arriba"));
-  }
+    } } }, im.label));
+  });
   acts.append(msgA);
   sA.append(acts, listEl);
   function paintDocs(){
@@ -1871,7 +1872,7 @@ R.station({
       { como: "compañeros de piso", quiero: "firmar un acuerdo de convivencia", para: "dejar claras las normas", prio: "C", estado: "todo" },
       { como: "estudiante", quiero: "probar Premium por 9,99 €/mes", para: "ver más perfiles", prio: "S", estado: "todo" }
     ],
-    retroStart: "Preparar el guion de entrevista antes de salir al campus.",
+    retroStart: "Preparar el guion de entrevista con Claude antes de las entrevistas cruzadas.",
     retroStop: "Discutir la solución antes de entender el problema.",
     retroCont: "Rotar quién escribe en el tablero.",
     dodChecks: { semilla: true, scrum: true, empatia: true, lluvia: true, crazy8: true, ideas: true, modelo: true, entregable1: true }
@@ -2088,7 +2089,10 @@ R.station({
 
     /* 2 · entrevistas */
     b = R.step(el, 2, "Analizar las reseñas: netnografía con grounded theory", "Las reseñas y comentarios online son documentos: analizarlos es netnografía (Kozinets). Los tratamos como en investigación cualitativa: códigos abiertos, categorías, relaciones y mapa conceptual (Corbin y Strauss). Los temas que se repiten en muchos documentos son evidencia para el mapa de empatía y el POV.");
-    R.qual(b, d.qualR, { fuente: "reseñas y comentarios online", importar: () => (d.resenas || []).map(r => r.cita).filter(Boolean), importarLabel: "Traer las reseñas del paso 1" });
+    R.qual(b, d.qualR, { fuente: "reseñas, comentarios online y notas de entrevistas", importers: [
+      { label: "Traer las reseñas del paso 1", fn: () => (d.resenas || []).map(r => r.cita).filter(Boolean) },
+      { label: "Traer las notas de las entrevistas cruzadas (paso 3)", fn: () => (d.entrevistas || []).map((e, i) => { const t = [e.notas, e.hechos, e.cita].filter(x => x && String(x).trim()).join(" · "); return t ? `Entrevista ${e.perfil || "E" + (i + 1)}: ${t}` : ""; }).filter(Boolean) }
+    ] });
     b.append(R.h("div", { class: "chips" }, R.h("button", { class: "btn small", type: "button", on: { click: () => {
       const top = R.qualTop(d.qualR).filter(c => c.n > 0).slice(0, 6), N = (d.qualR.docs || []).length || 0;
       const lines = (d.mapa.dolores || "").split("\n").filter(Boolean);
@@ -2096,7 +2100,24 @@ R.station({
       d.mapa.dolores = lines.join("\n"); R.save(); R.go("empatia");
     } } }, "Llevar los temas al mapa de empatía (dolores)")));
 
-    b = R.step(el, 3, "Entrevistas exprés en el campus", "Tres conversaciones de 5–7 minutos con personas que encajen en vuestro cliente objetivo. Usad The Mom Test (Fitzpatrick, 2013): hablad de su vida y de lo que hicieron en el pasado, no de vuestra idea ni de lo que harían en el futuro.");
+    b = R.step(el, 3, "Entrevistas cruzadas entre equipos", "Tres conversaciones de 5 minutos con personas de otro equipo (el equipo 1 entrevista al 2, el 2 al 3… y el último al 1). Cada uno responde desde su experiencia real, no opina sobre vuestra idea. Usad The Mom Test (Fitzpatrick, 2013): hablad de su vida y de lo que hicieron, no de lo que harían.");
+    {
+      const sd = (R.state.st && R.state.st.semilla) || {};
+      const gp = () => [
+        "Prepara un guion de entrevista exprés de 5 minutos siguiendo The Mom Test (Fitzpatrick, 2013). Lo usaremos con compañeros de otro equipo del máster.",
+        "Reglas: preguntas sobre hechos pasados y comportamientos concretos; nunca preguntes por nuestra idea ni hagas preguntas hipotéticas («¿usarías…?», «¿pagarías…?»); de lo general a lo concreto; 6–7 preguntas; incluye 2 repreguntas para profundizar («¿qué hiciste entonces?», «¿cuánto te costó en tiempo o dinero?») y termina con «¿con quién más debería hablar?». Si la persona no ha vivido el problema, añade 2 preguntas sobre alguien cercano que sí lo haya vivido.",
+        "Devuelve solo la lista numerada, en castellano.",
+        "",
+        "Contexto:",
+        "Problema: " + (sd.problema || R.project.reto || "(sin rellenar en la estación 0)"),
+        "Quién lo sufre: " + (sd.quien || R.project.segmento || "(sin rellenar)"),
+        "Cómo se resuelve hoy: " + (sd.hoy || "(sin rellenar)")
+      ].join("\n");
+      const pre = R.h("pre", { class: "prompt", style: "max-height:180px" }); pre.textContent = gp();
+      const cb = R.h("button", { class: "btn accent small", type: "button" }, "Copiar prompt del guion");
+      cb.addEventListener("click", async () => { pre.textContent = gp(); try { await navigator.clipboard.writeText(pre.textContent); cb.textContent = "Copiado ✓"; } catch (e){ const r = document.createRange(); r.selectNodeContents(pre); getSelection().removeAllRanges(); getSelection().addRange(r); cb.textContent = "Seleccionado: Ctrl+C"; } setTimeout(() => cb.textContent = "Copiar prompt del guion", 1600); });
+      b.append(R.h("p", { class: "sec-label", text: "1 · Preparad el guion con Claude (3′)" }), R.h("p", { class: "tb-help", text: "Copiad este prompt, pegadlo en Claude y pegad su respuesta en «Vuestro guion». Revisadla con la tabla de preguntas buenas y malas." }), R.h("div", { class: "chips" }, cb), pre);
+    }
     b.append(R.h("div", { class: "emp-mt" },
       R.h("div", { class: "bad" }, R.h("h4", { text: "✗ Preguntas que engañan" }), R.h("ul", null,
         R.h("li", null, "«¿Usarías una app que te empareje con compañeros compatibles?»", R.h("span", { text: "Pide una opinión sobre el futuro: por educación, casi todos dicen que sí." })),
@@ -2109,9 +2130,11 @@ R.station({
         R.h("li", null, "«¿Has gastado dinero o tiempo intentando arreglarlo?»", R.h("span", { text: "El compromiso real es la mejor señal." })),
         R.h("li", null, "«¿Con quién más debería hablar?»", R.h("span", { text: "Consigue la siguiente entrevista." }))
       ))));
-    R.field(b, { label: "Vuestro guion", hint: "5–6 preguntas, de lo general a lo concreto", rows: 6, ph: "1. Cuéntame cómo…" }, d, "guion");
+    R.field(b, { label: "Vuestro guion", hint: "Pegad aquí el de Claude y retocadlo: 6–7 preguntas, de lo general a lo concreto", rows: 6, ph: "1. Cuéntame cómo…" }, d, "guion");
+    b.append(R.h("p", { class: "sec-label", text: "2 · Entrevistad y pegad aquí los resultados (15′)" }), R.h("p", { class: "tb-help", text: "Uno pregunta y otro toma notas. Pegad las notas de cada entrevista y separad lo que hizo (hechos) de lo que opina. En el paso 2 podéis traerlas al análisis cualitativo junto a las reseñas." }));
     R.list(b, { add: "Añadir entrevista", cols: [
-      { key: "perfil", label: "Perfil (sin nombre)", ph: "E1 · edad, origen, estudios", w: "1fr" },
+      { key: "notas", label: "Notas de la entrevista (pegadlas aquí)", type: "area", rows: 3, ph: "Lo que contó, tal cual lo apuntasteis", w: "1.6fr" },
+      { key: "perfil", label: "Perfil (sin nombre)", ph: "E1 · equipo 3, 24, Italia", w: "1fr" },
       { key: "hechos", label: "Lo que hizo (hechos)", type: "area", ph: "Qué pasó, qué hizo, cuánto le costó", w: "1.6fr" },
       { key: "cita", label: "Cita literal", type: "area", ph: "«…»", w: "1.3fr" },
       { key: "senal", label: "Señal", type: "select", options: [["", "–"], ["fuerte", "Dolor fuerte"], ["tibio", "Dolor tibio"], ["no", "No es problema"]], def: "", w: "130px" }
@@ -3559,7 +3582,7 @@ R.deliverable({
   format: "Cuatro apartados con viñetas. Máximo 350 palabras.",
   example: {
     aprendido: "El problema no es encontrar piso, sino con quién vivir: en 3 entrevistas exprés y 40 reseñas la convivencia aparece antes que el precio.",
-    evidencia: "3 entrevistas exprés en el campus (3 de 3 con un conflicto de convivencia en el último año) y 40 reseñas de Badi e Idealista agrupadas con Claude (1 de cada 4 habla de compañeros).",
+    evidencia: "3 entrevistas cruzadas con otro equipo (3 de 3 con un conflicto de convivencia en el último año) y 40 reseñas de Badi e Idealista agrupadas con Claude (1 de cada 4 habla de compañeros).",
     decision: "Seguimos con el concepto «Encuentra con quién vivir, no solo dónde». En la S2 probamos primero las hipótesis de problema (H1) y de pago (H4), que son las más arriesgadas.",
     distinto: "Llegar con el guion de entrevista preparado y no discutir soluciones antes de tener el POV."
   },
