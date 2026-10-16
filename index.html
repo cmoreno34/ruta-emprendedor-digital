@@ -2435,6 +2435,8 @@ function fix(d){
   const b = blank();
   for (const k in b) if (d[k] == null || Array.isArray(b[k]) !== Array.isArray(d[k])) d[k] = b[k];
   for (let k = d.ideas.length - 1; k >= 0; k--){ const i = d.ideas[k]; if (!i || typeof i !== "object" || !String(i.t || "").trim()) d.ideas.splice(k, 1); }
+  if (!d.turnos || typeof d.turnos !== "object") d.turnos = { votantes: [], actual: 0, ballots: {}, revelado: d.ideas.some(i => Number(i.votos) > 0) };
+  const T = d.turnos; if (!Array.isArray(T.votantes)) T.votantes = []; if (!T.ballots || typeof T.ballots !== "object") T.ballots = {}; T.actual = Number(T.actual) || 0; T.revelado = !!T.revelado;
   d.ideas.forEach(i => { i.votos = Number(i.votos) || 0; i.imp = Number(i.imp) || 3; i.esf = Number(i.esf) || 3; i.tema = i.tema || ""; i.autor = i.autor || ""; i.fin = !!i.fin; });
 }
 const syncFin = d => { d.finalistas = d.ideas.filter(i => i.fin).map(i => i.t); };
@@ -2659,61 +2661,91 @@ R.station({
       });
     }
 
-    /* 4 · votación y temas */
-    b = R.step(el, 4, "Votación por puntos y temas", "Dot voting: cada persona reparte 3 votos entre las ideas que más le gusten (puede poner 2 en la misma). Votad en silencio y a la vez para no arrastraros. Después, poned un tema a cada tarjeta para ver qué familias de ideas tenéis.");
-    const vHead = R.h("div", { class: "ll-seg" });
-    R.number(vHead, { label: "Personas que votan", min: 1, max: 12, step: 1, onChange: paintVotes }, d, "personas");
-    b.append(vHead);
-    const vInfo = R.h("div", { "aria-live": "polite" });
-    const viewSeg = R.h("div", { class: "ll-seg", role: "group", "aria-label": "Vista" });
-    let view = "lista";
-    const vb1 = R.h("button", { class: "btn small", type: "button", "aria-pressed": "true" }, "Votar y etiquetar");
-    const vb2 = R.h("button", { class: "btn small", type: "button", "aria-pressed": "false" }, "Ver por temas");
-    vb1.addEventListener("click", () => { view = "lista"; paintVotes(); });
-    vb2.addEventListener("click", () => { view = "temas"; paintVotes(); });
-    viewSeg.append(vb1, vb2);
-    const vBox = R.h("div");
+    /* 4 · votación por turnos y temas */
+    b = R.step(el, 4, "Votación por puntos y temas", "Dot voting: cada persona reparte 3 votos entre las ideas que más le gusten (puede poner 2 en la misma). Con un solo ordenador se vota por turnos: cada uno vota sin ver lo de los demás y pasa el portátil. Al final se revelan los resultados y se pone un tema a cada idea.");
+    const T = d.turnos;
+    const membersFromProject = () => String(R.project.miembros || "").split(/[,;\n]/).map(x => x.replace(/\(.*?\)/g, "").trim()).filter(Boolean);
+    const vBox = R.h("div", { style: "display:flex;flex-direction:column;gap:10px" });
     const dl = R.h("datalist", { id: "ll-temas" });
-    b.append(vInfo, viewSeg, vBox, dl);
+    b.append(vBox, dl);
     function paintDl(){ dl.replaceChildren(...[...new Set(d.ideas.map(i => i.tema.trim()).filter(Boolean))].map(t => R.h("option", { value: t }))); }
-    function paintVInfo(){
-      const used = d.ideas.reduce((a, i) => a + i.votos, 0), cap = (Number(d.personas) || 0) * 3;
-      vInfo.replaceChildren(R.h("div", { class: "verdict " + (!used ? "mid" : used > cap && cap ? "no" : "ok"),
-        text: !used ? `Votos repartidos: 0 de ${cap}. Cada persona tiene 3.` : used > cap && cap ? `Votos repartidos: ${used} de ${cap}. Os habéis pasado: quitad alguno.` : `Votos repartidos: ${used} de ${cap}.` }));
-    }
+    const used = name => Object.values(T.ballots[name] || {}).reduce((a, x) => a + x, 0);
+    function tally(){ d.ideas.forEach(i => { i.votos = 0; }); Object.values(T.ballots).forEach(bl => Object.entries(bl).forEach(([t, n]) => { const it = d.ideas.find(i => i.t === t); if (it) it.votos += n; })); }
     function paintVotes(){
-      vb1.setAttribute("aria-pressed", String(view === "lista")); vb2.setAttribute("aria-pressed", String(view === "temas"));
-      paintVInfo(); paintDl();
-      vBox.replaceChildren();
+      paintDl(); vBox.replaceChildren();
       if (!d.ideas.length){ vBox.append(R.h("div", { class: "ll-empty", text: "Primero, ideas (paso 3)." })); return; }
+      if (!T.votantes.length) T.votantes = membersFromProject();
+      /* votantes */
+      const vid = "ll-votantes";
+      const vin = R.h("input", { id: vid, type: "text", placeholder: "Lucía, Andrés, Marta, Iván" }); vin.value = T.votantes.join(", ");
+      vin.addEventListener("change", () => { T.votantes = vin.value.split(",").map(x => x.trim()).filter(Boolean); T.actual = Math.min(T.actual, T.votantes.length); R.save(); paintVotes(); });
+      vBox.append(R.h("div", { class: "fld" }, R.h("label", { for: vid }, "Quién vota", R.h("span", { class: "h", text: "Separados por comas (sale de «Miembros» del proyecto)" })), vin));
+      if (!T.revelado){
+        if (!T.votantes.length){ vBox.append(R.h("div", { class: "tip warn", text: "Escribid quién vota." })); return; }
+        if (T.actual >= T.votantes.length){
+          vBox.append(R.h("div", { class: "verdict ok", text: `Han votado las ${T.votantes.length} personas.` }),
+            R.h("div", { class: "chips" }, R.h("button", { class: "btn primary", type: "button", on: { click: () => { tally(); T.revelado = true; R.save(); paintVotes(); paintMatrix(); paintFin(); } } }, "Revelar resultados"),
+              R.h("button", { class: "btn small", type: "button", on: { click: () => { T.actual = Math.max(0, T.votantes.length - 1); R.save(); paintVotes(); } } }, "Volver al último turno")));
+          return;
+        }
+        const name = T.votantes[T.actual];
+        const bl = T.ballots[name] = T.ballots[name] || {};
+        const left = 3 - used(name);
+        vBox.append(R.h("div", { class: "tb-info" },
+          R.h("p", null, R.h("b", { text: `Turno ${T.actual + 1} de ${T.votantes.length}: vota ${name}. ` }), "El resto, mirad a otro lado. Solo se ven tus votos."),
+          R.h("p", { class: left ? "" : "tb-dod", text: left ? `Te quedan ${left} de 3 votos.` : "Has usado tus 3 votos." })));
+        const box = R.h("div", { class: "ll-vt" });
+        d.ideas.forEach(it => {
+          const mine = bl[it.t] || 0;
+          const dots = R.h("span", { class: "dots", text: mine ? "●".repeat(mine) : "·" });
+          const minus = R.h("button", { type: "button", "aria-label": "Quitar mi voto a: " + short(it.t, 40), disabled: !mine }, "−");
+          const plus = R.h("button", { type: "button", "aria-label": "Dar mi voto a: " + short(it.t, 40), disabled: !left }, "+");
+          minus.addEventListener("click", () => { if (bl[it.t] > 0){ bl[it.t]--; if (!bl[it.t]) delete bl[it.t]; R.save(); paintVotes(); } });
+          plus.addEventListener("click", () => { if (used(name) < 3){ bl[it.t] = (bl[it.t] || 0) + 1; R.save(); paintVotes(); } });
+          box.append(R.h("div", { class: "ll-vr" }, R.h("span", { class: "tx" }, it.t), R.h("span", { class: "ll-vote" }, minus, dots, plus), R.h("span")));
+        });
+        vBox.append(box, R.h("div", { class: "chips" },
+          T.actual > 0 ? R.h("button", { class: "btn small", type: "button", on: { click: () => { T.actual--; R.save(); paintVotes(); } } }, "◂ Turno anterior") : null,
+          R.h("button", { class: "btn primary", type: "button", on: { click: () => { T.actual++; R.save(); paintVotes(); window.scrollTo({ top: vBox.getBoundingClientRect().top + scrollY - 120 }); } } }, T.actual + 1 < T.votantes.length ? `Listo: pasa el portátil a ${T.votantes[T.actual + 1]} ▸` : "Listo: último voto ▸")));
+        return;
+      }
+      /* resultados revelados + temas */
+      const total = d.ideas.reduce((a, i) => a + i.votos, 0);
+      vBox.append(R.h("div", { class: "verdict ok", text: `Resultados: ${total} votos de ${T.votantes.length} personas. Ahora poned un tema a cada idea.` }));
+      let view = vBox.dataset.view || "lista";
+      const vb1 = R.h("button", { class: "btn small", type: "button", "aria-pressed": String(view === "lista") }, "Resultados y temas");
+      const vb2 = R.h("button", { class: "btn small", type: "button", "aria-pressed": String(view === "temas") }, "Ver por temas");
+      vb1.addEventListener("click", () => { vBox.dataset.view = "lista"; paintVotes(); });
+      vb2.addEventListener("click", () => { vBox.dataset.view = "temas"; paintVotes(); });
+      vBox.append(R.h("div", { class: "ll-seg", role: "group", "aria-label": "Vista" }, vb1, vb2));
       if (view === "temas"){
         const groups = {};
         d.ideas.forEach(i => { const k = i.tema.trim() || "Sin tema"; (groups[k] = groups[k] || []).push(i); });
-        const keys = Object.keys(groups).sort((a, b2) => (a === "Sin tema") - (b2 === "Sin tema") || groups[b2].reduce((s, i) => s + i.votos, 0) - groups[a].reduce((s, i) => s + i.votos, 0));
+        const keys = Object.keys(groups).sort((a, b2) => (a === "Sin tema") - (b2 === "Sin tema") || groups[b2].reduce((x, i) => x + i.votos, 0) - groups[a].reduce((x, i) => x + i.votos, 0));
         vBox.append(R.h("div", { class: "ll-themes" }, ...keys.map(k => {
-          const v = groups[k].reduce((s, i) => s + i.votos, 0);
+          const v = groups[k].reduce((x, i) => x + i.votos, 0);
           return R.h("div", { class: "col" }, R.h("h4", null, k, R.h("span", { text: `${groups[k].length} · ${v} ●` })),
             ...groups[k].slice().sort((x, y) => y.votos - x.votos).map(i => R.h("div", { class: "card" }, R.h("span", { text: i.t }), i.votos ? R.h("span", { class: "tag M", text: "●".repeat(Math.min(i.votos, 12)) }) : null)));
         })));
-        return;
+      } else {
+        const box = R.h("div", { class: "ll-vt" });
+        d.ideas.slice().sort((x, y) => y.votos - x.votos).forEach((it, k) => {
+          const tid = "ll-t-" + k;
+          const tin = R.h("input", { id: tid, type: "text", list: "ll-temas", placeholder: "Tema", "aria-label": "Tema de: " + short(it.t, 40) });
+          tin.value = it.tema;
+          tin.addEventListener("input", () => { it.tema = tin.value; R.save(); });
+          tin.addEventListener("change", paintDl);
+          box.append(R.h("div", { class: "ll-vr" }, R.h("span", { class: "tx" }, it.t, it.autor ? R.h("small", { text: it.autor }) : null), R.h("span", { class: "ll-vote" }, R.h("span", { class: "dots", text: it.votos ? "●".repeat(Math.min(it.votos, 8)) + (it.votos > 8 ? "+" : "") : "0" })), tin));
+        });
+        vBox.append(box);
       }
-      const box = R.h("div", { class: "ll-vt" });
-      d.ideas.forEach((it, k) => {
-        const dots = R.h("span", { class: "dots", "aria-label": `${it.votos} votos`, text: it.votos ? "●".repeat(Math.min(it.votos, 6)) + (it.votos > 6 ? "+" : "") : "0" });
-        const minus = R.h("button", { type: "button", "aria-label": "Quitar un voto a: " + short(it.t, 40) }, "−");
-        const plus = R.h("button", { type: "button", "aria-label": "Dar un voto a: " + short(it.t, 40) }, "+");
-        const upd = () => { dots.textContent = it.votos ? "●".repeat(Math.min(it.votos, 6)) + (it.votos > 6 ? "+" : "") : "0"; dots.setAttribute("aria-label", `${it.votos} votos`); R.save(); paintVInfo(); paintMatrix(); paintFin(); };
-        minus.addEventListener("click", () => { if (it.votos > 0){ it.votos--; upd(); } });
-        plus.addEventListener("click", () => { it.votos++; upd(); });
-        const tid = "ll-t-" + k;
-        const tin = R.h("input", { id: tid, type: "text", list: "ll-temas", placeholder: "Tema", "aria-label": "Tema de: " + short(it.t, 40) });
-        tin.value = it.tema;
-        tin.addEventListener("input", () => { it.tema = tin.value; R.save(); });
-        tin.addEventListener("change", paintDl);
-        box.append(R.h("div", { class: "ll-vr" }, R.h("span", { class: "tx" }, it.t, it.autor ? R.h("small", { text: it.autor }) : null), R.h("span", { class: "ll-vote" }, minus, dots, plus), tin));
-      });
-      vBox.append(box);
+      const zone = R.h("span", { class: "confirm" });
+      const again = R.h("button", { class: "btn small ghost", type: "button" }, "Repetir la votación");
+      again.addEventListener("click", () => { zone.replaceChildren(R.h("span", { text: "Se borrarán los votos (los temas se quedan)." }), R.h("button", { class: "btn accent small", type: "button", on: { click: () => { T.ballots = {}; T.actual = 0; T.revelado = false; d.ideas.forEach(i => { i.votos = 0; }); R.save(); paintVotes(); paintMatrix(); paintFin(); } } }, "Sí, repetir"), R.h("button", { class: "btn small", type: "button", on: { click: paintVotes } }, "Cancelar")); });
+      zone.append(again); vBox.append(zone);
     }
+    const vInfo = { replaceChildren(){} };
+    function paintVInfo(){}
 
     /* 5 · matriz */
     b = R.step(el, 5, "Matriz impacto / esfuerzo", "Para las ideas más votadas, puntuad de 1 a 5 cuánto impacto tendrían en el problema y cuánto esfuerzo costaría probarlas. Arriba a la izquierda están las victorias rápidas; arriba a la derecha, las grandes apuestas.");
@@ -2810,7 +2842,7 @@ R.station({
   },
   toText(d, R){
     fix(d);
-    return [`Pregunta: ${d.pregunta || "(sin pregunta)"}`, `Ideas: ${d.ideas.length} · personas que votan: ${d.personas}`, "",
+    return [`Pregunta: ${d.pregunta || "(sin pregunta)"}`, `Ideas: ${d.ideas.length} · personas que votan: ${(d.turnos && d.turnos.votantes && d.turnos.votantes.length) || d.personas}`, "",
       d.ideas.map(i => `- ${i.t}${i.autor ? ` (${i.autor})` : ""}${i.tema ? ` [${i.tema}]` : ""}${i.votos ? ` · ${i.votos} votos` : ""}`).join("\n") || "(sin ideas)", "",
       "Matriz impacto/esfuerzo:", topOf(d).map(i => `- ${i.t}: impacto ${i.imp}, esfuerzo ${i.esf}`).join("\n") || "(vacía)", "",
       "Finalistas:", R.lines(d.finalistas, (f, i) => `${i + 1}. ${f}`) || "(sin elegir)"].join("\n");
