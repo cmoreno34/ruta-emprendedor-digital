@@ -1038,10 +1038,6 @@ R.station({
     b.append(R.h("div", null, R.h("button", { class: "btn primary", type: "button", on: { click: () => R.go("semilla") } }, "Empezar por la idea de partida →")));
   },
   links: [
-    ["Guía de Scrum", "Scrum Guide 2020 en castellano", "https://scrumguides.org/scrum-guide.html"],
-    ["d.school", "Design Thinking (Stanford)", "https://dschool.stanford.edu/resources"],
-    ["Strategyzer", "Business Model Canvas y VPC", "https://www.strategyzer.com/library"],
-    ["Lean Canvas", "El lienzo de Ash Maurya", "https://leanstack.com/lean-canvas"]
   ]
 });
 
@@ -1092,10 +1088,7 @@ R.station({
     };
   },
   links: [
-    ["Google Trends", "¿Crece el interés por el problema?", "https://trends.google.es"],
-    ["Exploding Topics", "Tendencias emergentes", "https://explodingtopics.com"],
-    ["Product Hunt", "Qué se está lanzando", "https://www.producthunt.com"],
-    ["AnswerThePublic", "Preguntas reales de la gente", "https://answerthepublic.com"]
+    ["Google Trends", "¿Crece el interés por el problema?", "https://trends.google.es"]
   ]
 });
 
@@ -1305,8 +1298,6 @@ R.station({
     if (window.__glFocus){ const t = document.getElementById("gl-" + slugT(window.__glFocus)); if (t) setTimeout(() => t.scrollIntoView({ block: "center" }), 50); window.__glFocus = null; }
   },
   links: [
-    ["Guía de Scrum", "Definiciones oficiales de Scrum", "https://scrumguides.org/scrum-guide.html"],
-    ["Strategyzer", "BMC, VPC, test card y learning card", "https://www.strategyzer.com/library"]
   ]
 });
 })();
@@ -1995,7 +1986,6 @@ R.station({
     };
   },
   links: [
-    ["Guía de Scrum (ES)", "La guía oficial de 2020", "https://scrumguides.org/scrum-guide.html"]
   ]
 });
 
@@ -2419,10 +2409,7 @@ R.station({
     return L.filter(x => x !== "").join("\n");
   },
   links: [
-    ["The Mom Test", "El libro de Fitzpatrick sobre entrevistas", "https://www.momtestbook.com"],
-    ["Trustpilot", "Reseñas de servicios y webs", "https://es.trustpilot.com"],
-    ["Stanford d.school", "Guías y métodos de Design Thinking", "https://dschool.stanford.edu/resources"],
-    ["HBR · Jobs to Be Done", "Christensen et al. (2016)", "https://hbr.org/2016/09/know-your-customers-jobs-to-be-done"]
+    ["Trustpilot", "Reseñas de servicios y webs", "https://es.trustpilot.com"]
   ]
 });
 })();
@@ -2661,6 +2648,11 @@ R.station({
       });
     }
 
+    R.assist(b, { id: "ll-co", title: "Primero vosotros 10′ sin IA (para no anclaros). Después, Claude añade ideas distintas a las vuestras.",
+      build: () => "Actúa como co-ideador crítico en una lluvia de ideas. Pregunta: " + (d.pregunta || "(sin pregunta)") + "\nEstas son nuestras ideas:\n" + d.ideas.map((i, k) => (k + 1) + ". " + i.t).join("\n") + "\n\nPropón 15 ideas DISTINTAS a las nuestras: más arriesgadas, de otros sectores o dando la vuelta al problema (usa SCAMPER). Frases cortas con verbo, sin explicaciones.\nResponde EXACTAMENTE:\nIDEAS:\n- …\n- …",
+      example: "IDEAS:\n- …\n- …",
+      apply: t => { const have = new Set(d.ideas.map(i => i.t.trim().toLowerCase())); const nuevas = String(t).split(/\r?\n/).map(l => l.replace(/^\s*(\d+[.)]|[-•*])\s*/, "").trim()).filter(l => l && !/^ideas:?$/i.test(l) && l.length > 6 && !have.has(l.toLowerCase())); nuevas.slice(0, 20).forEach(x => d.ideas.push({ t: x, autor: "Claude", tema: "", votos: 0, imp: 3, esf: 3, fin: false })); return nuevas.length; } });
+
     /* 4 · votación por turnos y temas */
     b = R.step(el, 4, "Votación por puntos y temas", "Dot voting: cada persona reparte 3 votos entre las ideas que más le gusten (puede poner 2 en la misma). Con un solo ordenador se vota por turnos: cada uno vota sin ver lo de los demás y pasa el portátil. Al final se revelan los resultados y se pone un tema a cada idea.");
     const T = d.turnos;
@@ -2746,6 +2738,11 @@ R.station({
     }
     const vInfo = { replaceChildren(){} };
     function paintVInfo(){}
+
+    R.assist(b, { id: "ll-temas", title: "Después de revelar los votos: Claude propone familias (temas) para todas las ideas; vosotros las corregís en la casilla «Tema».",
+      build: () => "Agrupa estas ideas de una lluvia de ideas en 4–7 temas (familias de soluciones). Nombres de tema cortos (1–3 palabras). Pregunta de partida: " + (d.pregunta || "(sin pregunta)") + "\nIdeas:\n" + d.ideas.map((i, k) => (k + 1) + ". " + i.t).join("\n") + "\n\nResponde EXACTAMENTE, una línea por idea:\nTEMAS:\n1 | tema\n2 | tema\n…",
+      example: "TEMAS:\n1 | Compatibilidad\n2 | Confianza\n…",
+      apply: t => { let n = 0; String(t).split(/\r?\n/).forEach(l => { const m = l.match(/^\s*(\d+)\s*[|:.)-]\s*(.+?)\s*$/); if (m){ const it = d.ideas[Number(m[1]) - 1]; if (it && m[2] && !/^tema$/i.test(m[2])){ it.tema = m[2].replace(/^\|\s*/, ""); n++; } } }); return n; } });
 
     /* 5 · matriz */
     b = R.step(el, 5, "Matriz impacto / esfuerzo", "Para las ideas más votadas, puntuad de 1 a 5 cuánto impacto tendrían en el problema y cuánto esfuerzo costaría probarlas. Arriba a la izquierda están las victorias rápidas; arriba a la derecha, las grandes apuestas.");
@@ -2848,7 +2845,6 @@ R.station({
       "Finalistas:", R.lines(d.finalistas, (f, i) => `${i + 1}. ${f}`) || "(sin elegir)"].join("\n");
   },
   links: [
-    ["IDEO Design Kit", "Reglas de brainstorming", "https://www.designkit.org/methods/brainstorm-rules.html"]
   ]
 });
 })();
@@ -3058,8 +3054,6 @@ R.station({
       `Elegido: ${d.elegido ? d.elegido + ". " + ((d.bocetos[Number(d.elegido) - 1] || {}).titulo || "") : "–"}`, `Por qué: ${d.porque || "–"}`].join("\n");
   },
   links: [
-    ["Design Sprint Kit · Crazy 8s", "Guía de Google del método", "https://designsprintkit.withgoogle.com/methodology/phase3-sketch/crazy-8s"],
-    ["GV · The Design Sprint", "El método de Jake Knapp", "https://www.gv.com/sprint/"]
   ]
 });
 })();
@@ -3312,7 +3306,6 @@ R.station({
       "Prueba de 2 minutos:", R.kv(d.prueba, { equipo: "Equipo", entendieron: "Qué entendieron", dudas: "Dudas", cambios: "Cambios" }) || "(sin notas)"].join("\n");
   },
   links: [
-    ["Strategyzer · Value Proposition Canvas", "Encajar beneficio y dolor", "https://www.strategyzer.com/library/the-value-proposition-canvas"],
     ["Tally", "Formulario para probar el concepto", "https://tally.so"]
   ]
 });
@@ -3678,9 +3671,6 @@ R.station({
       };
     },
     links: [
-      ["LEANSTACK", "Lean Canvas original de Ash Maurya", "https://www.leanstack.com/lean-canvas"],
-      ["Strategyzer · VPC", "Value Proposition Canvas explicado", "https://www.strategyzer.com/library/the-value-proposition-canvas"],
-      ["Strategyzer · BMC", "Business Model Canvas", "https://www.strategyzer.com/library/the-business-model-canvas"]
     ]
   });
 })();
@@ -3912,7 +3902,6 @@ R.deliverable({
       };
     },
     links: [
-      ["Strategyzer · Test Card", "Plantilla de test card", "https://www.strategyzer.com/library/the-test-card"],
       ["Tally", "Encuestas y listas de espera gratis", "https://tally.so"],
       ["Google Forms", "Encuestas rápidas", "https://forms.google.com"]
     ]
@@ -5009,10 +4998,8 @@ Pídeme confirmación antes de cada comando que cambie algo en GitHub. Nunca use
       };
     },
     links: [
-      ["NN/g · 5 usuarios", "Por qué basta con 5 usuarios por ronda", "https://www.nngroup.com/articles/why-you-only-need-to-test-with-5-users/"],
       ["Tally", "Formulario SUS y consentimiento", "https://tally.so"],
-      ["Microsoft Clarity", "Grabaciones y mapas de calor del prototipo", "https://clarity.microsoft.com"],
-      ["AEPD", "Guías de protección de datos", "https://www.aepd.es"]
+      ["Microsoft Clarity", "Grabaciones y mapas de calor del prototipo", "https://clarity.microsoft.com"]
     ]
   });
 })();
@@ -5690,8 +5677,6 @@ R.deliverable({
       };
     },
     links: [
-      ["The Lean Startup", "Principios: construir, medir, aprender", "https://theleanstartup.com/principles"],
-      ["Strategyzer", "Test card y learning card", "https://www.strategyzer.com/library"]
     ]
   });
 })();
@@ -6402,7 +6387,6 @@ R.deliverable({
       };
     },
     links: [
-      ["Lean Canvas", "El lienzo de Ash Maurya", "https://leanstack.com/lean-canvas"],
       ["GitHub Pages", "Publicar la versión pivotada en el mismo repo", "https://docs.github.com/es/pages"],
       ["Tally", "Formulario «Solicitar piloto»", "https://tally.so"],
       ["Claude Code", "Documentación para adaptar el prototipo", "https://docs.anthropic.com/es/docs/claude-code/overview"]
