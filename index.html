@@ -276,6 +276,11 @@ table.t input{width:100%;border:1px solid var(--line);border-radius:6px;padding:
 .howto{margin:0;padding-left:22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:6px 18px;font-size:13.5px;color:var(--soft)}
 .howto li{padding-left:2px}
 .howto b{color:var(--ink)}
+.rule3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.rule3 .r{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:9px 12px;display:flex;flex-direction:column;gap:2px;font-size:13px;color:var(--soft)}
+.rule3 .r b{font:700 13.5px var(--f-body);color:var(--ink)}
+.rule3 .r:nth-child(2){border-color:var(--red)}
+@media(max-width:640px){.rule3{grid-template-columns:1fr}}
 footer.foot{margin-top:36px;border-top:1px solid var(--line);padding-top:16px;color:var(--soft);font-size:13px;max-width:90ch}
 footer.foot b{color:var(--red)}
 </style>
@@ -775,6 +780,10 @@ const R = (() => {
       h("h2", {text:st.title}),
       h("div", {class:"chips"}, ...(st.chips || []).map(c => h("span", {class:"chip", text:c}))),
       goal));
+    if (st.prompt && !st.deliverable) main.append(h("div", {class:"rule3", role:"note", "aria-label":"Cómo se trabaja en esta estación"},
+      h("span", {class:"r"}, h("b", {text:"1 · Vosotros, a mano"}), h("span", {text:"Ideas, entrevistas, datos: lo vuestro primero."})),
+      h("span", {class:"r"}, h("b", {text:"2 · Claude mejora"}), h("span", {text:"Con lo que habéis hecho: completa, ordena o critica. No lo hace por vosotros."})),
+      h("span", {class:"r"}, h("b", {text:"3 · Vosotros decidís"}), h("span", {text:"Corregís los campos y anotáis qué os habéis llevado."}))));
     const body = h("div", {style:"display:flex;flex-direction:column;gap:14px;min-width:0"});
     main.append(body);
     st.render(body, S.st[st.id], api);
@@ -824,11 +833,7 @@ const R = (() => {
     if (sampleFn) askB.hidden = false;
     const box = h("section", {class:"claude", "aria-label":"Prompt para Claude"},
       h("div", {class:"claude-h"}, h("h3", {text:"Al terminar la estación: revisión crítica con Claude"}), h("div", {class:"acts"}, askB, stopB, copyB)),
-      h("ol", {class:"howto"},
-        h("li", null, h("b", {text:"En cada paso, Claude propone: "}), "usad «Proponer con Claude» donde aparezca (o rellenad vosotros)."),
-        h("li", null, h("b", {text:"Vosotros corregís "}), "los campos: decidís qué se queda."),
-        h("li", null, h("b", {text:"Al terminar, revisión crítica: "}), "copiad este prompt en Claude y rehaced arriba lo que aceptéis."),
-        h("li", null, h("b", {text:"Anotad abajo "}), "qué os habéis llevado y qué habéis descartado.")),
+      h("p", {class:"tb-help", style:"margin:0"}, "Cuando hayáis rellenado la estación (paso 1) y usado los bloques «Claude mejora» (paso 2), copiad este prompt: Claude revisa todo lo que habéis escrito y os dice qué falla. Después corregís arriba y anotáis abajo (paso 3)."),
       pre, ans,
       h("p", {class:"note"}, "El prompt se escribe solo con lo que habéis rellenado. Pegadlo en ", h("a", {href:"https://claude.ai/new", target:"_blank", rel:"noopener", text:"claude.ai"}), " o en Claude Code. Si cambiáis los campos y volvéis a preguntar, el prompt se actualiza solo."),
       iaBox(st));
@@ -898,6 +903,8 @@ const R = (() => {
 
   /* ---------- boot ---------- */
   function boot(){
+    let mv = null; try { mv = new URLSearchParams(location.search).get("movil"); } catch(e){}
+    if (mv && api.mobile[mv]){ try { const t = localStorage.getItem(KEY + "-theme"); if (t) document.documentElement.setAttribute("data-theme", t); } catch(e){} document.querySelector(".wrap").hidden = true; api.mobile[mv](); return; }
     S = load();
     cloudCfgLoad();
     const hash = (location.hash || "").slice(1);
@@ -924,7 +931,7 @@ const R = (() => {
   }
 
   const css = (id, text) => { if (document.getElementById('css-' + id)) return; const st = document.createElement('style'); st.id = 'css-' + id; st.textContent = text; document.head.append(st); };
-  const api = { h, field, select, number, step, tip, grid, list, links, stats, timer, draw, css, md: mdLite, saveFile, saveCopy: () => saveCopy(), openCopy: () => openCopy(), slug: () => slug(), get standalone(){ return standalone; }, get stations(){ return stations; }, stationText: (st) => { let t = ""; try { t = st.toText ? st.toText(S.st[st.id], api) : (st.prompt(S.st[st.id], api).material || ""); } catch(e){} const ia = S.st[st.id] && S.st[st.id]._ia && S.st[st.id]._ia.trim(); return ia ? (t ? t + "\n\n" : "") + "**Uso de Claude en esta estación:** " + ia : t; }, progressOf, save, clone, filled, esc, get project(){ return S.project; }, get state(){ return S; }, go,
+  const api = { mobile: {}, cloudTeam: () => cloudOn() ? { team: cloud.team, pin: cloud.pin } : null, cloudCall: b => cloudCall(b), get cloudUrl(){ return CLOUD_URL; }, h, field, select, number, step, tip, grid, list, links, stats, timer, draw, css, md: mdLite, saveFile, saveCopy: () => saveCopy(), openCopy: () => openCopy(), slug: () => slug(), get standalone(){ return standalone; }, get stations(){ return stations; }, stationText: (st) => { let t = ""; try { t = st.toText ? st.toText(S.st[st.id], api) : (st.prompt(S.st[st.id], api).material || ""); } catch(e){} const ia = S.st[st.id] && S.st[st.id]._ia && S.st[st.id]._ia.trim(); return ia ? (t ? t + "\n\n" : "") + "**Uso de Claude en esta estación:** " + ia : t; }, progressOf, save, clone, filled, esc, get project(){ return S.project; }, get state(){ return S; }, go,
     station(def){ def.extra = !!(def.intro || def.deliverable); def.n = def.extra ? null : stations.filter(s => !s.extra).length; stations.push(def); }, boot,
     /* helpers for prompt material */
     lines: (arr, fn) => (arr || []).filter(filled).map((x,i) => fn(x,i)).join("\n"),
@@ -1060,6 +1067,7 @@ R.station({
     sector: "PropTech (inmobiliario)"
   },
   render(el, d, R){
+    R.tip(el, "<b>Antes de empezar:</b> escribid arriba, en <b>«Miembros y roles»</b>, los nombres del equipo separados por comas (por ejemplo: Lucía (PO), Andrés (SM), Marta, Iván). Se usan en las votaciones por turnos, en el Crazy 8s con el móvil y en el tablero. Todos participan en todo; el Product Owner tiene la última palabra cuando no hay acuerdo.");
     let b = R.step(el, 1, "¿De dónde sale la idea?", "Las buenas ideas suelen salir de un problema vivido, de una tendencia o de algo que funciona en otro sitio.");
     R.select(b, { label: "Origen", options: [["", "Elegid uno"], ["experiencia", "Un problema que hemos vivido"], ["tendencia", "Una tendencia (IA, sostenibilidad, envejecimiento…)"], ["copia", "Algo que funciona en otro país o sector"], ["reto", "Un reto propuesto por el profesor"], ["habilidad", "Algo que sabemos hacer muy bien"]] }, d, "origen");
     R.tip(b, "<b>Truco:</b> si no tenéis idea, haced una lista de 10 cosas que os molestaron esta semana al usar una web, una app o un servicio. Elegid la que más gente comparta.");
@@ -1420,7 +1428,7 @@ function board(cols){
 }
 /* refrescar cuando cambia el progreso (el carril se repinta en cada guardado) */
 const mo = new MutationObserver(() => { if (open){ clearTimeout(mo.t); mo.t = setTimeout(paint, 120); } });
-setTimeout(() => { const rail = document.getElementById("rail"); if (rail) mo.observe(rail, { childList: true }); document.body.append(btn, panel); }, 0);
+setTimeout(() => { let mv = null; try { mv = new URLSearchParams(location.search).get("movil"); } catch (e){} if (mv) return; const rail = document.getElementById("rail"); if (rail) mo.observe(rail, { childList: true }); document.body.append(btn, panel); }, 0);
 window.addEventListener("hashchange", () => { if (open){ ses = curSession(); paint(); } });
 
 R.css("tablero", `
@@ -1773,8 +1781,8 @@ R.assist = function (parent, o){
   const det = R.h("details", null, R.h("summary", { text: "Ver el prompt" }), pre);
   det.addEventListener("toggle", () => { if (det.open) pre.textContent = o.build(); });
   const box = R.h("div", { class: "assist", id },
-    R.h("div", { class: "ah" }, R.h("b", { text: "Proponer con Claude" }), R.h("span", { class: "tb-help", text: o.title || "Claude propone a partir de lo que ya tenéis; vosotros decidís." })),
-    R.h("div", { class: "flowab" }, R.h("span", { class: "on", text: "A · Claude propone" }), R.h("span", { text: "→" }), R.h("span", { text: "B · Vosotros corregís los campos de abajo" })),
+    R.h("div", { class: "ah" }, R.h("b", { text: "2 · Claude mejora" }), R.h("span", { class: "tb-help", text: o.title || "Claude trabaja con lo que ya habéis hecho; vosotros decidís." })),
+    R.h("div", { class: "flowab" }, R.h("span", { text: "1 · Lo vuestro ya está (arriba)" }), R.h("span", { text: "→" }), R.h("span", { class: "on", text: "2 · Claude mejora" }), R.h("span", { text: "→" }), R.h("span", { text: "3 · Vosotros corregís abajo" })),
     R.h("div", { class: "chips" }, cp, R.h("span", { class: "tb-help", text: "2 · Pegadlo en Claude y copiad su respuesta aquí:" })),
     det, R.h("label", { for: id + "-ta", class: "sr", style: "position:absolute;left:-9999px", text: "Respuesta de Claude" }), ta,
     R.h("div", { class: "chips" }, go, msg));
@@ -1795,6 +1803,56 @@ R.sections = function (txt, labels){
   });
   return out;
 };
+})();
+
+</script>
+<script>/* 00f_decide.js */
+/* «¿Quién decide?»: aviso en los pasos donde hay que elegir.
+   Todos participan en todo; el Product Owner tiene la última palabra (o el equipo por consenso). */
+(() => {
+const RULES = {
+  semilla: [[/primera idea/i, "po"]],
+  scrum: [[/Product Goal/i, "po"], [/Backlog/i, "po"]],
+  empatia: [[/Punto de vista|POV/i, "consenso"]],
+  lluvia: [[/pregunta de partida/i, "po"], [/finalistas/i, "po"]],
+  crazy8: [[/Qué vais a dibujar/i, "po"], [/Boceto elegido/i, "po"]],
+  ideas: [[/concept statement|concepto/i, "consenso"]],
+  modelo: [[/patr[oó]n|ingresos/i, "po"], [/Lean Canvas/i, "consenso"]],
+  supuestos: [[/test card|probar primero|mapa de supuestos/i, "po"]],
+  wireframe: [[/formato|tipo/i, "po"]],
+  prototipo: [[/itinerario|brief/i, "po"]],
+  decidir: [[/decisi[oó]n/i, "consenso"]],
+  pitch: [[/guion|bloques/i, "consenso"]],
+  pivote: [[/tipo de pivote|decisi[oó]n/i, "consenso"]]
+};
+const po = () => { const s = R.state.st.scrum; return s && s.po && s.po.trim() ? s.po.trim() : ""; };
+function badge(kind){
+  const name = po();
+  const txt = kind === "po"
+    ? `Participa todo el equipo · Decide: Product Owner${name ? " (" + name + ")" : ""}`
+    : `Decide el equipo por consenso · si no hay acuerdo, el Product Owner${name ? " (" + name + ")" : ""}`;
+  return R.h("span", { class: "decide " + kind, title: "Todos participan en todo. El Product Owner tiene la última palabra cuando no hay acuerdo." }, "👤 ", txt);
+}
+function apply(){
+  const id = (location.hash || "").slice(1);
+  const rules = RULES[id]; if (!rules) return;
+  const used = new Set();
+  document.querySelectorAll("#station .step-h").forEach(h => {
+    if (h.querySelector(".decide")) return;
+    const t = (h.querySelector("h3") || {}).textContent || "";
+    const r = rules.find(([re], k) => !used.has(k) && re.test(t));
+    if (!r) return;
+    used.add(rules.indexOf(r));
+    const holder = h.querySelector("div") || h;
+    holder.append(badge(r[1]));
+  });
+}
+R.css("decide", `
+.decide{display:inline-flex;align-items:center;gap:4px;margin-top:6px;font:600 12px var(--f-body);border-radius:999px;padding:3px 10px;background:var(--sunk);color:var(--ink);border:1px solid var(--line)}
+.decide.po{border-color:var(--navy)}
+`);
+const obs = new MutationObserver(() => { clearTimeout(obs.t); obs.t = setTimeout(apply, 80); });
+setTimeout(() => { const st = document.getElementById("station"); if (st){ obs.observe(st, { childList: true }); apply(); } }, 0);
 })();
 
 </script>
@@ -2937,7 +2995,9 @@ R.station({
     R.field(r2, { label: "Pantalla o momento clave", hint: "Lo que más tiene que convencer", rows: 2, ph: "La pantalla que ve el usuario cuando…" }, d, "pantalla");
 
     /* 2 · dibujar */
-    b = R.step(el, 2, "8 bocetos, 8 minutos", "Un minuto por viñeta: el reloj marca en rojo la que toca. Dibujad con el dedo o el ratón (o en un folio doblado en 8 y luego copiadlo aquí). Cajas, flechas y palabras sueltas bastan.");
+    b = R.step(el, 2, "8 bocetos, 8 minutos", "Un minuto por viñeta: el reloj marca en rojo la que toca. Lo mejor: cada uno en su móvil con el QR. Si no, aquí con el ratón o la pantalla táctil. Cajas, flechas y palabras sueltas bastan.");
+    R.crazy8Movil(b, d);
+    b.append(R.h("p", { class: "sec-label", text: "O dibujad aquí, en el portátil (ratón o pantalla táctil)" }));
     b.append(R.h("ol", { class: "c8-how" },
       R.h("li", null, R.h("b", { text: "Feo vale" }), "No es un concurso de dibujo: si se entiende, sirve."),
       R.h("li", null, R.h("b", { text: "8 distintas" }), "Cambiad algo cada vez: disposición, flujo, formato, tono."),
@@ -3056,6 +3116,211 @@ R.station({
   links: [
   ]
 });
+})();
+
+</script>
+<script>/* 04b_crazy8_movil.js */
+/* Crazy 8s en el móvil: QR en el portátil del equipo → cada persona dibuja sus 8 bocetos con el dedo
+   → «Enviar al equipo» guarda en la nube (una clave por persona: EQUIPO-C8-NOMBRE) → el portátil los trae. */
+(() => {
+const N = 8, SECS = 60;
+const slug = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, "").slice(0, 10);
+const keyFor = (team, name) => (String(team).toUpperCase() + "-C8-" + slug(name)).slice(0, 24);
+const membersOf = txt => String(txt || "").split(/[,;\n]| y /).map(s => s.replace(/\(.*?\)/g, "").trim()).filter(Boolean);
+const QR_SRC = "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js";
+function loadQR(){ return new Promise((res, rej) => { if (window.QRCode) return res(); const s = document.createElement("script"); s.src = QR_SRC; s.onload = () => res(); s.onerror = rej; document.head.append(s); }); }
+
+R.css("c8movil", `
+.c8m-wrap{max-width:560px;margin:0 auto;padding-block:16px 40px;display:flex;flex-direction:column;gap:14px}
+.c8m-wrap h1{font:800 26px/1.1 var(--f-display);margin:0}
+.c8m-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.c8m-card input{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:16px var(--f-body);background:var(--bg)}
+.c8m-names{display:flex;flex-wrap:wrap;gap:6px}
+.c8m-names button{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:8px 14px;font:600 15px var(--f-body);cursor:pointer}
+.c8m-names button.on{background:var(--navy);color:var(--navy-ink);border-color:var(--navy)}
+.c8m-canvas{width:100%;aspect-ratio:3/4;border:2px solid var(--line);border-radius:12px;background:#fff;touch-action:none;display:block}
+.c8m-bar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.c8m-time{font:700 30px var(--f-mono);font-variant-numeric:tabular-nums}
+.c8m-time.low{color:var(--red)}
+.c8m-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.c8m-grid img,.c8m-grid .ph{width:100%;aspect-ratio:3/4;border:1px solid var(--line);border-radius:8px;background:#fff;object-fit:contain}
+.c8m-grid .ph{display:grid;place-items:center;color:var(--soft);font:600 12px var(--f-mono)}
+.c8-gal{display:flex;flex-direction:column;gap:10px}
+.c8-gal .per{border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--bg)}
+.c8-gal .per h4{margin:0 0 8px;font:700 14px var(--f-body)}
+.c8-gal .row{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.c8-gal figure{margin:0;display:flex;flex-direction:column;gap:4px}
+.c8-gal figure img{width:100%;aspect-ratio:3/4;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:8px}
+.c8-gal figure figcaption{font-size:11.5px;color:var(--soft)}
+.c8-gal select{font-size:12px;padding:3px;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
+.c8-qr{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.c8-qr .qr{background:#fff;padding:10px;border-radius:12px;border:1px solid var(--line);width:180px;height:180px}
+.c8-qr .qr img,.c8-qr .qr canvas{width:160px!important;height:160px!important}
+`);
+
+/* ---------- portátil: bloque dentro de la estación 4 ---------- */
+R.crazy8Movil = function (parent, d){
+  const box = R.h("div", { class: "c8m-card", style: "background:var(--bg)" });
+  parent.append(box);
+  box.append(R.h("b", { text: "Dibujar en el móvil (recomendado)" }), R.h("p", { class: "tb-help", text: "Cada persona escanea el QR, pone el PIN del equipo, elige su nombre y dibuja sus 8 bocetos con el dedo (1 minuto cada uno). Al terminar pulsa «Enviar al equipo» y aquí los traéis." }));
+  const ct = R.cloudTeam();
+  if (!R.cloudUrl || !ct){ box.append(R.h("div", { class: "tip warn", text: "Para usar los móviles, conectad antes el equipo a la nube (barra de arriba, código y PIN)." })); return; }
+  const url = location.origin + location.pathname + "?movil=crazy8&equipo=" + encodeURIComponent(ct.team);
+  const qr = R.h("div", { class: "qr", "aria-label": "Código QR para abrir el Crazy 8s en el móvil" });
+  box.append(R.h("div", { class: "c8-qr" }, qr, R.h("div", { style: "display:flex;flex-direction:column;gap:6px;min-width:0;flex:1 1 220px" },
+    R.h("p", { style: "margin:0;font-weight:600", text: `Equipo ${ct.team}` }),
+    R.h("p", { class: "tb-help", style: "word-break:break-all", text: url }),
+    R.h("p", { class: "tb-help", text: "El PIN no va en el QR: decídselo a vuestro equipo." }))));
+  loadQR().then(() => { qr.replaceChildren(); new QRCode(qr, { text: url, width: 160, height: 160, correctLevel: QRCode.CorrectLevel.M }); }).catch(() => { qr.replaceChildren(R.h("span", { class: "tb-help", text: "No se pudo generar el QR: escribid la dirección de al lado en el móvil." })); });
+  const msg = R.h("span", { class: "status" });
+  const gal = R.h("div", { class: "c8-gal" });
+  const getB = R.h("button", { class: "btn primary small", type: "button" }, "Traer bocetos de los móviles");
+  getB.addEventListener("click", async () => {
+    const names = membersOf(R.project.miembros);
+    if (!names.length){ msg.textContent = "Escribid los miembros del equipo arriba (Miembros y roles)."; return; }
+    getB.disabled = true; msg.textContent = "Buscando bocetos…";
+    if (!d.movil || typeof d.movil !== "object") d.movil = {};
+    let got = 0;
+    for (const n of names){
+      try { const r = await R.cloudCall({ a: "load", team: keyFor(ct.team, n), pin: ct.pin }); if (r && r.ok && r.exists && r.data && r.data.c8){ d.movil[n] = { bocetos: r.data.c8.bocetos || [], fecha: r.updated || "" }; got++; } } catch (e){}
+    }
+    getB.disabled = false; msg.textContent = got ? `Bocetos de ${got} persona(s).` : "Todavía no ha enviado nadie: pulsad de nuevo cuando terminen.";
+    R.save(); paintGal();
+  });
+  box.append(R.h("div", { class: "chips" }, getB, msg), gal);
+  function paintGal(){
+    gal.replaceChildren();
+    const per = Object.entries(d.movil || {});
+    if (!per.length) return;
+    gal.append(R.h("p", { class: "tb-help", text: "Elegid qué bocetos pasan a las viñetas del equipo (abajo) para votarlos." }));
+    per.forEach(([n, v]) => {
+      const row = R.h("div", { class: "row" });
+      (v.bocetos || []).forEach((bo, i) => {
+        if (!bo || !bo.img) return;
+        const sel = R.h("select", { "aria-label": `Llevar el boceto ${i + 1} de ${n} a una viñeta` }, R.h("option", { value: "", text: "→ viñeta…" }), ...Array.from({ length: N }, (_, k) => R.h("option", { value: String(k), text: `Viñeta ${k + 1}` })));
+        sel.addEventListener("change", () => { const k = Number(sel.value); if (sel.value === "") return; d.bocetos[k].img = bo.img; d.bocetos[k].titulo = (bo.titulo || "") + ` (${n})`; R.save(); R.go("crazy8"); });
+        row.append(R.h("figure", null, R.h("img", { src: bo.img, alt: `Boceto ${i + 1} de ${n}` }), R.h("figcaption", { text: `${i + 1}. ${bo.titulo || "sin título"}` }), sel));
+      });
+      gal.append(R.h("div", { class: "per" }, R.h("h4", { text: `${n} · ${(v.bocetos || []).filter(b => b && b.img).length} bocetos` }), row));
+    });
+  }
+  paintGal();
+};
+
+/* ---------- móvil: página propia ---------- */
+R.mobile.crazy8 = function (){
+  const qs = new URLSearchParams(location.search);
+  const DKEY = "ruta-c8-movil";
+  let st = { team: (qs.get("equipo") || "").toUpperCase(), pin: "", name: "", foco: "", members: [], i: 0, bocetos: Array.from({ length: N }, () => ({ img: "", titulo: "" })) };
+  try { const sv = JSON.parse(localStorage.getItem(DKEY) || "null"); if (sv && sv.team === st.team) st = Object.assign(st, sv, { pin: "" }); } catch (e){}
+  const keep = () => { try { localStorage.setItem(DKEY, JSON.stringify(Object.assign({}, st, { pin: "" }))); } catch (e){} };
+  const root = R.h("div", { class: "c8m-wrap" });
+  document.body.append(root);
+  let timer = null, left = SECS, running = false;
+  const H = R.h;
+
+  function screenLogin(err){
+    root.replaceChildren(H("h1", { text: "Crazy 8s en el móvil" }), H("p", { class: "tb-help", text: "8 bocetos, 1 minuto cada uno. Feo y rápido: cuenta la idea, no el dibujo." }));
+    const team = H("input", { id: "m-team", type: "text", value: st.team, autocomplete: "off", "aria-label": "Código de equipo" });
+    const pin = H("input", { id: "m-pin", type: "password", autocomplete: "off", "aria-label": "PIN del equipo" });
+    const go = H("button", { class: "btn primary", type: "button" }, "Entrar");
+    const m = H("p", { class: "cmsg", text: err || "" });
+    go.addEventListener("click", async () => {
+      st.team = team.value.trim().toUpperCase(); st.pin = pin.value.trim();
+      if (!st.team || st.pin.length < 4){ m.textContent = "Escribid el código de equipo y el PIN."; return; }
+      go.disabled = true; m.textContent = "Comprobando…";
+      try {
+        const r = await R.cloudCall({ a: "load", team: st.team, pin: st.pin });
+        if (!r.ok){ go.disabled = false; m.textContent = r.error === "pin" ? "El PIN no coincide con el del equipo." : "No se pudo entrar (" + r.error + ")."; return; }
+        const data = r.data || {};
+        st.members = membersOf(data.project && data.project.miembros);
+        const c8 = data.st && data.st.crazy8; const ideas = data.st && data.st.ideas;
+        st.foco = (c8 && (c8.foco || c8.pantalla)) || (ideas && ideas.concept && ideas.concept.nombre) || "";
+        keep(); screenName();
+      } catch (e){ go.disabled = false; m.textContent = "Sin conexión. Revisad la wifi y volved a intentarlo."; }
+    });
+    root.append(H("div", { class: "c8m-card" }, H("label", { for: "m-team", text: "Código de equipo" }), team, H("label", { for: "m-pin", text: "PIN del equipo" }), pin, go, m));
+  }
+  function screenName(){
+    root.replaceChildren(H("h1", { text: "¿Quién eres?" }));
+    const nm = H("input", { id: "m-name", type: "text", value: st.name, placeholder: "Tu nombre" });
+    const chips = H("div", { class: "c8m-names" }, ...st.members.map(n => { const b = H("button", { type: "button", class: n === st.name ? "on" : "" }, n); b.addEventListener("click", () => { nm.value = n; [...chips.children].forEach(c => c.classList.toggle("on", c === b)); }); return b; }));
+    const go = H("button", { class: "btn primary", type: "button" }, "Empezar a dibujar");
+    go.addEventListener("click", () => { st.name = nm.value.trim(); if (!st.name) return; keep(); screenDraw(); });
+    root.append(H("div", { class: "c8m-card" }, st.members.length ? chips : null, H("label", { for: "m-name", text: "Tu nombre (tal cual está en el equipo)" }), nm,
+      st.foco ? H("p", { class: "tb-help" }, H("b", { text: "Qué dibujar: " }), st.foco) : H("p", { class: "tb-help", text: "Dibujad 8 variantes de la pantalla o el momento clave de vuestra solución." }), go));
+  }
+  function screenDraw(){
+    stop();
+    const i = st.i, bo = st.bocetos[i];
+    root.replaceChildren();
+    const time = H("span", { class: "c8m-time", text: "1:00" });
+    const auto = H("button", { class: "btn small", type: "button" }, "▶ Reloj");
+    root.append(H("div", { class: "c8m-bar" }, H("b", { text: `Boceto ${i + 1} de ${N} · ${st.name}` }), time, auto));
+    if (st.foco) root.append(H("p", { class: "tb-help", style: "margin:0", text: st.foco }));
+    const W = Math.min(innerWidth - 32, 520), Hh = Math.round(W * 4 / 3), dpr = Math.min(2, devicePixelRatio || 1);
+    const cv = H("canvas", { class: "c8m-canvas", width: Math.round(W * dpr), height: Math.round(Hh * dpr), "aria-label": `Lienzo del boceto ${i + 1}` });
+    const ctx = cv.getContext("2d");
+    const bg = () => { ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, cv.width, cv.height); };
+    bg();
+    if (bo.img){ const im = new Image(); im.onload = () => ctx.drawImage(im, 0, 0, cv.width, cv.height); im.src = bo.img; }
+    let drawing = false, last = null, erase = false, dirty = false;
+    const pos = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * cv.width / r.width, (e.clientY - r.top) * cv.height / r.height]; };
+    cv.addEventListener("pointerdown", e => { drawing = true; last = pos(e); cv.setPointerCapture(e.pointerId); e.preventDefault(); });
+    cv.addEventListener("pointermove", e => { if (!drawing) return; const p = pos(e); ctx.strokeStyle = erase ? "#fff" : "#14203A"; ctx.lineWidth = (erase ? 26 : 4.5) * dpr; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.beginPath(); ctx.moveTo(last[0], last[1]); ctx.lineTo(p[0], p[1]); ctx.stroke(); last = p; dirty = true; e.preventDefault(); });
+    const end = () => { if (!drawing) return; drawing = false; saveImg(); };
+    cv.addEventListener("pointerup", end); cv.addEventListener("pointercancel", end);
+    function saveImg(){
+      if (!dirty) return;
+      const out = document.createElement("canvas"); out.width = 360; out.height = 480;
+      out.getContext("2d").drawImage(cv, 0, 0, 360, 480);
+      bo.img = out.toDataURL("image/jpeg", 0.6); keep();
+    }
+    const title = H("input", { id: "m-title", type: "text", value: bo.titulo, placeholder: "Título en 3–5 palabras (opcional)", style: "width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:16px var(--f-body);background:var(--bg)" });
+    title.addEventListener("input", () => { bo.titulo = title.value; keep(); });
+    const pen = H("button", { class: "btn small", type: "button", "aria-pressed": "true" }, "Lápiz");
+    const gom = H("button", { class: "btn small", type: "button", "aria-pressed": "false" }, "Goma");
+    const clr = H("button", { class: "btn small", type: "button" }, "Borrar");
+    pen.addEventListener("click", () => { erase = false; pen.setAttribute("aria-pressed", "true"); gom.setAttribute("aria-pressed", "false"); });
+    gom.addEventListener("click", () => { erase = true; gom.setAttribute("aria-pressed", "true"); pen.setAttribute("aria-pressed", "false"); });
+    clr.addEventListener("click", () => { bg(); bo.img = ""; dirty = false; keep(); });
+    const prev = H("button", { class: "btn", type: "button", disabled: i === 0 }, "◂");
+    const next = H("button", { class: "btn primary", type: "button" }, i < N - 1 ? "Siguiente ▸" : "Ver mis 8 bocetos ▸");
+    prev.addEventListener("click", () => { saveImg(); st.i = Math.max(0, i - 1); keep(); screenDraw(); });
+    next.addEventListener("click", () => { saveImg(); if (i < N - 1){ st.i = i + 1; keep(); screenDraw(); if (running) start(); } else screenReview(); });
+    root.append(cv, H("div", { class: "c8m-bar" }, H("span", { class: "chips" }, pen, gom, clr), H("span", { class: "chips" }, prev, next)), title);
+    const paintT = () => { const m = Math.floor(left / 60), s = left % 60; time.textContent = `${m}:${String(s).padStart(2, "0")}`; time.classList.toggle("low", left <= 10); };
+    function start(){ stop(); running = true; auto.textContent = "⏸ Pausa"; timer = setInterval(() => { left--; paintT(); if (left <= 0){ beep(); left = SECS; if (st.i < N - 1){ saveImg(); st.i++; keep(); screenDraw(); start(); } else { stop(); saveImg(); screenReview(); } } }, 1000); }
+    auto.addEventListener("click", () => { if (running){ stop(); auto.textContent = "▶ Reloj"; } else start(); });
+    left = SECS; paintT();
+  }
+  function stop(){ clearInterval(timer); timer = null; running = false; }
+  let ac = null; function beep(){ try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); const g = ac.createGain(), o = ac.createOscillator(); o.frequency.value = 880; g.gain.value = 0.1; o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime + 0.2); } catch (e){} if (navigator.vibrate) try { navigator.vibrate(200); } catch (e){} }
+  function screenReview(msg){
+    stop();
+    root.replaceChildren(H("h1", { text: "Tus 8 bocetos" }));
+    root.append(H("div", { class: "c8m-grid" }, ...st.bocetos.map((b, i) => { const el = b.img ? H("img", { src: b.img, alt: `Boceto ${i + 1}` }) : H("div", { class: "ph", text: String(i + 1) }); el.addEventListener("click", () => { st.i = i; screenDraw(); }); return el; })));
+    const pin = H("input", { id: "m-pin2", type: "password", autocomplete: "off", placeholder: "PIN del equipo", style: "width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:16px var(--f-body);background:var(--bg)" });
+    pin.value = st.pin || "";
+    const send = H("button", { class: "btn primary", type: "button" }, "Enviar al equipo");
+    const m = H("p", { class: msg && msg.ok ? "tb-dod" : "cmsg", text: msg ? msg.text : "" });
+    send.addEventListener("click", async () => {
+      st.pin = pin.value.trim() || st.pin;
+      if (!st.pin){ m.className = "cmsg"; m.textContent = "Escribid el PIN del equipo."; return; }
+      send.disabled = true; m.className = "tb-help"; m.textContent = "Enviando…";
+      const key = keyFor(st.team, st.name);
+      try {
+        const cur = await R.cloudCall({ a: "load", team: key, pin: st.pin });
+        if (!cur.ok){ send.disabled = false; m.className = "cmsg"; m.textContent = cur.error === "pin" ? "El PIN no coincide." : "No se pudo enviar (" + cur.error + ")."; return; }
+        const r = await R.cloudCall({ a: "save", team: key, pin: st.pin, base: cur.version || 0, data: { v: 1, isExample: false, project: { nombre: "Crazy 8s · " + st.name, equipo: st.team }, st: {}, c8: { nombre: st.name, foco: st.foco, bocetos: st.bocetos } }, info: { proyecto: "Crazy 8s de " + st.name + " (" + st.team + ")", progreso: Math.round(100 * st.bocetos.filter(b => b.img).length / N), estacion: "Crazy 8s móvil" } });
+        if (r.ok){ screenReview({ ok: true, text: "Enviado ✓. Ya podéis traerlos en el portátil del equipo (estación 4 · «Traer bocetos de los móviles»)." }); }
+        else { send.disabled = false; m.className = "cmsg"; m.textContent = "No se pudo enviar (" + r.error + "). Volved a pulsar."; }
+      } catch (e){ send.disabled = false; m.className = "cmsg"; m.textContent = "Sin conexión. Volved a pulsar cuando tengáis wifi."; }
+    });
+    root.append(H("p", { class: "tb-help", text: "Toca un boceto para retocarlo. Cuando estés, envía." }), H("div", { class: "c8m-card" }, H("label", { for: "m-pin2", text: "PIN del equipo" }), pin, send, m));
+  }
+  if (st.team && st.name && st.bocetos.some(b => b.img)) screenReview(); else screenLogin();
+};
 })();
 
 </script>
@@ -3206,7 +3471,7 @@ R.station({
     b = R.step(el, 3, "Concept board", "La tarjeta que enseñaréis a otro equipo (y, en la sesión 2, a usuarios reales). Se compone sola con el paso anterior. Si algo queda largo aquí, es largo para el cliente.");
     const board = R.h("article", { class: "cb-board", "aria-label": "Concept board" });
     b.append(board);
-    R.tip(b, "<b>Para presentarlo:</b> haced captura de esta tarjeta o copiadla a Canva. Una sola tarjeta, sin explicaciones vuestras al lado.");
+    R.tip(b, "<b>No hay que copiarla a ningún sitio:</b> la tarjeta se guarda sola y su contenido aparece en el <b>Entregable de la Sesión 1</b>. Para enseñarla en la sprint review, abridla aquí en pantalla.");
     function paintBoard(){
       const ph = (v, txt) => t(v) || null;
       const img = elB && elB.img ? R.h("img", { class: "cb-sketch", src: elB.img, alt: "Boceto elegido" }) : null;
