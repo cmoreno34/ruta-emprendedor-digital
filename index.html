@@ -1023,7 +1023,7 @@ R.station({
       ["Mapa de empatía", "Perfil del cliente del VPC", "El mapa recoge <b>lo que observáis</b> (dice, piensa, hace, siente). El VPC lo ordena en <b>trabajos, dolores y ganancias</b> para diseñar la oferta. En la estación 6 se trae del mapa con un botón."],
       ["Concept statement", "Propuesta única de valor", "El concepto es la <b>versión larga</b> que enseñáis a usuarios en el concept test. La propuesta única de valor es <b>su frase corta</b> dentro del Lean Canvas. Se precarga del concepto."],
       ["Lean Canvas", "Business Model Canvas", "Mismo esqueleto. El <b>Lean Canvas</b> es para empezar con mucha incertidumbre (problema, solución, métricas, ventaja injusta). El <b>BMC</b> sirve cuando el modelo se estabiliza o al pivotar hacia socios (B2B2C). Usamos el Lean Canvas; el BMC es opcional."],
-      ["Scrum", "Todo lo demás", "Scrum <b>no es una fase</b>: es la cadencia con la que hacéis las demás. Cada bloque de la sesión es un sprint: objetivo, tablero, review y retro."],
+      ["Scrum", "Todo lo demás", "Scrum <b>no es una fase</b>: es la cadencia con la que hacéis las demás. Cada sesión es un sprint (objetivo, tareas, review y retro en el Tablero del sprint) y cada bloque, un mini-sprint."],
       ["Entrevistas de la estación 2", "Validación de las estaciones 10–11", "Primero investigáis <b>el problema</b> (exploratoria, sin enseñar la idea). Después investigáis <b>la solución</b> (con prototipo y concept test). Mismas técnicas, distinta pregunta."]
     ];
     b.append(R.h("div", { class: "qa" }, ...Q.map(([a, z, txt]) => {
@@ -1459,6 +1459,295 @@ R.css("tablero", `
 })();
 
 </script>
+<script>/* 00d_cualitativo.js */
+/* Herramienta de análisis cualitativo (grounded theory) reutilizable.
+   Método del profesor (Technical note 5, CEU): PASO 4 a) resumir y codificar cada documento,
+   b) agrupar categorías, c) relacionar grupos; PASO 5 construir el mapa conceptual / teoría.
+   Uso: R.qual(parent, q, { fuente, importar: () => [textos], comparar: () => otroQ|null, ejemplo }) */
+(() => {
+const H = (...a) => R.h(...a);
+const blankQ = () => ({ raw: "", docs: [], coded: "", codes: [{ doc: "", code: "", cat: "", cita: "" }], rels: [{ a: "", b: "", tipo: "" }], teoria: "", memo: "", rigor: { triang: false, cred: false, trans: false, conf: false, neg: false } });
+function fixQ(q){
+  const b = blankQ();
+  for (const k in b) if (q[k] == null || Array.isArray(b[k]) !== Array.isArray(q[k]) || typeof q[k] !== typeof b[k]) q[k] = b[k];
+  for (const k in b.rigor) if (q.rigor[k] == null) q.rigor[k] = false;
+  return q;
+}
+const anon = t => t.replace(/[\w.+-]+@[\w-]+\.[\w.]+/g, "[email]").replace(/(\+?\d[\d\s.-]{7,}\d)/g, "[teléfono]").replace(/(^|\s)@\w{2,}/g, "$1[usuario]");
+const pad = n => String(n).padStart(2, "0");
+const norm = s => String(s || "").trim();
+const key = s => norm(s).toLowerCase();
+
+function analyse(q){
+  const rows = q.codes.filter(c => norm(c.code) && norm(c.doc));
+  const cats = new Map();         // cat -> {docs:Set, codes:Map(code->Set docs), cita}
+  rows.forEach(r => {
+    const cat = norm(r.cat) || "(sin categoría)";
+    if (!cats.has(cat)) cats.set(cat, { docs: new Set(), codes: new Map(), cita: "" });
+    const c = cats.get(cat);
+    c.docs.add(norm(r.doc).toUpperCase());
+    const ck = norm(r.code);
+    if (!c.codes.has(ck)) c.codes.set(ck, new Set());
+    c.codes.get(ck).add(norm(r.doc).toUpperCase());
+    if (!c.cita && norm(r.cita)) c.cita = `${norm(r.doc).toUpperCase()}: ${norm(r.cita)}`;
+  });
+  const nDocs = Math.max(q.docs.length, new Set(rows.map(r => norm(r.doc).toUpperCase())).size);
+  const list = [...cats.entries()].map(([cat, v]) => ({ cat, n: v.docs.size, pct: nDocs ? v.docs.size / nDocs : 0, codes: [...v.codes.entries()].map(([c, s]) => [c, s.size]).sort((a, b) => b[1] - a[1]), cita: v.cita })).sort((a, b) => b.n - a.n);
+  // saturación: códigos nuevos por documento, en orden de documento
+  const order = q.docs.length ? q.docs.map(d => d.id) : [...new Set(rows.map(r => norm(r.doc).toUpperCase()))].sort();
+  const seen = new Set();
+  const sat = order.map(id => { let nw = 0; rows.filter(r => norm(r.doc).toUpperCase() === id).forEach(r => { const k = key(r.code); if (!seen.has(k)){ seen.add(k); nw++; } }); return [id, nw]; });
+  return { list, nDocs, sat, nCodes: seen.size };
+}
+
+function parseClaude(txt, q){
+  let mode = "", codes = [], rels = [], teoria = [];
+  txt.split(/\r?\n/).forEach(line => {
+    const l = line.replace(/^[\s>*\-•]+/, "").trim();
+    if (!l) return;
+    const up = l.toUpperCase().replace(/[^A-ZÁÉÍÓÚÑ ]/g, "").trim();
+    if (/^CODIFICACI[OÓ]N/.test(up)){ mode = "c"; return; }
+    if (/^RELACIONES/.test(up)){ mode = "r"; return; }
+    if (/^TEOR[IÍ]A/.test(up)){ mode = "t"; return; }
+    if (mode === "c" || (/^[A-Z]{1,2}\d{1,3}\s*\|/.test(l))){
+      const p = l.split("|").map(s => s.trim());
+      if (p.length >= 3 && /^[A-Z]{1,2}\d{1,3}$/i.test(p[0])) codes.push({ doc: p[0].toUpperCase(), code: p[1], cat: p[2], cita: (p[3] || "").replace(/^[«"“]|[»"”]$/g, "") });
+      return;
+    }
+    if (mode === "r" || /(->|→)/.test(l)){
+      const m = l.match(/^(.+?)\s*(?:->|→)\s*(.+?)(?:\s*\|\s*(.+))?$/);
+      if (m) rels.push({ a: m[1].trim(), b: m[2].trim(), tipo: (m[3] || "").trim() });
+      return;
+    }
+    if (mode === "t") teoria.push(l);
+  });
+  return { codes, rels, teoria: teoria.join(" ") };
+}
+
+function mapSvg(list, rels){
+  const top = list.slice(0, 8);
+  if (!top.length) return H("div", { class: "tip", text: "El mapa aparecerá cuando haya códigos con categoría." });
+  const W = 960, Hh = 600, cx = W / 2, cy = Hh / 2 - 12, R0 = Math.min(W * 0.36, Hh * 0.33);
+  const max = Math.max(...top.map(t => t.n), 1);
+  const pos = new Map();
+  top.forEach((t, i) => {
+    const a = -Math.PI / 2 + i * 2 * Math.PI / top.length;
+    const r = top.length === 1 ? 0 : R0;
+    pos.set(key(t.cat), { x: cx + r * Math.cos(a) * 1.25, y: cy + r * Math.sin(a), rad: 20 + 26 * Math.sqrt(t.n / max), t });
+  });
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (tag, at, txt) => { const e = document.createElementNS(NS, tag); for (const k in at) e.setAttribute(k, at[k]); if (txt != null) e.textContent = txt; return e; };
+  const svg = el("svg", { viewBox: `0 0 ${W} ${Hh}`, class: "qmap", role: "img", "aria-label": "Mapa conceptual de categorías y relaciones" });
+  const defs = el("defs"); const mk = el("marker", { id: "qarrow", viewBox: "0 0 10 10", refX: "9", refY: "5", markerWidth: "7", markerHeight: "7", orient: "auto-start-reverse" });
+  mk.append(el("path", { d: "M0,0 L10,5 L0,10 z", class: "qarrowhead" })); defs.append(mk); svg.append(defs);
+  rels.filter(r => pos.has(key(r.a)) && pos.has(key(r.b)) && key(r.a) !== key(r.b)).forEach(r => {
+    const A = pos.get(key(r.a)), B = pos.get(key(r.b));
+    const dx = B.x - A.x, dy = B.y - A.y, d = Math.hypot(dx, dy) || 1;
+    const x1 = A.x + dx / d * A.rad, y1 = A.y + dy / d * A.rad, x2 = B.x - dx / d * (B.rad + 4), y2 = B.y - dy / d * (B.rad + 4);
+    svg.append(el("line", { x1, y1, x2, y2, class: "qedge", "marker-end": "url(#qarrow)" }));
+    if (r.tipo){ const mx = (x1 + x2) / 2, my = (y1 + y2) / 2; svg.append(el("text", { x: mx, y: my - 6, class: "qedgelab", "text-anchor": "middle" }, r.tipo.slice(0, 22))); }
+  });
+  pos.forEach(p => {
+    svg.append(el("circle", { cx: p.x, cy: p.y, r: p.rad, class: "qnode" }));
+    svg.append(el("text", { x: p.x, y: p.y + 5, class: "qnum", "text-anchor": "middle" }, String(p.t.n)));
+  });
+  pos.forEach(p => {
+    const words = p.t.cat.split(/\s+/); const lines = []; let cur = "";
+    words.forEach(w => { if ((cur + " " + w).trim().length > 20){ lines.push(cur.trim()); cur = w; } else cur += " " + w; }); if (cur.trim()) lines.push(cur.trim());
+    lines.slice(0, 3).forEach((ln, i) => svg.append(el("text", { x: p.x, y: p.y + p.rad + 16 + i * 15, class: "qlab", "text-anchor": "middle" }, ln)));
+  });
+  return H("div", { class: "tablewrap" }, svg);
+}
+
+R.css("qual", `
+.qual{display:flex;flex-direction:column;gap:14px}
+.qual .qsub{border-top:1px dashed var(--line);padding-top:12px;display:flex;flex-direction:column;gap:10px}
+.qual .qsub h4{margin:0;font:700 15px var(--f-body)}
+.qual .qsub h4 span{font:600 11px var(--f-mono);color:var(--red);letter-spacing:.06em;margin-right:6px}
+.qdocs{display:flex;flex-direction:column;gap:4px;max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:8px;background:var(--bg)}
+.qdoc{display:grid;grid-template-columns:44px minmax(0,1fr) 28px;gap:6px;align-items:start;font-size:13px}
+.qdoc b{font:600 12px var(--f-mono);color:var(--soft)}
+.qdoc button{border:0;background:transparent;color:var(--soft);cursor:pointer}
+.qdoc button:hover{color:var(--red)}
+.qcat{width:100%}
+.qcat td .bar{height:8px;border-radius:6px;background:var(--navy);min-width:2px}
+.qsat{display:flex;gap:3px;align-items:flex-end;height:64px;border-bottom:1px solid var(--line);padding-bottom:2px}
+.qsat i{display:block;width:16px;background:var(--navy);border-radius:3px 3px 0 0;min-height:2px}
+.qsat i.z{background:var(--line)}
+.qmap{width:100%;min-width:620px;height:auto;display:block;background:var(--bg);border:1px solid var(--line);border-radius:12px}
+.qnode{fill:var(--navy);opacity:.92}
+.qnum{fill:var(--navy-ink);font:700 14px var(--f-body)}
+.qlab{fill:var(--ink);font:600 13px var(--f-body);paint-order:stroke;stroke:var(--bg);stroke-width:5px;stroke-linejoin:round}
+.qedge{stroke:var(--soft);stroke-width:1.6}
+.qarrowhead{fill:var(--soft)}
+.qedgelab{fill:var(--soft);font:600 11.5px var(--f-body);paint-order:stroke;stroke:var(--bg);stroke-width:4px;stroke-linejoin:round}
+.qcmp{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.qcmp .k{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:13px}
+.qcmp .k b{display:block;font:700 11px var(--f-body);letter-spacing:.08em;text-transform:uppercase;color:var(--soft);margin-bottom:4px}
+@media(max-width:640px){.qcmp{grid-template-columns:1fr}}
+`);
+
+R.qual = function (parent, q, opts){
+  fixQ(q);
+  const o = opts || {};
+  const box = H("div", { class: "qual" }); parent.append(box);
+  const fuente = o.fuente || "documentos";
+
+  /* A · documentos */
+  const sA = H("section", { class: "qsub" }, H("h4", null, H("span", { text: "A" }), "Documentos: pegad los textos"));
+  sA.append(H("p", { class: "tb-help", text: `Pegad ${fuente} (uno por párrafo, separados por una línea en blanco). Se numeran como D01, D02… y se quitan emails y teléfonos. Muestreo intencional: buscad variedad (1–5 estrellas, distintos perfiles) hasta que no aparezca nada nuevo.` }));
+  const rawId = "q-raw-" + Math.random().toString(36).slice(2, 7);
+  const raw = H("textarea", { id: rawId, rows: 5, placeholder: "Pegad aquí los textos…" }); raw.value = q.raw || "";
+  raw.addEventListener("input", () => { q.raw = raw.value; R.save(); });
+  sA.append(H("div", { class: "fld" }, H("label", { for: rawId, text: "Textos para añadir" }), raw));
+  const listEl = H("div", { class: "qdocs" });
+  const addB = H("button", { class: "btn primary small", type: "button" }, "Añadir como documentos");
+  const msgA = H("span", { class: "status" });
+  addB.addEventListener("click", () => {
+    const parts = (raw.value || "").split(/\n\s*\n/).map(s => anon(s.replace(/\s+/g, " ").trim())).filter(s => s.length > 8);
+    if (!parts.length){ msgA.textContent = "No hay textos: separad cada uno con una línea en blanco."; return; }
+    let n = q.docs.length;
+    parts.forEach(t => q.docs.push({ id: "D" + pad(++n), text: t }));
+    raw.value = ""; q.raw = ""; msgA.textContent = `${parts.length} documentos añadidos.`; R.save(); paintDocs(); paintAll();
+  });
+  const acts = H("div", { class: "chips" }, addB);
+  if (o.importar){
+    acts.append(H("button", { class: "btn small", type: "button", on: { click: () => {
+      const ts = (o.importar() || []).map(t => anon(String(t).replace(/\s+/g, " ").trim())).filter(t => t.length > 8 && !q.docs.some(d => d.text === t));
+      let n = q.docs.length; ts.forEach(t => q.docs.push({ id: "D" + pad(++n), text: t }));
+      msgA.textContent = ts.length ? `${ts.length} documentos traídos.` : "No hay textos nuevos que traer."; R.save(); paintDocs(); paintAll();
+    } } }, o.importarLabel || "Traer de arriba"));
+  }
+  acts.append(msgA);
+  sA.append(acts, listEl);
+  function paintDocs(){
+    listEl.replaceChildren(...(q.docs.length ? q.docs.map((d, i) => H("div", { class: "qdoc" }, H("b", { text: d.id }), H("span", { text: d.text.length > 180 ? d.text.slice(0, 180) + "…" : d.text }), H("button", { type: "button", "aria-label": "Quitar " + d.id, on: { click: () => { q.docs.splice(i, 1); R.save(); paintDocs(); paintAll(); } } }, "×"))) : [H("span", { class: "tb-empty", text: "Todavía no hay documentos." })]));
+  }
+  paintDocs();
+  box.append(sA);
+
+  /* B · prompt + pegar codificación */
+  const sB = H("section", { class: "qsub" }, H("h4", null, H("span", { text: "B" }), "Paso 4 con Claude: codificar, agrupar y relacionar"));
+  const pr = H("pre", { class: "prompt", style: "max-height:220px" });
+  const cpy = H("button", { class: "btn accent small", type: "button" }, "Copiar prompt de análisis");
+  function qPrompt(){
+    const ctx = [R.project.nombre && "Proyecto: " + R.project.nombre + (R.project.frase ? " — " + R.project.frase : ""), R.project.segmento && "Cliente objetivo: " + R.project.segmento].filter(Boolean).join("\n");
+    return [
+      "Actúa como investigador cualitativo. Analiza estos " + q.docs.length + " documentos (" + fuente + ") con grounded theory (Corbin y Strauss) siguiendo estos pasos:",
+      "PASO 4 · a) Resume y codifica cada documento con códigos abiertos breves (2–4 palabras), pegados a lo que dice el texto. b) Agrupa los códigos en categorías (codificación axial). c) Relaciona las categorías entre sí.",
+      "PASO 5 · Propón la teoría emergente: una o dos proposiciones que conecten las categorías y expliquen el fenómeno.",
+      "Reglas: usa SOLO lo que dicen los documentos; no inventes citas; incluye casos negativos (quien dice lo contrario); escribe en castellano.",
+      "Devuelve EXACTAMENTE este formato, sin tablas ni texto extra:",
+      "CODIFICACIÓN",
+      "D01 | código | categoría | «cita literal breve»",
+      "(una línea por fragmento; un documento puede tener varias líneas)",
+      "RELACIONES",
+      "Categoría A -> Categoría B | tipo (causa, aumenta, reduce, se asocia, contradice)",
+      "TEORÍA",
+      "proposición en 1–3 frases",
+      ctx ? "\nContexto: " + ctx : "",
+      "\nDOCUMENTOS:",
+      q.docs.map(d => d.id + ": " + d.text).join("\n") || "(sin documentos)"
+    ].filter(Boolean).join("\n");
+  }
+  const paintPrompt = () => { pr.textContent = qPrompt(); };
+  cpy.addEventListener("click", async () => { try { await navigator.clipboard.writeText(qPrompt()); cpy.textContent = "Copiado ✓"; } catch (e){ const r = document.createRange(); r.selectNodeContents(pr); getSelection().removeAllRanges(); getSelection().addRange(r); cpy.textContent = "Seleccionado: Ctrl+C"; } setTimeout(() => cpy.textContent = "Copiar prompt de análisis", 1600); });
+  sB.append(H("p", { class: "tb-help", text: "1) Copiad este prompt y pegadlo en Claude. 2) Pegad su respuesta abajo y pulsad «Leer la codificación»: se rellenan los códigos, las categorías, las relaciones y la teoría. 3) Revisad y corregid la tabla: la interpretación es vuestra." }), H("div", { class: "chips" }, cpy), pr);
+  const pasteId = "q-paste-" + Math.random().toString(36).slice(2, 7);
+  const paste = H("textarea", { id: pasteId, rows: 5, placeholder: "CODIFICACIÓN\nD01 | código | categoría | «cita»\n…\nRELACIONES\nA -> B | tipo\nTEORÍA\n…" });
+  paste.value = q.coded || ""; paste.addEventListener("input", () => { q.coded = paste.value; R.save(); });
+  const msgB = H("span", { class: "status" });
+  const readB = H("button", { class: "btn primary small", type: "button" }, "Leer la codificación");
+  readB.addEventListener("click", () => {
+    const r = parseClaude(paste.value || "", q);
+    if (!r.codes.length && !r.rels.length){ msgB.textContent = "No encuentro líneas con el formato «D01 | código | categoría | cita». Revisad que Claude respetó el formato."; return; }
+    q.codes.splice(0, q.codes.length, ...r.codes.length ? r.codes : q.codes);
+    if (r.rels.length) q.rels.splice(0, q.rels.length, ...r.rels);
+    if (r.teoria && !norm(q.teoria)) q.teoria = r.teoria;
+    msgB.textContent = `Leídos ${r.codes.length} fragmentos codificados y ${r.rels.length} relaciones.`;
+    R.save(); codesList.redraw(); relsList.redraw(); if (teoTa) teoTa.value = q.teoria; paintAll();
+  });
+  sB.append(H("div", { class: "fld" }, H("label", { for: pasteId, text: "Respuesta de Claude" }), paste), H("div", { class: "chips" }, readB, msgB));
+  sB.append(H("p", { class: "sec-label", text: "Fragmentos codificados (podéis corregir, añadir o quitar)" }));
+  const codesList = R.list(sB, { add: "Añadir fragmento", onChange: () => paintAll(), cols: [
+    { key: "doc", label: "Doc.", ph: "D01", w: "64px" },
+    { key: "code", label: "Código (abierto)", ph: "ruido por la noche", w: "1fr" },
+    { key: "cat", label: "Categoría (axial)", ph: "Conflictos de convivencia", w: "1fr" },
+    { key: "cita", label: "Cita literal", ph: "«…»", w: "1.4fr" }
+  ] }, q.codes);
+  sB.append(H("p", { class: "sec-label", text: "Relaciones entre categorías (paso 4c)" }));
+  const relsList = R.list(sB, { add: "Añadir relación", onChange: () => paintAll(), cols: [
+    { key: "a", label: "Categoría A", w: "1fr" }, { key: "b", label: "→ Categoría B", w: "1fr" }, { key: "tipo", label: "Tipo de relación", ph: "aumenta, causa…", w: "0.8fr" }
+  ] }, q.rels);
+  box.append(sB);
+
+  /* C · temas que se repiten + saturación */
+  const sC = H("section", { class: "qsub" }, H("h4", null, H("span", { text: "C" }), "Temas que se repiten y saturación"));
+  const catBox = H("div"); const satBox = H("div");
+  sC.append(catBox, satBox); box.append(sC);
+
+  /* D · mapa conceptual */
+  const sD = H("section", { class: "qsub" }, H("h4", null, H("span", { text: "D" }), "Paso 5: mapa conceptual"));
+  const mapBox = H("div"); sD.append(H("p", { class: "tb-help", text: "Cada círculo es una categoría; el número y el tamaño, en cuántos documentos aparece. Las flechas son las relaciones del paso 4c." }), mapBox);
+  let teoTa = null;
+  teoTa = R.field(sD, { label: "Teoría emergente (proposición)", hint: "1–3 frases que conectan las categorías y explican el fenómeno", rows: 3 }, q, "teoria");
+  R.field(sD, { label: "Memo del equipo", hint: "Dudas, casos negativos, qué falta por saber", rows: 2 }, q, "memo");
+  box.append(sD);
+
+  /* E · rigor */
+  const sE = H("section", { class: "qsub" }, H("h4", null, H("span", { text: "E" }), "Rigor (trustworthiness)"));
+  const RIG = [["triang", "Triangulación: contrastado con otra fuente (entrevistas, encuesta, reseñas)"], ["cred", "Credibilidad: hemos comprobado las citas en el original y, si se puede, lo hemos contrastado con participantes"], ["trans", "Transferibilidad: describimos el contexto (qué fuentes, qué perfiles, cuándo)"], ["conf", "Confirmabilidad: cada categoría tiene citas y se puede seguir el rastro del análisis"], ["neg", "Hemos buscado y anotado casos negativos (quien dice lo contrario)"]];
+  const chk = H("div", { style: "display:flex;flex-direction:column;gap:4px" });
+  RIG.forEach(([k, t]) => { const id = "q-rig-" + k + "-" + Math.random().toString(36).slice(2, 6); const c = H("input", { type: "checkbox", id }); c.checked = !!q.rigor[k]; c.addEventListener("change", () => { q.rigor[k] = c.checked; R.save(); }); chk.append(H("label", { for: id, style: "display:flex;gap:8px;font-size:13.5px;align-items:flex-start" }, c, H("span", { text: t }))); });
+  sE.append(chk);
+  const cmpBox = H("div"); sE.append(cmpBox);
+  box.append(sE);
+
+  function paintAll(){
+    paintPrompt();
+    const A = analyse(q);
+    if (!A.list.length) catBox.replaceChildren(H("div", { class: "tip", text: "Cuando haya fragmentos codificados con categoría, aquí veréis qué temas se repiten y en cuántos documentos." }));
+    else catBox.replaceChildren(H("div", { class: "tablewrap" }, H("table", { class: "t qcat" },
+      H("thead", null, H("tr", null, ...["Categoría (tema)", "Documentos", "", "Códigos (nº de documentos)", "Cita de ejemplo"].map(t => H("th", { text: t })))),
+      H("tbody", null, ...A.list.map(c => H("tr", null, H("td", { style: "font-weight:700", text: c.cat }), H("td", { text: `${c.n} de ${A.nDocs} (${Math.round(c.pct * 100)} %)` }), H("td", { style: "width:90px" }, H("div", { class: "bar", style: `width:${Math.max(4, c.pct * 100)}%` })), H("td", { text: c.codes.map(([k, n]) => `${k} (${n})`).join(", ") }), H("td", { text: c.cita || "—" })))))));
+    if (A.sat.length){
+      const mx = Math.max(1, ...A.sat.map(s => s[1]));
+      const last = A.sat.slice(-3), tail = last.length === 3 && last.every(s => s[1] === 0);
+      satBox.replaceChildren(H("p", { class: "sec-label", text: `Saturación · ${A.nCodes} códigos distintos en ${A.sat.length} documentos` }),
+        H("div", { class: "qsat", "aria-label": "Códigos nuevos por documento" }, ...A.sat.map(([id, n]) => H("i", { class: n ? "" : "z", title: `${id}: ${n} códigos nuevos`, style: `height:${Math.max(3, 60 * n / mx)}px` }))),
+        H("div", { class: "verdict " + (tail ? "ok" : A.sat.length < 8 ? "mid" : "mid"), text: tail ? "Los últimos 3 documentos no aportan códigos nuevos: indicio de saturación." : A.sat.length < 8 ? "Pocos documentos todavía: seguid añadiendo hasta que dejen de aparecer códigos nuevos." : "Siguen apareciendo códigos nuevos: añadid más documentos antes de cerrar." }));
+    } else satBox.replaceChildren();
+    mapBox.replaceChildren(mapSvg(A.list, q.rels));
+    if (o.comparar){
+      const other = o.comparar();
+      if (other && other.codes && other.codes.some(c => norm(c.cat))){
+        const B = analyse(fixQ(other));
+        const a = new Set(A.list.map(c => key(c.cat))), b = new Set(B.list.map(c => key(c.cat)));
+        const both = A.list.filter(c => b.has(key(c.cat))).map(c => c.cat), onlyA = A.list.filter(c => !b.has(key(c.cat))).map(c => c.cat), onlyB = B.list.filter(c => !a.has(key(c.cat))).map(c => c.cat);
+        cmpBox.replaceChildren(H("p", { class: "sec-label", text: o.compararLabel || "Triangulación con el otro análisis" }), H("div", { class: "qcmp" },
+          H("div", { class: "k" }, H("b", { text: "En las dos fuentes" }), both.join(" · ") || "—"),
+          H("div", { class: "k" }, H("b", { text: "Solo aquí" }), onlyA.join(" · ") || "—"),
+          H("div", { class: "k" }, H("b", { text: "Solo en la otra fuente" }), onlyB.join(" · ") || "—")),
+          H("p", { class: "tb-help", text: "Lo que aparece en las dos fuentes es lo más sólido. Usad los mismos nombres de categoría para que la comparación funcione." }));
+      } else cmpBox.replaceChildren();
+    }
+  }
+  paintAll();
+  return { paint: paintAll };
+};
+R.qualText = function (q, titulo){
+  fixQ(q); const A = analyse(q);
+  const L = [`### ${titulo || "Análisis cualitativo"} (grounded theory)`, `${A.nDocs} documentos · ${A.nCodes} códigos`];
+  A.list.forEach(c => L.push(`- **${c.cat}**: ${c.n} de ${A.nDocs} documentos (${Math.round(c.pct * 100)} %) · códigos: ${c.codes.map(([k, n]) => `${k} (${n})`).join(", ")}${c.cita ? " · ej.: " + c.cita : ""}`));
+  const rl = q.rels.filter(r => norm(r.a) && norm(r.b)); if (rl.length) L.push("Relaciones: " + rl.map(r => `${r.a} → ${r.b}${r.tipo ? " (" + r.tipo + ")" : ""}`).join("; "));
+  if (norm(q.teoria)) L.push("Teoría emergente: " + norm(q.teoria));
+  return A.list.length ? L.join("\n") : "";
+};
+R.qualBlank = blankQ;
+R.qualTop = q => analyse(fixQ(q)).list;
+})();
+
+</script>
 <script>/* 00z_entregables_lib.js */
 /* Fábrica de estaciones «Entregable»: reúnen los resultados de varias estaciones en un documento,
    añaden la conclusión del equipo y permiten exportarlo (o imprimirlo en GitHub Pages). */
@@ -1665,7 +1954,8 @@ const blank = () => ({
   origen: { usuario: "", necesidad: "", insight: "" },
   pov: "", povV2: "", povV2Ev: "",
   hmw: [{ q: "" }],
-  foco: "sintesis"
+  foco: "sintesis",
+  qualR: R.qualBlank()
 });
 function fix(d){
   const b = blank();
@@ -1737,6 +2027,7 @@ R.station({
     pov: "Los estudiantes de máster internacionales que llegan a Madrid necesitan saber con quién van a convivir antes de firmar, porque eligen piso a distancia y la convivencia es la principal causa de malas experiencias.",
     povV2: "Los estudiantes de máster internacionales que llegan a Madrid necesitan conocer a sus futuros compañeros y pactar normas de convivencia antes de firmar, porque eligen piso a distancia y lo que más pesa en una mala experiencia son los hábitos de los compañeros, no el piso.",
     povV2Ev: "5 entrevistas de problema (Mom Test) a estudiantes de máster: 4 de 5 tuvieron un conflicto de convivencia el último año; 3 de 5 eligieron piso sin conocer a nadie. Se confirma el usuario y se matiza la necesidad (pactar normas). Lo cuantificaremos con la encuesta (H1).",
+    qualR: {"raw": "", "coded": "", "docs": [{"id": "D01", "text": "Encontré habitación rápido, pero nadie te cuenta cómo son los compañeros. A los dos meses me fui por el ruido."}, {"id": "D02", "text": "Las fotos no tenían nada que ver con el piso. Pagué la fianza sin verlo porque estaba fuera de España."}, {"id": "D03", "text": "Muy fácil de usar y con muchos anuncios en Madrid."}, {"id": "D04", "text": "Perfiles sin verificar: un casero me pidió una transferencia antes de visitar. Estafa clarísima."}, {"id": "D05", "text": "Convivo con gente que trabaja de noche y yo de día; nunca hablamos de horarios antes de entrar."}, {"id": "D06", "text": "La app te deja chatear, pero solo con el casero, no con los compañeros."}, {"id": "D07", "text": "Busqué desde Italia; elegí por precio y ubicación porque no podía saber nada más."}, {"id": "D08", "text": "La limpieza fue un drama desde la primera semana. Ojalá hubiéramos puesto normas."}, {"id": "D09", "text": "Buen precio, pero los compañeros traían visitas todos los fines de semana."}, {"id": "D10", "text": "Encontré a mis compañeros en un grupo de Facebook y ha salido genial: nos conocimos por videollamada antes."}, {"id": "D11", "text": "Demasiados anuncios repetidos y falsos."}, {"id": "D12", "text": "Pagué 300 € de agencia y aun así no sabía con quién iba a vivir."}], "codes": [{"doc": "D01", "code": "no se conoce a los compañeros", "cat": "Falta de información sobre las personas", "cita": "nadie te cuenta cómo son los compañeros"}, {"doc": "D01", "code": "abandono por ruido", "cat": "Conflictos de convivencia", "cita": "me fui por el ruido"}, {"doc": "D02", "code": "fotos engañosas", "cat": "Desconfianza y estafas", "cita": "Las fotos no tenían nada que ver con el piso"}, {"doc": "D02", "code": "pagar sin ver", "cat": "Buscar a distancia", "cita": "Pagué la fianza sin verlo"}, {"doc": "D03", "code": "facilidad de uso", "cat": "Experiencia positiva", "cita": "Muy fácil de usar"}, {"doc": "D04", "code": "perfiles sin verificar", "cat": "Desconfianza y estafas", "cita": "Perfiles sin verificar"}, {"doc": "D05", "code": "horarios incompatibles", "cat": "Conflictos de convivencia", "cita": "trabaja de noche y yo de día"}, {"doc": "D05", "code": "normas no habladas", "cat": "Falta de información sobre las personas", "cita": "nunca hablamos de horarios antes de entrar"}, {"doc": "D06", "code": "sin contacto con compañeros", "cat": "Falta de información sobre las personas", "cita": "solo con el casero, no con los compañeros"}, {"doc": "D07", "code": "buscar desde fuera", "cat": "Buscar a distancia", "cita": "Busqué desde Italia"}, {"doc": "D07", "code": "elegir por precio", "cat": "Decidir por precio y ubicación", "cita": "elegí por precio y ubicación"}, {"doc": "D08", "code": "limpieza", "cat": "Conflictos de convivencia", "cita": "La limpieza fue un drama"}, {"doc": "D08", "code": "deseo de normas", "cat": "Falta de información sobre las personas", "cita": "Ojalá hubiéramos puesto normas"}, {"doc": "D09", "code": "visitas", "cat": "Conflictos de convivencia", "cita": "traían visitas todos los fines de semana"}, {"doc": "D09", "code": "buen precio", "cat": "Decidir por precio y ubicación", "cita": "Buen precio"}, {"doc": "D10", "code": "conocerse antes", "cat": "Experiencia positiva", "cita": "nos conocimos por videollamada antes"}, {"doc": "D11", "code": "anuncios falsos", "cat": "Desconfianza y estafas", "cita": "anuncios repetidos y falsos"}, {"doc": "D12", "code": "coste de agencia", "cat": "Decidir por precio y ubicación", "cita": "Pagué 300 € de agencia"}, {"doc": "D12", "code": "no se conoce a los compañeros", "cat": "Falta de información sobre las personas", "cita": "no sabía con quién iba a vivir"}], "rels": [{"a": "Buscar a distancia", "b": "Desconfianza y estafas", "tipo": "aumenta"}, {"a": "Buscar a distancia", "b": "Decidir por precio y ubicación", "tipo": "causa"}, {"a": "Decidir por precio y ubicación", "b": "Falta de información sobre las personas", "tipo": "se asocia"}, {"a": "Falta de información sobre las personas", "b": "Conflictos de convivencia", "tipo": "causa"}, {"a": "Experiencia positiva", "b": "Conflictos de convivencia", "tipo": "reduce"}], "teoria": "Quien busca piso compartido a distancia decide por precio y fotos porque no tiene información sobre las personas; esa falta de información sobre los hábitos de los compañeros desemboca en conflictos de convivencia. Cuando se conocen antes, la experiencia es positiva.", "memo": "Reseñas ilustrativas (parafraseadas). Caso negativo: D10, buena experiencia cuando se conocieron antes; refuerza la teoría. Falta contrastarlo con entrevistas (triangulación).", "rigor": {"triang": false, "cred": true, "trans": true, "conf": true, "neg": true}},
     hmw: [
       { q: "¿Cómo podríamos ayudar a los estudiantes internacionales a conocer a sus futuros compañeros antes de firmar?" },
       { q: "¿Cómo podríamos hacer que elegir piso a distancia dé tanta confianza como visitarlo en persona?" },
@@ -1796,7 +2087,16 @@ R.station({
     else R.tip(b, "<b>Truco:</b> ordenad las reseñas por «más recientes» y quedaos con las de 1–3 estrellas que <b>explican un porqué</b>. Las de 5 estrellas os dicen qué no podéis hacer peor.");
 
     /* 2 · entrevistas */
-    b = R.step(el, 2, "Entrevistas exprés en el campus", "Tres conversaciones de 5–7 minutos con personas que encajen en vuestro cliente objetivo. Usad The Mom Test (Fitzpatrick, 2013): hablad de su vida y de lo que hicieron en el pasado, no de vuestra idea ni de lo que harían en el futuro.");
+    b = R.step(el, 2, "Analizar las reseñas: netnografía con grounded theory", "Las reseñas y comentarios online son documentos: analizarlos es netnografía (Kozinets). Los tratamos como en investigación cualitativa: códigos abiertos, categorías, relaciones y mapa conceptual (Corbin y Strauss). Los temas que se repiten en muchos documentos son evidencia para el mapa de empatía y el POV.");
+    R.qual(b, d.qualR, { fuente: "reseñas y comentarios online", importar: () => (d.resenas || []).map(r => r.cita).filter(Boolean), importarLabel: "Traer las reseñas del paso 1" });
+    b.append(R.h("div", { class: "chips" }, R.h("button", { class: "btn small", type: "button", on: { click: () => {
+      const top = R.qualTop(d.qualR).filter(c => c.n > 0).slice(0, 6), N = (d.qualR.docs || []).length || 0;
+      const lines = (d.mapa.dolores || "").split("\n").filter(Boolean);
+      top.forEach(c => { const t = `[E] ${c.cat} (${c.n} de ${N} reseñas)`; if (!lines.some(l => l.includes(c.cat))) lines.push(t); });
+      d.mapa.dolores = lines.join("\n"); R.save(); R.go("empatia");
+    } } }, "Llevar los temas al mapa de empatía (dolores)")));
+
+    b = R.step(el, 3, "Entrevistas exprés en el campus", "Tres conversaciones de 5–7 minutos con personas que encajen en vuestro cliente objetivo. Usad The Mom Test (Fitzpatrick, 2013): hablad de su vida y de lo que hicieron en el pasado, no de vuestra idea ni de lo que harían en el futuro.");
     b.append(R.h("div", { class: "emp-mt" },
       R.h("div", { class: "bad" }, R.h("h4", { text: "✗ Preguntas que engañan" }), R.h("ul", null,
         R.h("li", null, "«¿Usarías una app que te empareje con compañeros compatibles?»", R.h("span", { text: "Pide una opinión sobre el futuro: por educación, casi todos dicen que sí." })),
@@ -1819,7 +2119,7 @@ R.station({
     R.tip(b, "<b>Anonimizad:</b> nada de nombres, teléfonos ni fotos. «E1 · mujer, 24, Italia» basta. Uno pregunta, otro toma notas literales; al acabar, separad <b>lo que hizo</b> de <b>lo que opina</b>.", "warn");
 
     /* 3 · mapa de empatía */
-    b = R.step(el, 3, "Mapa de empatía", "Resume a vuestro usuario en cuatro cuadrantes (qué dice, piensa, hace y siente) más sus dolores y ganancias. Empezad cada línea con [E] si lo oísteis o visteis (evidencia) o con [S] si lo deducís (suposición).");
+    b = R.step(el, 4, "Mapa de empatía", "Resume a vuestro usuario en cuatro cuadrantes (qué dice, piensa, hace y siente) más sus dolores y ganancias. Empezad cada línea con [E] si lo oísteis o visteis (evidencia) o con [S] si lo deducís (suposición).");
     const acts = R.h("div", { class: "emp-acts" });
     const msg = R.h("span", { class: "emp-msg", "aria-live": "polite" });
     acts.append(R.h("button", { class: "btn small", type: "button", on: { click: prefill } }, "Pre-rellenar desde reseñas y entrevistas"), msg);
@@ -1869,7 +2169,7 @@ R.station({
     drawMap();
 
     /* 4 · JTBD */
-    b = R.step(el, 4, "Jobs-to-be-Done", "La gente no compra productos: «contrata» algo para progresar en una situación concreta (Christensen). Escribid el trabajo en una frase: la situación, la motivación y el resultado esperado.");
+    b = R.step(el, 5, "Jobs-to-be-Done", "La gente no compra productos: «contrata» algo para progresar en una situación concreta (Christensen). Escribid el trabajo en una frase: la situación, la motivación y el resultado esperado.");
     const r3 = R.h("div", { class: "row3" }); b.append(r3);
     const jPrev = R.h("p", { class: "emp-sent" });
     const paintJ = () => {
@@ -1881,7 +2181,7 @@ R.station({
     b.append(jPrev); paintJ();
 
     /* 5 · POV + HMW */
-    b = R.step(el, 5, "Punto de vista (POV) y preguntas «¿Cómo podríamos…?»", "El POV es la definición del problema que vais a resolver: usuario + necesidad + insight (el porqué que habéis descubierto). Después lo abrís en preguntas «¿Cómo podríamos…?» (HMW), que son el arranque de la lluvia de ideas.");
+    b = R.step(el, 6, "Punto de vista (POV) y preguntas «¿Cómo podríamos…?»", "El POV es la definición del problema que vais a resolver: usuario + necesidad + insight (el porqué que habéis descubierto). Después lo abrís en preguntas «¿Cómo podríamos…?» (HMW), que son el arranque de la lluvia de ideas.");
     const povGrid = R.h("div", { class: "row3" }); b.append(povGrid);
     let povTa = null;
     const povPrev = R.h("p", { class: "emp-sent" });
@@ -1987,6 +2287,7 @@ R.station({
         "Reseñas:", res || "(vacío)",
         d.temas ? "Temas detectados:\n" + d.temas : "",
         "\nEntrevistas (anonimizadas):", ent || "(vacío)",
+        R.qualText(d.qualR, "Netnografía de reseñas") ? "\n" + R.qualText(d.qualR, "Netnografía de reseñas") : "",
         "\nMapa de empatía ([E] evidencia, [S] suposición):", mapa || "(vacío)",
         "\nJob-to-be-Done: " + (jtbd || "(vacío)"),
         "POV provisional (v1): " + (d.pov || "(vacío)"), "Origen de cada parte del POV: " + orig,
@@ -2004,6 +2305,7 @@ R.station({
     L.push("", "### Entrevistas", d.guion ? "Guion:\n" + d.guion : "", R.lines(d.entrevistas.filter(e => (e.hechos || e.cita || "").trim()), e => `- ${e.perfil || "Entrevista"}: ${e.hechos || ""} ${e.cita || ""} (${SENAL[e.senal] || "sin valorar"})`) || "(vacío)");
     L.push("", "### Mapa de empatía", Object.entries(MAPA).filter(([k]) => d.mapa[k] && d.mapa[k].trim()).map(([k, l]) => `**${l}**\n${d.mapa[k].trim()}`).join("\n") || "(vacío)");
     if (composeJ(d)) L.push("", "### Job-to-be-Done", composeJ(d));
+    { const qt = R.qualText(d.qualR, "Netnografía de reseñas"); if (qt) L.push("", qt); }
     L.push("", "### POV provisional (v1)", d.pov || "(vacío)", "Origen: " + ["usuario", "necesidad", "insight"].map(k => `${k} = ${ORIG[d.origen[k]] || "sin decidir"}`).join(", "));
     if (d.povV2 && d.povV2.trim()) L.push("", "### POV revisado (v2)", d.povV2.trim(), d.povV2Ev ? "Evidencia: " + d.povV2Ev.trim() : "");
     L.push("", "### ¿Cómo podríamos…?", R.lines(d.hmw.filter(x => x.q && x.q.trim()), (x, i) => `${i + 1}. ${x.q.trim()}`) || "(vacío)");
@@ -4196,6 +4498,7 @@ Pídeme confirmación antes de cada comando que cambie algo en GitHub. Nunca use
     return ["no", "Por debajo de 50: problemas serios de usabilidad."];
   }
   function ensure(d){
+    if (!d.qualE || typeof d.qualE !== "object") d.qualE = R.qualBlank();
     d.tareas = Array.isArray(d.tareas) ? d.tareas : [];
     d.part = Array.isArray(d.part) ? d.part : [];
     while (d.part.length < 5) d.part.push({ id: "P" + (d.part.length + 1), perfil: "" });
@@ -4233,6 +4536,7 @@ Pídeme confirmación antes de cada comando que cambie algo en GitHub. Nunca use
     chips: ["S2 · 2.3–2.4", "Práctica P7 · 25′ + P10", "Nota NT-ED-06"],
     goal: "Lo cualitativo os dice <b>qué pasa y por qué</b>; lo cuantitativo (siguiente estación), <b>cuánto</b>. Aquí preparáis la entrevista de solución y el test de usabilidad, observáis a 5 usuarios, calculáis el <b>SUS</b> y codificáis lo que os dijeron hasta llegar a <b>temas</b> y a una <b>matriz de evidencias</b>.",
     example: {
+      qualE: {"raw": "", "coded": "", "docs": [{"id": "D01", "text": "Estudiante de máster (Italia). Buscó desde fuera y eligió por precio. Su compañera se acostaba a las 4 y ella madrugaba; se mudó en enero."}, {"id": "D02", "text": "Estudiante de máster (México). Desconfía de los perfiles: «no sabía si la persona existía». Le gusta la idea del test, pero no entiende qué significa el 78 %."}, {"id": "D03", "text": "Estudiante de grado. Problemas de limpieza desde el primer mes; nunca hablaron de normas. «Si hubiéramos firmado algo el primer día…»"}, {"id": "D04", "text": "Profesional de 26 años. Teletrabaja y el ruido de los compañeros le molesta. Pagaría algo «una vez», no cada mes."}, {"id": "D05", "text": "Estudiante de máster (Francia). Encontró piso por un grupo de Facebook; pagar por la app: «¿por qué, si hay grupos gratis?»"}, {"id": "D06", "text": "Estudiante de grado. Conflictos por visitas los fines de semana. Valora el acuerdo de convivencia; no pagaría suscripción."}, {"id": "D07", "text": "Estudiante de máster (Alemania). Buscó a distancia y sufrió un intento de estafa. Usaría la app si los perfiles están verificados."}, {"id": "D08", "text": "Estudiante de máster (España). Sin problemas graves; conoce a sus compañeros desde la carrera. No ve necesidad (caso negativo)."}, {"id": "D09", "text": "Gestora de residencia. «Cada habitación que se vacía a mitad de curso me cuesta dos meses.» Pagaría por inquilinos compatibles."}, {"id": "D10", "text": "Propietario con 3 habitaciones. Cambia de inquilinos cada pocos meses por conflictos entre ellos. Pagaría unos 29 € por habitación cubierta."}, {"id": "D11", "text": "Responsable de un coliving. Los conflictos de convivencia son su primera causa de bajas. Le interesa un acuerdo de convivencia digital."}, {"id": "D12", "text": "Agente inmobiliario. Le interesa poco: cobra la comisión igualmente aunque haya rotación (caso negativo)."}], "codes": [{"doc": "D01", "code": "buscar desde fuera", "cat": "Buscar a distancia", "cita": "Buscó desde fuera y eligió por precio"}, {"doc": "D01", "code": "horarios incompatibles", "cat": "Conflictos de convivencia", "cita": "se acostaba a las 4 y ella madrugaba"}, {"doc": "D02", "code": "perfiles dudosos", "cat": "Desconfianza y estafas", "cita": "no sabía si la persona existía"}, {"doc": "D02", "code": "no entiende el %", "cat": "Falta de información sobre las personas", "cita": "no entiende qué significa el 78 %"}, {"doc": "D03", "code": "limpieza", "cat": "Conflictos de convivencia", "cita": "Problemas de limpieza desde el primer mes"}, {"doc": "D03", "code": "normas no habladas", "cat": "Falta de información sobre las personas", "cita": "nunca hablaron de normas"}, {"doc": "D04", "code": "ruido y teletrabajo", "cat": "Conflictos de convivencia", "cita": "el ruido de los compañeros le molesta"}, {"doc": "D04", "code": "pago único sí, cuota no", "cat": "No pagaría como usuario", "cita": "Pagaría algo «una vez», no cada mes"}, {"doc": "D05", "code": "alternativa gratuita", "cat": "No pagaría como usuario", "cita": "¿por qué, si hay grupos gratis?"}, {"doc": "D06", "code": "visitas", "cat": "Conflictos de convivencia", "cita": "Conflictos por visitas los fines de semana"}, {"doc": "D06", "code": "valor del acuerdo", "cat": "Falta de información sobre las personas", "cita": "Valora el acuerdo de convivencia"}, {"doc": "D06", "code": "no pagaría suscripción", "cat": "No pagaría como usuario", "cita": "no pagaría suscripción"}, {"doc": "D07", "code": "intento de estafa", "cat": "Desconfianza y estafas", "cita": "sufrió un intento de estafa"}, {"doc": "D07", "code": "verificación", "cat": "Desconfianza y estafas", "cita": "si los perfiles están verificados"}, {"doc": "D08", "code": "sin problema", "cat": "Sin necesidad (caso negativo)", "cita": "Sin problemas graves"}, {"doc": "D09", "code": "coste de habitación vacía", "cat": "Coste de la rotación (oferta)", "cita": "me cuesta dos meses"}, {"doc": "D09", "code": "pagaría por compatibilidad", "cat": "Pagaría la oferta (B2B)", "cita": "Pagaría por inquilinos compatibles"}, {"doc": "D10", "code": "rotación por conflictos", "cat": "Coste de la rotación (oferta)", "cita": "Cambia de inquilinos cada pocos meses"}, {"doc": "D10", "code": "precio por habitación", "cat": "Pagaría la oferta (B2B)", "cita": "Pagaría unos 29 € por habitación cubierta"}, {"doc": "D11", "code": "bajas por convivencia", "cat": "Coste de la rotación (oferta)", "cita": "primera causa de bajas"}, {"doc": "D11", "code": "acuerdo digital", "cat": "Pagaría la oferta (B2B)", "cita": "Le interesa un acuerdo de convivencia digital"}, {"doc": "D12", "code": "comisión igualmente", "cat": "Sin necesidad (caso negativo)", "cita": "cobra la comisión igualmente"}], "rels": [{"a": "Buscar a distancia", "b": "Desconfianza y estafas", "tipo": "aumenta"}, {"a": "Falta de información sobre las personas", "b": "Conflictos de convivencia", "tipo": "causa"}, {"a": "Conflictos de convivencia", "b": "Coste de la rotación (oferta)", "tipo": "aumenta"}, {"a": "Coste de la rotación (oferta)", "b": "Pagaría la oferta (B2B)", "tipo": "causa"}, {"a": "No pagaría como usuario", "b": "Pagaría la oferta (B2B)", "tipo": "contradice"}], "teoria": "El problema lo sufren los estudiantes, pero lo pagaría la oferta: la falta de información sobre las personas provoca conflictos, los conflictos generan rotación y residencias, coliving y propietarios pagarían por reducirla; los estudiantes no pagarían una cuota.", "memo": "Resúmenes de entrevistas anonimizados (ilustrativos). Casos negativos: D08 (sin problema) y D12 (agente sin incentivo). Coincide con la netnografía en conflictos, desconfianza y falta de información; lo nuevo es el lado que paga (B2B).", "rigor": {"triang": true, "cred": true, "trans": true, "conf": true, "neg": true}},
       pregunta: "¿Entienden y desean los estudiantes que llegan a Madrid un emparejamiento por hábitos? ¿Quién pagaría por él?",
       muestra: "Entrevistas: 8 de demanda (5 de problema en S1 y 3 de solución en S2) y 4 de oferta (2 gestores de residencia o coliving y 2 propietarios con varias habitaciones). Test de usabilidad: 5 estudiantes de máster con la app clicable.",
       nUsers: 5,
@@ -4478,7 +4782,9 @@ Pídeme confirmación antes de cada comando que cambie algo en GitHub. Nunca use
       drawSus();
 
       /* 5 · codificación */
-      b = R.step(el, 5, "Codificación: libro de códigos, temas y matriz de evidencias", "Codificar es poner etiquetas breves a fragmentos que expresan una idea. Primero códigos abiertos; luego agrupáis los parecidos (affinity map) y formuláis temas como afirmaciones interpretativas, no como resúmenes.");
+      b = R.step(el, 5, "Análisis cualitativo (grounded theory) y triangulación", "El mismo método que en la netnografía de reseñas (estación 2), ahora con vuestras entrevistas y tests: códigos abiertos, categorías, relaciones y mapa conceptual. Usad los mismos nombres de categoría que en las reseñas para comparar: lo que sale en las dos fuentes es lo más sólido.");
+      R.qual(b, d.qualE, { fuente: "resúmenes anonimizados de entrevistas y tests", importar: () => { const out = []; (d.tareas || []).forEach(t => (t.r || []).forEach((r, i) => { if (r && r.cita) out.push(`${(d.part[i] && d.part[i].id) || "P" + (i + 1)}: ${r.cita}${r.problema ? " — " + r.problema : ""}`); })); return out; }, importarLabel: "Traer las citas de la hoja de observación", comparar: () => (R.state.st.empatia && R.state.st.empatia.qualR) || null, compararLabel: "Triangulación con la netnografía de reseñas (estación 2)" });
+      const b0 = b; const det = H("details", { class: "qdet" }, H("summary", { text: "Libro de códigos y temas manuales (opcional)" })); b.append(det); b = det;
       b.append(H("p", { class: "sec-label", text: "Libro de códigos" }));
       R.list(b, { add: "Añadir código", onChange: drawAff, cols: [
         { key: "cod", label: "Código", ph: "HAB-INCOMP", w: "130px" },
@@ -4510,6 +4816,7 @@ Pídeme confirmación antes de cada comando que cambie algo en GitHub. Nunca use
           loose.length ? H("div", { class: "tip", text: "Códigos sin tema: " + loose.join(", ") + ". ¿Forman otro tema o son casos sueltos?" }) : null);
       }
       drawAff();
+      b = b0;
       b.append(H("p", { class: "sec-label", text: "Matriz de evidencias (triangulación)" }));
       R.list(b, { add: "Añadir hipótesis", cols: [
         { key: "hip", label: "Hipótesis", ph: "H1 Problema", w: "140px" },
@@ -4549,6 +4856,7 @@ Pídeme confirmación antes de cada comando que cambie algo en GitHub. Nunca use
       if (S.some(s => s.n)) L.push("Resultados del test de usabilidad:\n" + S.filter(s => s.n).map(s => `- T${s.ti + 1}: ${s.si} de ${s.n} sin ayuda, ${s.ayuda} con ayuda, ${s.no} no completada; mediana ${mmss(s.med)}`).join("\n"));
       if (P.length) L.push("Problemas observados:\n" + P.map(p => `- ${p.t} · ${p.txt} · ${p.who.length} de ${d.part.length} · severidad ${p.sev}`).join("\n"));
       if (m != null) L.push(`SUS: ${sc.map((s, i) => d.part[i].id + " = " + (s == null ? "incompleto" : R.stats.num(s, 1))).join("; ")}. Media ${R.stats.num(m, 1)} (n = ${ok.length}; referencia ≈ 68).`);
+      { const qt = R.qualText(d.qualE, "Entrevistas y tests"); if (qt) L.push(qt); }
       const cl = R.lines(d.codes, c => `- ${c.cod} (${c.menc || "?"}): ${c.def} · ${c.cita}`);
       if (cl) L.push("Libro de códigos:\n" + cl);
       const te = R.lines(d.temas, t => `- ${t.tema} [${t.cods}] → ${t.impl}`);
