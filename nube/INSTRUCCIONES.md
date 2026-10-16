@@ -32,6 +32,20 @@ Con esto, cada equipo guarda su trabajo **automáticamente en tu Google Drive** 
 - **Recuperar una versión anterior:** en la carpeta *historial* están las últimas 40 versiones de cada equipo (`ED-03_v12_20261020-1130.json`). Descárgala y el equipo la abre con «Abrir copia».
 - **Dos personas a la vez:** si dos ordenadores del mismo equipo guardan cambios distintos, la web avisa y deja elegir qué versión conservar; la otra queda en el historial.
 
+## 6. Medidor de los prototipos (analítica casera)
+El mismo script cuenta las **visitas, clics en el CTA, registros y clics en Premium** de los prototipos que publican los equipos en GitHub Pages. No hace falta Tally, Clarity ni ninguna cuenta externa.
+- Cada prototipo lleva un pequeño script (lo genera la estación 9 · Prototipo con el código del equipo) que envía cada evento a esta URL. No usa cookies ni guarda nada en el navegador del visitante.
+- Los eventos se apuntan en la pestaña **«eventos»** de la hoja del panel (fecha, equipo, evento, versión A/B, utm_source, utm_campaign y, solo en los registros, el email).
+- Los equipos ven **solo los recuentos** en la estación 11 · Validación cuantitativa («Traer datos del prototipo»), con su código y PIN. **Los emails solo los ves tú**: bórralos al terminar el curso.
+- Solo cuentan eventos de equipos que ya existen en el panel (se han conectado al menos una vez).
+- **Si ya tenías el script desplegado:** pega el nuevo `Code.gs`, guarda y ve a **Implementar → Gestionar implementaciones → lápiz → Versión: Nueva versión → Implementar**. La URL no cambia.
+
+## 7. Encuesta cruzada en clase
+En la estación 11 cada equipo publica su encuesta (con su prototipo dentro) y el resto de la clase la contesta desde el móvil. Las respuestas llegan directamente a la Ruta del equipo.
+- Pestaña **«encuestas»**: una fila por equipo con su cuestionario. Pestaña **«respuestas»**: una fila por respuesta (fecha, equipo y respuestas). Son anónimas: no se pide nombre ni email.
+- **Página de la clase:** proyecta el QR de `https://cmoreno34.github.io/ruta-emprendedor-digital/?movil=encuestas`: lista todas las encuestas publicadas y cada alumno marca las que ya ha contestado (pide que contesten al menos 5 de otros equipos).
+- Para empezar de cero en otra edición del curso, borra las filas de las pestañas «encuestas», «respuestas» y «eventos».
+
 ## Privacidad y límites
 - Los datos se guardan en **tu** Drive; no pasan por servidores de terceros. Los alumnos no deben introducir datos personales de entrevistados.
 - La URL del script es pública (está en la web), pero sin código de equipo y PIN no se puede leer ni escribir nada.
