@@ -823,11 +823,11 @@ const R = (() => {
     stopB.addEventListener("click", () => askCtl && askCtl.abort());
     if (sampleFn) askB.hidden = false;
     const box = h("section", {class:"claude", "aria-label":"Prompt para Claude"},
-      h("div", {class:"claude-h"}, h("h3", {text:"Vuestro prompt para Claude"}), h("div", {class:"acts"}, askB, stopB, copyB)),
+      h("div", {class:"claude-h"}, h("h3", {text:"Al terminar la estación: revisión crítica con Claude"}), h("div", {class:"acts"}, askB, stopB, copyB)),
       h("ol", {class:"howto"},
-        h("li", null, h("b", {text:"Rellenad "}), "los pasos de arriba con vuestras ideas."),
-        h("li", null, h("b", {text:"Copiad el prompt "}), "y pegadlo en Claude (o pulsad «Preguntar a Claude aquí» si aparece)."),
-        h("li", null, h("b", {text:"Rehaced arriba "}), "vuestros campos con lo que aceptéis de su respuesta. Decidís vosotros: no copiéis sin pensar."),
+        h("li", null, h("b", {text:"En cada paso, Claude propone: "}), "usad «Proponer con Claude» donde aparezca (o rellenad vosotros)."),
+        h("li", null, h("b", {text:"Vosotros corregís "}), "los campos: decidís qué se queda."),
+        h("li", null, h("b", {text:"Al terminar, revisión crítica: "}), "copiad este prompt en Claude y rehaced arriba lo que aceptéis."),
         h("li", null, h("b", {text:"Anotad abajo "}), "qué os habéis llevado y qué habéis descartado.")),
       pre, ans,
       h("p", {class:"note"}, "El prompt se escribe solo con lo que habéis rellenado. Pegadlo en ", h("a", {href:"https://claude.ai/new", target:"_blank", rel:"noopener", text:"claude.ai"}), " o en Claude Code. Si cambiáis los campos y volvéis a preguntar, el prompt se actualiza solo."),
@@ -1749,6 +1749,64 @@ R.qualTop = q => analyse(fixQ(q)).list;
 })();
 
 </script>
+<script>/* 00e_assist.js */
+/* «Proponer con Claude»: bloque reutilizable al inicio de un paso.
+   A · Claude propone (copiar prompt → pegar respuesta → Rellenar)  ·  B · vosotros corregís los campos.
+   R.assist(parent, { id, title, build: () => texto del prompt, example: "formato de respuesta", apply: (texto) => nº de campos rellenados }) */
+(() => {
+R.css("assist", `
+.assist{border:1px solid var(--line);border-left:4px solid var(--red);border-radius:12px;padding:12px 14px;background:var(--bg);display:flex;flex-direction:column;gap:8px}
+.assist .ah{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.assist .ah b{font:700 14px var(--f-body)}
+.assist .flowab{display:flex;gap:6px;flex-wrap:wrap;font:600 12px var(--f-body)}
+.assist .flowab span{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.assist .flowab span.on{border-color:var(--red);color:var(--red)}
+.assist details summary{cursor:pointer;font:600 13px var(--f-body);color:var(--soft)}
+.assist textarea{width:100%;border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:var(--panel);font:13px/1.5 var(--f-mono);min-height:90px}
+`);
+R.assist = function (parent, o){
+  const id = "as-" + o.id;
+  const pre = R.h("pre", { class: "prompt", style: "max-height:200px" });
+  const cp = R.h("button", { class: "btn accent small", type: "button" }, "1 · Copiar prompt");
+  cp.addEventListener("click", async () => { pre.textContent = o.build(); try { await navigator.clipboard.writeText(pre.textContent); cp.textContent = "Copiado ✓"; } catch (e){ const r = document.createRange(); r.selectNodeContents(pre); getSelection().removeAllRanges(); getSelection().addRange(r); cp.textContent = "Seleccionado: Ctrl+C"; } setTimeout(() => cp.textContent = "1 · Copiar prompt", 1600); });
+  const ta = R.h("textarea", { id: id + "-ta", placeholder: o.example || "Pegad aquí la respuesta de Claude…" });
+  const msg = R.h("span", { class: "status" });
+  const go = R.h("button", { class: "btn primary small", type: "button" }, "3 · Rellenar los campos");
+  go.addEventListener("click", () => {
+    const n = o.apply(ta.value || "");
+    if (!n){ msg.textContent = "No encuentro el formato esperado. Comprobad que Claude respondió con las etiquetas en mayúsculas."; return; }
+    R.save();
+    R.go(location.hash.slice(1));
+    setTimeout(() => { const el = document.getElementById(id); if (el){ el.scrollIntoView({ block: "start" }); const m = el.querySelector(".status"); if (m) m.textContent = `Rellenados ${n} campos. Ahora revisadlos y corregidlos abajo.`; } }, 60);
+  });
+  const det = R.h("details", null, R.h("summary", { text: "Ver el prompt" }), pre);
+  det.addEventListener("toggle", () => { if (det.open) pre.textContent = o.build(); });
+  const box = R.h("div", { class: "assist", id },
+    R.h("div", { class: "ah" }, R.h("b", { text: "Proponer con Claude" }), R.h("span", { class: "tb-help", text: o.title || "Claude propone a partir de lo que ya tenéis; vosotros decidís." })),
+    R.h("div", { class: "flowab" }, R.h("span", { class: "on", text: "A · Claude propone" }), R.h("span", { text: "→" }), R.h("span", { text: "B · Vosotros corregís los campos de abajo" })),
+    R.h("div", { class: "chips" }, cp, R.h("span", { class: "tb-help", text: "2 · Pegadlo en Claude y copiad su respuesta aquí:" })),
+    det, R.h("label", { for: id + "-ta", class: "sr", style: "position:absolute;left:-9999px", text: "Respuesta de Claude" }), ta,
+    R.h("div", { class: "chips" }, go, msg));
+  parent.append(box);
+  return box;
+};
+/* utilidad: lee secciones «ETIQUETA: texto» (texto puede seguir en varias líneas) */
+R.sections = function (txt, labels){
+  const out = {}; let cur = null;
+  const norm = s => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
+  const L = labels.map(l => [l, norm(l)]);
+  String(txt).split(/\r?\n/).forEach(line => {
+    const raw = line.replace(/^[\s*#>-]+/, "");
+    const up = norm(raw);
+    const hit = L.find(([, n]) => up.startsWith(n + ":") || up.startsWith(n + " :") || up === n);
+    if (hit){ cur = hit[0]; const rest = raw.slice(raw.indexOf(":") + 1).trim(); out[cur] = rest && raw.includes(":") ? rest : ""; return; }
+    if (cur && raw.trim()) out[cur] = (out[cur] ? out[cur] + "\n" : "") + raw.trim();
+  });
+  return out;
+};
+})();
+
+</script>
 <script>/* 00z_entregables_lib.js */
 /* Fábrica de estaciones «Entregable»: reúnen los resultados de varias estaciones en un documento,
    añaden la conclusión del equipo y permiten exportarlo (o imprimirlo en GitHub Pages). */
@@ -2143,6 +2201,20 @@ R.station({
 
     /* 3 · mapa de empatía */
     b = R.step(el, 4, "Mapa de empatía", "Resume a vuestro usuario en cuatro cuadrantes (qué dice, piensa, hace y siente) más sus dolores y ganancias. Empezad cada línea con [E] si lo oísteis o visteis (evidencia) o con [S] si lo deducís (suposición).");
+    const evid = () => {
+      const sd = (R.state.st && R.state.st.semilla) || {};
+      const ents = (d.entrevistas || []).map((e, i) => { const t = [e.notas, e.hechos, e.cita].filter(x => x && String(x).trim()).join(" · "); return t ? `- ${e.perfil || "E" + (i + 1)}: ${t}` : ""; }).filter(Boolean).join("\n");
+      return [
+        "Usuario objetivo: " + (R.project.segmento || sd.quien || "(sin definir)"),
+        "Problema de partida: " + (sd.problema || R.project.reto || "(sin definir)"),
+        R.qualText(d.qualR, "Análisis cualitativo de reseñas y entrevistas") || "Análisis cualitativo: (todavía sin hacer)",
+        ents ? "Notas de las entrevistas cruzadas:\n" + ents : ""
+      ].filter(Boolean).join("\n\n");
+    };
+    R.assist(b, { id: "emp-mapa", title: "Propone el mapa con lo que habéis analizado (temas, citas y entrevistas).",
+      build: () => "Con esta evidencia, propón un mapa de empatía del usuario. 3–5 líneas por apartado. Empieza cada línea con [E] si sale de la evidencia (indica el documento entre paréntesis, p. ej. (D03) o (E2)) o con [S] si es una suposición razonable. No inventes citas.\nResponde EXACTAMENTE con estas etiquetas:\nDICE:\n- …\nPIENSA:\n- …\nHACE:\n- …\nSIENTE:\n- …\nDOLORES:\n- …\nGANANCIAS:\n- …\n\nEVIDENCIA:\n" + evid(),
+      example: "DICE:\n- [E] «…» (D03)\nPIENSA:\n- …\nHACE:\n…\nSIENTE:\n…\nDOLORES:\n…\nGANANCIAS:\n…",
+      apply: t => { const S = R.sections(t, ["DICE", "PIENSA", "HACE", "SIENTE", "DOLORES", "GANANCIAS"]); let n = 0; [["DICE", "dice"], ["PIENSA", "piensa"], ["HACE", "hace"], ["SIENTE", "siente"], ["DOLORES", "dolores"], ["GANANCIAS", "ganancias"]].forEach(([k, f]) => { if (S[k] && S[k].trim()){ d.mapa[f] = S[k].split("\n").map(l => l.replace(/^\s*[-•*]\s*/, "").trim()).filter(Boolean).join("\n"); n++; } }); return n; } });
     const acts = R.h("div", { class: "emp-acts" });
     const msg = R.h("span", { class: "emp-msg", "aria-live": "polite" });
     acts.append(R.h("button", { class: "btn small", type: "button", on: { click: prefill } }, "Pre-rellenar desde reseñas y entrevistas"), msg);
@@ -2193,6 +2265,10 @@ R.station({
 
     /* 4 · JTBD */
     b = R.step(el, 5, "Jobs-to-be-Done", "La gente no compra productos: «contrata» algo para progresar en una situación concreta (Christensen). Escribid el trabajo en una frase: la situación, la motivación y el resultado esperado.");
+    R.assist(b, { id: "emp-jtbd", title: "Propone el trabajo principal a partir del mapa de empatía y la evidencia.",
+      build: () => "Con este mapa de empatía y esta evidencia, propón el Job-to-be-Done principal del usuario (Christensen): la situación, la motivación y el resultado que busca, sin mencionar ninguna solución ni producto.\nResponde EXACTAMENTE:\nCUANDO: …\nQUIERO: …\nPARA: …\n\nMAPA DE EMPATÍA:\n" + Object.entries(d.mapa || {}).filter(([, v]) => v && v.trim()).map(([k, v]) => k.toUpperCase() + ":\n" + v).join("\n") + "\n\nEVIDENCIA:\n" + evid(),
+      example: "CUANDO: …\nQUIERO: …\nPARA: …",
+      apply: t => { const S = R.sections(t, ["CUANDO", "QUIERO", "PARA"]); let n = 0; if (S.CUANDO){ d.jCuando = S.CUANDO.replace(/^cuando\s+/i, ""); n++; } if (S.QUIERO){ d.jQuiero = S.QUIERO.replace(/^quiero\s+/i, ""); n++; } if (S.PARA){ d.jPara = S.PARA.replace(/^para\s+/i, ""); n++; } if (n) d.jtbd = composeJ(d); return n; } });
     const r3 = R.h("div", { class: "row3" }); b.append(r3);
     const jPrev = R.h("p", { class: "emp-sent" });
     const paintJ = () => {
@@ -2205,6 +2281,10 @@ R.station({
 
     /* 5 · POV + HMW */
     b = R.step(el, 6, "Punto de vista (POV) y preguntas «¿Cómo podríamos…?»", "El POV es la definición del problema que vais a resolver: usuario + necesidad + insight (el porqué que habéis descubierto). Después lo abrís en preguntas «¿Cómo podríamos…?» (HMW), que son el arranque de la lluvia de ideas.");
+    R.assist(b, { id: "emp-pov", title: "Propone el POV y marca qué parte es evidencia y cuál suposición (de ahí salen los colores).",
+      build: () => "Con esta información, propón el punto de vista (POV) de Design Thinking: [usuario] necesita [necesidad] porque [insight]. El usuario, en plural y concreto; la necesidad, con un verbo y sin solución; el insight, lo no obvio que explica la necesidad. Indica si cada parte se apoya en evidencia (E) o es suposición (S).\nResponde EXACTAMENTE:\nUSUARIO: …\nNECESIDAD: …\nINSIGHT: …\nORIGEN: usuario=E, necesidad=E, insight=S\n\nJOB-TO-BE-DONE: " + (d.jtbd || "(sin rellenar)") + "\n\nMAPA DE EMPATÍA (dolores y ganancias):\n" + [d.mapa && d.mapa.dolores, d.mapa && d.mapa.ganancias].filter(Boolean).join("\n") + "\n\nEVIDENCIA:\n" + evid(),
+      example: "USUARIO: …\nNECESIDAD: …\nINSIGHT: …\nORIGEN: usuario=E, necesidad=E, insight=S",
+      apply: t => { const S = R.sections(t, ["USUARIO", "NECESIDAD", "INSIGHT", "ORIGEN"]); let n = 0; if (S.USUARIO){ d.povUsuario = S.USUARIO; n++; } if (S.NECESIDAD){ d.povNecesidad = S.NECESIDAD.replace(/^necesitan?\s+/i, ""); n++; } if (S.INSIGHT){ d.povInsight = S.INSIGHT.replace(/^porque\s+/i, ""); n++; } if (S.ORIGEN){ ["usuario", "necesidad", "insight"].forEach(k => { const m = S.ORIGEN.match(new RegExp(k + "\\s*=\\s*([ES])", "i")); if (m) d.origen[k] = m[1].toUpperCase(); }); } if (n) d.pov = composePov(d); return n; } });
     const povGrid = R.h("div", { class: "row3" }); b.append(povGrid);
     let povTa = null;
     const povPrev = R.h("p", { class: "emp-sent" });
@@ -2243,6 +2323,10 @@ R.station({
     }
     paintPov();
 
+    R.assist(b, { id: "emp-hmw", title: "Propone 5 preguntas «¿Cómo podríamos…?» a partir del POV.",
+      build: () => "A partir de este POV, propón 5 preguntas «¿Cómo podríamos…?» (How Might We) para una lluvia de ideas: ni tan amplias que no orienten, ni tan estrechas que ya lleven la solución dentro. Varía el ángulo (reducir el dolor, potenciar la ganancia, cambiar el momento, darle la vuelta al problema).\nResponde EXACTAMENTE:\nPREGUNTAS:\n1. ¿Cómo podríamos…?\n2. …\n\nPOV: " + (d.povV2 || d.pov || "(sin POV)"),
+      example: "PREGUNTAS:\n1. ¿Cómo podríamos…?\n2. …",
+      apply: t => { const qs = String(t).split(/\r?\n/).map(l => l.replace(/^\s*(\d+[.)]|[-•*])\s*/, "").trim()).filter(l => /^¿?c[oó]mo podr[ií]amos/i.test(l)); if (!qs.length) return 0; d.hmw.splice(0, d.hmw.length, ...qs.slice(0, 5).map(q => ({ q: q.startsWith("¿") ? q : "¿" + q }))); return qs.length; } });
     const hmwHead = R.h("div", { class: "emp-acts" });
     const hmwMsg = R.h("span", { class: "emp-msg", "aria-live": "polite" });
     b.append(R.h("p", { class: "sec-label", text: "Preguntas «¿Cómo podríamos…?»" }), hmwHead);
