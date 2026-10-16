@@ -281,6 +281,7 @@ table.t input{width:100%;border:1px solid var(--line);border-radius:6px;padding:
 .rule3 .r b{font:700 13.5px var(--f-body);color:var(--ink)}
 .rule3 .r:nth-child(2){border-color:var(--red)}
 @media(max-width:640px){.rule3{grid-template-columns:1fr}}
+.brand .ver{color:var(--soft);font-weight:500;letter-spacing:.06em}
 footer.foot{margin-top:36px;border-top:1px solid var(--line);padding-top:16px;color:var(--soft);font-size:13px;max-width:90ch}
 footer.foot b{color:var(--red)}
 </style>
@@ -288,7 +289,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital</p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 16/10/2026 20:00</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -781,9 +782,9 @@ const R = (() => {
       h("div", {class:"chips"}, ...(st.chips || []).map(c => h("span", {class:"chip", text:c}))),
       goal));
     if (st.prompt && !st.deliverable) main.append(h("div", {class:"rule3", role:"note", "aria-label":"Cómo se trabaja en esta estación"},
-      h("span", {class:"r"}, h("b", {text:"1 · Vosotros, a mano"}), h("span", {text:"Ideas, entrevistas, datos: lo vuestro primero."})),
-      h("span", {class:"r"}, h("b", {text:"2 · Claude mejora"}), h("span", {text:"Con lo que habéis hecho: completa, ordena o critica. No lo hace por vosotros."})),
-      h("span", {class:"r"}, h("b", {text:"3 · Vosotros decidís"}), h("span", {text:"Corregís los campos y anotáis qué os habéis llevado."}))));
+      h("span", {class:"r"}, h("b", {text:"1 · Vosotros, a mano"}), h("span", {text:"Rellenad los pasos de esta estación con vuestras ideas y datos."})),
+      h("span", {class:"r"}, h("b", {text:"2 · Claude mejora"}), h("span", {text:"Cuando terminéis, copiad el prompt de abajo (y usad los bloques «Claude mejora» de algún paso). Revisa lo vuestro; no lo hace por vosotros."})),
+      h("span", {class:"r"}, h("b", {text:"3 · Vosotros decidís"}), h("span", {text:"Corregid arriba con lo que aceptéis y anotad abajo qué os habéis llevado."}))));
     const body = h("div", {style:"display:flex;flex-direction:column;gap:14px;min-width:0"});
     main.append(body);
     st.render(body, S.st[st.id], api);
@@ -801,7 +802,7 @@ const R = (() => {
     ta.value = d._ia || "";
     ta.addEventListener("input", () => { d._ia = ta.value; save(); });
     return h("div", {class:"fld iabox"},
-      h("label", {for:id}, "Qué nos llevamos de Claude", h("span", {class:"h", text:"No hace falta pegar su respuesta entera: usadla para mejorar vuestros campos y anotad aquí lo que habéis aceptado y descartado. Va al anexo de uso de IA del entregable."})),
+      h("label", {for:id}, "3 · Qué nos llevamos de Claude", h("span", {class:"h", text:"No hace falta pegar su respuesta entera: usadla para mejorar vuestros campos y anotad aquí lo que habéis aceptado y descartado. Va al anexo de uso de IA del entregable."})),
       ta);
   }
   function claudePanel(st){
@@ -832,8 +833,8 @@ const R = (() => {
     stopB.addEventListener("click", () => askCtl && askCtl.abort());
     if (sampleFn) askB.hidden = false;
     const box = h("section", {class:"claude", "aria-label":"Prompt para Claude"},
-      h("div", {class:"claude-h"}, h("h3", {text:"Al terminar la estación: revisión crítica con Claude"}), h("div", {class:"acts"}, askB, stopB, copyB)),
-      h("p", {class:"tb-help", style:"margin:0"}, "Cuando hayáis rellenado la estación (paso 1) y usado los bloques «Claude mejora» (paso 2), copiad este prompt: Claude revisa todo lo que habéis escrito y os dice qué falla. Después corregís arriba y anotáis abajo (paso 3)."),
+      h("div", {class:"claude-h"}, h("h3", {text: st.promptTitle || "2 · Claude mejora lo que habéis hecho"}), h("div", {class:"acts"}, askB, stopB, copyB)),
+      st.promptHelp ? (() => { const x = h("p", {class:"tb-help", style:"margin:0"}); x.innerHTML = st.promptHelp; return x; })() : h("p", {class:"tb-help", style:"margin:0"}, h("b", {text:"Cuándo: "}), "cuando hayáis rellenado los pasos de arriba (1). ", h("b", {text:"Qué hace: "}), "el prompt ya lleva todo lo que habéis escrito; Claude os devuelve una revisión y propuestas. ", h("b", {text:"Después: "}), "corregid arriba lo que aceptéis y anotadlo abajo (3)."),
       pre, ans,
       h("p", {class:"note"}, "El prompt se escribe solo con lo que habéis rellenado. Pegadlo en ", h("a", {href:"https://claude.ai/new", target:"_blank", rel:"noopener", text:"claude.ai"}), " o en Claude Code. Si cambiáis los campos y volvéis a preguntar, el prompt se actualiza solo."),
       iaBox(st));
@@ -1868,7 +1869,9 @@ R.deliverable = function (cfg) {
   ];
   const findImgs = (o, out) => { if (!o) return out; if (typeof o === "string") { if (o.startsWith("data:image")) out.push(o); } else if (typeof o === "object") Object.values(o).forEach(v => findImgs(v, out)); return out; };
   R.station({
-    id: cfg.id, deliverable: true, session: cfg.session, short: cfg.short, sub: cfg.sub, title: cfg.title,
+    id: cfg.id, deliverable: true,
+    promptTitle: "Antes de subirlo: revisión del entregable con Claude",
+    promptHelp: "<b>Para qué sirve:</b> el prompt ya contiene todo el entregable. Claude lo revisa como lo haría el profesor: si hay coherencia entre problema, POV, concepto y modelo; qué afirmaciones son suposiciones presentadas como hechos; qué falta; y os propone un borrador de conclusión. <b>Cuándo:</b> cuando el entregable esté completo, antes de descargar el PDF. <b>Después:</b> corregid en sus estaciones lo que haga falta, escribid vuestra conclusión en el paso 2 (podéis partir de su borrador) y anotad abajo qué os habéis llevado.", session: cfg.session, short: cfg.short, sub: cfg.sub, title: cfg.title,
     chips: cfg.chips, goal: cfg.goal,
     example: cfg.example,
     blank() { return { aprendido: "", evidencia: "", decision: "", distinto: "" }; },
@@ -3867,46 +3870,23 @@ R.station({
       }
       paintM();
 
-      /* ---------- 6. BMC opcional ---------- */
-      b = R.step(el, 6, "Business Model Canvas (opcional)", "Los 9 bloques de Osterwalder. Añade lo que el Lean Canvas no tiene: socios, actividades, recursos y relaciones. Útil cuando sabéis quién paga y necesitáis organizar la empresa.");
-      const det = R.h("details", { class: "md-opt" }, R.h("summary", { text: "Para cuando el modelo se estabilice o al pivotar (p. ej. B2B2C con socios)" }));
-      if (d.bmcOpen) det.open = true;
-      det.addEventListener("toggle", () => { d.bmcOpen = det.open; R.save(); });
-      const ob = R.h("div", { class: "md-optbody" }); det.append(ob); b.append(det);
-      const bmcBox = R.h("div");
-      const bmcZone = R.h("span", { class: "md-bar" });
-      const COMMON = { segmentos: l => [l.segmentos, l.early ? "Early adopters: " + l.early : ""].filter(x => x && String(x).trim()).join("\n"), propuesta: l => l.uvp, canales: l => l.canales, ingresos: l => l.ingresos, costes: l => l.costes };
-      function copyLean(){
-        for (const [k, fn] of Object.entries(COMMON)) d.bmc[k] = String(fn(d.lean) || "").trim();
-        R.save(); drawBmc(); paintZone("Copiados segmentos, propuesta de valor, canales, ingresos y costes. Completad socios, actividades, recursos y relaciones.");
-      }
-      function paintZone(note){
-        bmcZone.replaceChildren(R.h("button", { class: "btn small", type: "button", on: { click: () => {
-          const busy = Object.keys(COMMON).filter(k => String(d.bmc[k] || "").trim());
-          if (!busy.length){ copyLean(); return; }
-          bmcZone.replaceChildren(R.h("span", { class: "md-msg", text: `Se sustituirán ${busy.length} bloques del BMC que ya tienen texto.` }),
-            R.h("button", { class: "btn accent small", type: "button", on: { click: copyLean } }, "Sí, pasar"),
-            R.h("button", { class: "btn small", type: "button", on: { click: () => paintZone() } }, "Cancelar"));
-        } } }, "Pasar del Lean Canvas al BMC"), R.h("span", { class: "md-msg", "aria-live": "polite", text: note || "" }));
-      }
-      paintZone();
-      ob.append(R.h("p", { class: "md-msg", style: "margin:0", text: "Bloques comunes con el Lean Canvas: segmentos, propuesta de valor, canales, ingresos y costes. Nuevos: socios, actividades, recursos y relaciones (resaltados)." }), bmcZone, bmcBox);
-      function drawBmc(){
-        bmcBox.replaceChildren();
-        const g = R.grid(bmcBox, { cols: 10, minCol: 50, cells: [
-          { key: "socios", label: "Socios clave", hint: "Nuevo", col: "1 / span 2", row: "1 / span 2", hi: true },
-          { key: "actividades", label: "Actividades clave", hint: "Nuevo", col: "3 / span 2", row: "1", hi: true },
-          { key: "recursos", label: "Recursos clave", hint: "Nuevo", col: "3 / span 2", row: "2", hi: true },
-          { key: "propuesta", label: "Propuesta de valor", col: "5 / span 2", row: "1 / span 2" },
-          { key: "relaciones", label: "Relaciones con clientes", hint: "Nuevo", col: "7 / span 2", row: "1", hi: true },
-          { key: "canales", label: "Canales", col: "7 / span 2", row: "2" },
-          { key: "segmentos", label: "Segmentos de clientes", col: "9 / span 2", row: "1 / span 2" },
-          { key: "costes", label: "Estructura de costes", col: "1 / span 5", row: "3" },
-          { key: "ingresos", label: "Fuentes de ingresos", col: "6 / span 5", row: "3" }
-        ] }, d.bmc);
-        g.classList.add("md-bmc", "md-stack"); fitRows(g);
-      }
-      drawBmc();
+      /* ---------- 6. BMC: se presenta aquí, se rellena al pivotar ---------- */
+      b = R.step(el, 6, "Business Model Canvas: lo rellenaréis al pivotar", "Los 9 bloques de Osterwalder. Os lo presentamos aquí para que veáis en qué se diferencia del Lean Canvas: añade socios, actividades, recursos y relaciones (resaltados). Lo rellenaréis al final, en la estación 14 · Pivote, cuando cambie el modelo y aparezcan esos bloques.");
+      const demo = R.h("div");
+      const gd = R.grid(demo, { cols: 10, minCol: 50, cells: [
+          { key: "socios", label: "Socios clave", hint: "Nuevo", col: "1 / span 2", row: "1 / span 2", hi: true, ph: "Quién os ayuda a crear o entregar el valor" },
+          { key: "actividades", label: "Actividades clave", hint: "Nuevo", col: "3 / span 2", row: "1", hi: true, ph: "Lo que tenéis que hacer muy bien" },
+          { key: "recursos", label: "Recursos clave", hint: "Nuevo", col: "3 / span 2", row: "2", hi: true, ph: "Lo imprescindible: datos, tecnología, personas" },
+          { key: "propuesta", label: "Propuesta de valor", col: "5 / span 2", row: "1 / span 2", ph: "Qué resolvéis y a quién" },
+          { key: "relaciones", label: "Relaciones con clientes", hint: "Nuevo", col: "7 / span 2", row: "1", hi: true, ph: "Cómo captáis y cuidáis a cada cliente" },
+          { key: "canales", label: "Canales", col: "7 / span 2", row: "2", ph: "Cómo llegáis a ellos" },
+          { key: "segmentos", label: "Segmentos de clientes", col: "9 / span 2", row: "1 / span 2", ph: "Quién paga y quién usa" },
+          { key: "costes", label: "Estructura de costes", col: "1 / span 5", row: "3", ph: "En qué se va el dinero" },
+          { key: "ingresos", label: "Fuentes de ingresos", col: "6 / span 5", row: "3", ph: "Quién paga, cuánto y cómo" }
+        ] }, {});
+      gd.classList.add("md-bmc", "md-stack"); fitRows(gd);
+      gd.querySelectorAll("textarea").forEach(t => { t.readOnly = true; t.tabIndex = -1; t.style.cursor = "default"; });
+      b.append(demo, R.h("div", { class: "chips" }, R.h("button", { class: "btn small", type: "button", on: { click: () => R.go("pivote") } }, "Ir a la estación 14 · Pivote →")));
     },
     progress(d){
       ensure(d);
@@ -6290,6 +6270,7 @@ R.deliverable({
     chips: ["S3 · 3.4–3.6", "Práctica P12 · 70′ + re-pitch 45′", "Nota NT-ED-08"],
     goal: "Pivotar es <b>mover un pie y dejar el otro anclado</b>: conserváis lo aprendido (el problema validado, el prototipo, la lista de espera) y cambiáis una pieza concreta del modelo. Leéis una carta de evidencia, nombráis el tipo de pivote, rehacéis el Lean Canvas, <b>rehacéis el prototipo con Claude Code y lo publicáis</b>, escribís la nueva test card y lo contáis en un <b>re-pitch de 4′</b>.",
     example: {
+      bmc: {"socios": "Residencias universitarias y coliving de Madrid; oficinas internacionales de las universidades; propietarios con varias habitaciones.", "actividades": "Venta B2B a gestores; test de compatibilidad y emparejamiento; acuerdos de convivencia; soporte.", "recursos": "Algoritmo y datos de compatibilidad; base de estudiantes verificados; equipo comercial B2B.", "propuesta": "Para gestores: menos rotación y menos conflictos con inquilinos compatibles. Para estudiantes (gratis): saber con quién vas a vivir.", "relaciones": "Piloto acompañado y cuenta gestionada para residencias; autoservicio y comunidad para estudiantes.", "canales": "Venta directa y LinkedIn a gestores; universidades y asociaciones para estudiantes; SEO.", "segmentos": "Pagan: residencias, coliving y propietarios. Usan gratis: estudiantes de máster internacionales.", "costes": "Equipo comercial, desarrollo y mantenimiento, verificación de perfiles, marketing a estudiantes.", "ingresos": "Unos 29 € por habitación cubierta (o suscripción para gestores); estudiantes gratis."},
       carta: "propia",
       cartaTxt: "H1 problema 70,8 % (85/120) validada; H2 valor 31,1 % (128/412) validada; H3 intención 48,3 % (58/120; IC 39,4–57,3 %) con cautela; H4 pago 5,8 % (7/120; IC Wilson 2,9–11,6 %) no validada, y la fake door de Premium solo recibe 11 clics de 412 visitantes (2,7 %). En 12 entrevistas, 3 de los 4 gestores de residencias, coliving y propietarios describen la rotación por conflictos como un coste y 2 preguntan el precio.",
       decision: "pivotar", tipo: "segmento", tipo2: "captura",
@@ -6482,8 +6463,34 @@ R.deliverable({
       drawCanvas();
       if (!anyBefore) importModelo();
 
+      /* 5 · BMC del nuevo modelo */
+      b = R.step(el, 5, "Business Model Canvas del nuevo modelo", "Ahora sí: con el pivote aparecen socios, actividades, recursos y relaciones que el Lean Canvas no recoge (en B2B2C: residencias, propietarios, venta B2B). Pasad los bloques comunes del Lean Canvas «después» y completad los resaltados.");
+      if (!d.bmc || typeof d.bmc !== "object") d.bmc = {};
+      ["socios", "actividades", "recursos", "propuesta", "relaciones", "canales", "segmentos", "costes", "ingresos"].forEach(k => { if (d.bmc[k] == null) d.bmc[k] = ""; });
+      const bmcWrap = H("div"), bmMsg = H("span", { class: "status", "aria-live": "polite" });
+      const copyBmc = H("button", { class: "btn small", type: "button" }, "Pasar del Lean Canvas «después» al BMC");
+      copyBmc.addEventListener("click", () => {
+        const map = { segmentos: "seg", propuesta: "uvp", canales: "can", ingresos: "ing", costes: "cos" }; let n = 0;
+        Object.entries(map).forEach(([k, lk]) => { const c = d.canvas[lk] || {}; const v = String(c.b || c.a || "").trim(); if (v){ d.bmc[k] = v; n++; } });
+        R.save(); drawB(); bmMsg.textContent = n ? `Copiados ${n} bloques. Completad los resaltados: socios, actividades, recursos y relaciones.` : "Rellenad antes el Lean Canvas «después» (paso 4).";
+      });
+      b.append(H("div", { class: "chips" }, copyBmc, bmMsg), bmcWrap);
+      R.css("pv-bmc", ".pv-bmc .cell textarea{min-height:52px}");
+      function drawB(){ bmcWrap.replaceChildren(); const g = R.grid(bmcWrap, { cols: 10, minCol: 50, cells: [
+          { key: "socios", label: "Socios clave", hint: "Nuevo", col: "1 / span 2", row: "1 / span 2", hi: true, ph: "Quién os ayuda a crear o entregar el valor" },
+          { key: "actividades", label: "Actividades clave", hint: "Nuevo", col: "3 / span 2", row: "1", hi: true, ph: "Lo que tenéis que hacer muy bien" },
+          { key: "recursos", label: "Recursos clave", hint: "Nuevo", col: "3 / span 2", row: "2", hi: true, ph: "Lo imprescindible: datos, tecnología, personas" },
+          { key: "propuesta", label: "Propuesta de valor", col: "5 / span 2", row: "1 / span 2", ph: "Qué resolvéis y a quién" },
+          { key: "relaciones", label: "Relaciones con clientes", hint: "Nuevo", col: "7 / span 2", row: "1", hi: true, ph: "Cómo captáis y cuidáis a cada cliente" },
+          { key: "canales", label: "Canales", col: "7 / span 2", row: "2", ph: "Cómo llegáis a ellos" },
+          { key: "segmentos", label: "Segmentos de clientes", col: "9 / span 2", row: "1 / span 2", ph: "Quién paga y quién usa" },
+          { key: "costes", label: "Estructura de costes", col: "1 / span 5", row: "3", ph: "En qué se va el dinero" },
+          { key: "ingresos", label: "Fuentes de ingresos", col: "6 / span 5", row: "3", ph: "Quién paga, cuánto y cómo" }
+        ] }, d.bmc); g.classList.add("pv-bmc"); }
+      drawB();
+
       /* 5 · rehacer el prototipo */
-      b = R.step(el, 5, "Rehacer el prototipo", "35′ con Claude Code: el prototipo tiene que contar el pivote. Decidid qué cambia en la web, la app o la campaña (titular, beneficios, precios, CTA, flujo, público de los anuncios) y qué se queda igual. Antes de rehacer, Claude Code copia la versión actual a la carpeta v1/: así el «antes» sigue publicado y el informe final enlaza las dos URL.");
+      b = R.step(el, 6, "Rehacer el prototipo", "35′ con Claude Code: el prototipo tiene que contar el pivote. Decidid qué cambia en la web, la app o la campaña (titular, beneficios, precios, CTA, flujo, público de los anuncios) y qué se queda igual. Antes de rehacer, Claude Code copia la versión actual a la carpeta v1/: así el «antes» sigue publicado y el informe final enlaza las dos URL.");
       R.list(b, { add: "Añadir cambio", numbered: true, onChange: () => paintPre(), cols: [
         { key: "pieza", label: "Pieza", ph: "Titular, CTA, precios, panel…", w: "150px" },
         { key: "antes", label: "Antes", type: "area", w: "1fr" },
@@ -6561,7 +6568,7 @@ R.deliverable({
       R.tip(b, "Comprobad las dos URL en el móvil de otra persona antes del re-pitch. <b>Plan B</b> si Claude Code no puede publicar: subid los archivos en la web del repositorio con «Add file → Upload files».", "warn");
 
       /* 6 · nuevas hipótesis y test card */
-      b = R.step(el, 6, "Nuevas hipótesis y siguiente experimento", "Identificad el nuevo supuesto más arriesgado y diseñad el experimento más barato y rápido que pueda refutarlo (entrevistas, landing nueva, fake door, piloto concierge), con el criterio fijado ahora.");
+      b = R.step(el, 7, "Nuevas hipótesis y siguiente experimento", "Identificad el nuevo supuesto más arriesgado y diseñad el experimento más barato y rápido que pueda refutarlo (entrevistas, landing nueva, fake door, piloto concierge), con el criterio fijado ahora.");
       R.list(b, { add: "Añadir hipótesis", numbered: true, onChange: () => paintPre(), cols: [
         { key: "h", label: "Hipótesis", type: "area", w: "1.4fr" },
         { key: "crit", label: "Criterio de éxito (fijado ahora)", type: "area", w: "1fr" }
@@ -6575,7 +6582,7 @@ R.deliverable({
       R.field(b, { label: "Coste y tiempo", single: true }, d.tc, "coste");
 
       /* 7 · re-pitch */
-      b = R.step(el, 7, "Re-pitch del pivote", "4′ por equipo y 2′ de feedback. No repitáis el pitch del Demo Day: contad qué cambió, por qué (la evidencia), enseñad el nuevo prototipo en vivo y cerrad con el siguiente experimento.");
+      b = R.step(el, 8, "Re-pitch del pivote", "4′ por equipo y 2′ de feedback. No repitáis el pitch del Demo Day: contad qué cambió, por qué (la evidencia), enseñad el nuevo prototipo en vivo y cerrad con el siguiente experimento.");
       const fr = R.field(b, { label: "Frase del pivote", hint: "«Mantenemos X, cambiamos Y, porque Z»: abre el re-pitch", rows: 3 }, d, "frase");
       const fm = H("div", { class: "pv-m", "aria-live": "polite" });
       b.append(H("div", { style: "display:flex;gap:10px;flex-wrap:wrap;align-items:center" }, H("button", { class: "btn small", type: "button", on: { click: () => {
@@ -6647,7 +6654,7 @@ R.deliverable({
       const carta = (CARTAS.find(x => x[0] === d.carta) || [])[1];
       return {
         task: "Haz de abogado del diablo de nuestro pivote y de nuestro re-pitch de 4 minutos.1) ¿La evidencia justifica pivotar o deberíamos perseverar, iterar o abandonar? Defiende la opción contraria con los mejores argumentos. 2) ¿Hemos nombrado bien el tipo de pivote (Ries)? ¿Hay otro tipo que encaje mejor con la evidencia? 3) Busca sesgos: confirmación, coste hundido, enamoramiento de la solución y pivotar por aburrimiento. 4) Revisa la coherencia del Lean Canvas después (segmento ↔ problema ↔ propuesta ↔ canales ↔ ingresos ↔ métricas): ¿qué bloque no encaja? 5) ¿Es la nueva hipótesis la más arriesgada y el experimento el más barato que podría refutarla? ¿El criterio es medible? 6) Revisa los cambios del prototipo: ¿cuentan el pivote y miden la nueva hipótesis? 7) Revisa el guion del re-pitch (qué cambió, por qué, demo, siguiente experimento): ajústalo a 4 minutos y señala cualquier cifra sin n. No inventes datos: si falta evidencia, dilo.",
-        material: [`Evidencia (${d.carta === "propia" ? "nuestro validation board" : carta ? "carta " + carta : "sin indicar"}): ${d.cartaTxt || "(vacía)"}`, `Decisión: ${d.decision || "(sin decidir)"}${tipo ? " · Tipo de pivote: " + tipo : ""}`, R.kv(d, { mantenemos: "Mantenemos", cambiamos: "Cambiamos", porque: "Porque" }), canvas ? "Lean Canvas antes → después:\n" + canvas : "", hips ? "Nuevas hipótesis:\n" + hips : "", R.kv(d.tc || {}, { creemos: "Test card · creemos", haremos: "Haremos", mediremos: "Mediremos", exito: "Será cierto si", coste: "Coste y tiempo" }), d.frase ? "Frase del pivote: " + d.frase : "", (d.rehacer || []).some(x => x && x.despues) ? "Cambios en el prototipo:" + String.fromCharCode(10) + R.lines(d.rehacer, x => `- ${x.pieza}: ${x.antes ? x.antes + " → " : ""}${x.despues}`) : "", d.url ? "URL después del pivote: " + d.url : "", (d.rp && Object.values(d.rp).some(v => v && String(v).trim())) ? "Guion del re-pitch (4′):" + String.fromCharCode(10) + RP.map(([k, n]) => `[${n}] ${String(d.rp[k] || "").trim() || "(vacío)"}`).join(String.fromCharCode(10)) : ""].filter(Boolean).join("\n\n"),
+        material: [(d.bmc && Object.values(d.bmc).some(v => v && String(v).trim())) ? "Business Model Canvas del nuevo modelo:\n" + Object.entries(d.bmc).filter(([, v]) => v && String(v).trim()).map(([k, v]) => "- " + k + ": " + v).join("\n") : "", `Evidencia (${d.carta === "propia" ? "nuestro validation board" : carta ? "carta " + carta : "sin indicar"}): ${d.cartaTxt || "(vacía)"}`, `Decisión: ${d.decision || "(sin decidir)"}${tipo ? " · Tipo de pivote: " + tipo : ""}`, R.kv(d, { mantenemos: "Mantenemos", cambiamos: "Cambiamos", porque: "Porque" }), canvas ? "Lean Canvas antes → después:\n" + canvas : "", hips ? "Nuevas hipótesis:\n" + hips : "", R.kv(d.tc || {}, { creemos: "Test card · creemos", haremos: "Haremos", mediremos: "Mediremos", exito: "Será cierto si", coste: "Coste y tiempo" }), d.frase ? "Frase del pivote: " + d.frase : "", (d.rehacer || []).some(x => x && x.despues) ? "Cambios en el prototipo:" + String.fromCharCode(10) + R.lines(d.rehacer, x => `- ${x.pieza}: ${x.antes ? x.antes + " → " : ""}${x.despues}`) : "", d.url ? "URL después del pivote: " + d.url : "", (d.rp && Object.values(d.rp).some(v => v && String(v).trim())) ? "Guion del re-pitch (4′):" + String.fromCharCode(10) + RP.map(([k, n]) => `[${n}] ${String(d.rp[k] || "").trim() || "(vacío)"}`).join(String.fromCharCode(10)) : ""].filter(Boolean).join("\n\n"),
         format: "Siete apartados numerados, directos, con viñetas. Termina con la objeción más fuerte en una frase. Máximo 400 palabras."
       };
     },
