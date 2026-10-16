@@ -521,8 +521,10 @@ const R = (() => {
     if (p.reto) L.push(`Reto: ${p.reto}`);
     const sd = S.st.semilla;
     if (sd && sd.idea && sd.idea.trim()) L.push(`Idea de partida: ${sd.idea.trim()}`);
-    const pov = S.st.empatia && S.st.empatia.pov && S.st.empatia.pov.trim();
-    if (pov) L.push(`Punto de vista (POV): ${pov}`);
+    const em = S.st.empatia || {};
+    const pov2 = em.povV2 && em.povV2.trim(), pov = em.pov && em.pov.trim();
+    if (pov2) L.push(`Punto de vista (POV revisado tras entrevistas): ${pov2}`);
+    else if (pov) L.push(`Punto de vista (POV provisional): ${pov}`);
     const cs = S.st.ideas && S.st.ideas.concept;
     if (cs && filled(cs)) L.push(`Concepto: ${[cs.nombre, cs.beneficio].filter(Boolean).join(" — ")}`);
     return L.join("\n");
@@ -608,7 +610,7 @@ const R = (() => {
   }
   function links(parent, items){
     if (!items || !items.length) return;
-    parent.append(h("p", {class:"sec-label", text:"Herramientas para esta estación"}));
+    parent.append(h("p", {class:"sec-label", text:"Enlaces útiles"}));
     parent.append(h("div", {class:"tools"}, ...items.map(([n,d,u]) => h("a", {class:"tool", href:u, target:"_blank", rel:"noopener"}, h("div", {class:"tn"}, n, h("span", {text:"↗"})), h("div", {class:"td", text:d})))));
   }
 
@@ -1098,6 +1100,365 @@ R.station({
 });
 
 </script>
+<script>/* 00b_glosario.js */
+/* Glosario: página propia + definiciones emergentes en todas las estaciones.
+   Cada entrada: [término, [variantes que se buscan en el texto], definición, sensible a mayúsculas] */
+(() => {
+const G = [
+  ["A/B test", ["test A/B", "A/B"], "Experimento en el que se muestran dos versiones (A y B) a grupos parecidos y se compara qué convierte más. Hay que comprobar si la diferencia es estadísticamente significativa.", true],
+  ["Affinity map", ["affinity map", "diagrama de afinidad"], "Diagrama de afinidad: agrupar notas, citas u observaciones por temas parecidos para descubrir patrones en la investigación cualitativa."],
+  ["Anonimizar", ["anonimizar", "anonimizadas", "anonimizados"], "Quitar de entrevistas y datos todo lo que identifique a una persona (nombre, email, teléfono, detalles únicos) antes de guardarlos o pasarlos a Claude. Lo exige el RGPD."],
+  ["B2B2C", ["B2B2C"], "Modelo en el que vendes a una empresa (B2B) que a su vez sirve al consumidor final (C). Ej.: RoomieMatch tras el pivote: pagan las residencias y los estudiantes usan el servicio gratis.", true],
+  ["Backlog", ["backlog", "Product Backlog"], "Lista priorizada de todo lo que el equipo quiere hacer en el producto, normalmente escrita como historias de usuario. La ordena el Product Owner."],
+  ["BMC · Business Model Canvas", ["Business Model Canvas", "BMC"], "Lienzo de 9 bloques (Osterwalder) para describir cómo una empresa crea, entrega y captura valor. En el curso es opcional: para cuando el modelo se estabiliza o al pivotar."],
+  ["CAC", ["CAC"], "Coste de adquisición de cliente: lo que cuesta, de media, conseguir un cliente (publicidad, ventas…) dividido entre los clientes conseguidos.", true],
+  ["Chi-cuadrado", ["chi-cuadrado", "χ²"], "Prueba estadística que indica si dos variables categóricas están relacionadas (p. ej., origen e intención de uso). Si p < 0,05, la relación probablemente no es casual."],
+  ["Churn", ["churn"], "Tasa de abandono: porcentaje de clientes que dejan de pagar o de usar el servicio en un periodo."],
+  ["Claude Code", ["Claude Code"], "Versión de Claude que trabaja sobre los archivos de una carpeta: crea la web o la app, la revisa, la sube a GitHub y la publica. Se usa desde la pestaña Code de la app de escritorio."],
+  ["CLAUDE.md", ["CLAUDE.md"], "Archivo de texto en la carpeta del equipo con el contexto del proyecto (usuario, propuesta de valor, tono, reglas). Claude Code lo lee al empezar y así no hay que repetirlo en cada prompt.", true],
+  ["Codificación", ["codificación", "libro de códigos", "codificar"], "En investigación cualitativa: etiquetar fragmentos de entrevistas con códigos (temas) para contarlos y compararlos. El libro de códigos define cada código."],
+  ["Concept board", ["concept board"], "Tarjeta visual que presenta el concepto de forma breve (nombre, frase, beneficio, razón para creer, formato y precio) para enseñarlo a usuarios."],
+  ["Concept statement", ["concept statement"], "Descripción escrita del concepto: insight + beneficio + razón para creer + formato y precio. Es la versión larga de la propuesta de valor y se usa en el concept test."],
+  ["Concept test", ["concept test"], "Encuesta en la que se enseña el concepto y se mide interés, intención de uso, credibilidad, unicidad y disposición a pagar."],
+  ["Concierge", ["concierge"], "Tipo de MVP en el que el servicio se presta a mano, persona a persona, para aprender antes de automatizar nada."],
+  ["Conversión", ["conversión", "tasa de conversión"], "Porcentaje de personas que hacen la acción buscada (registrarse, comprar…) sobre las que llegan. Ej.: 128 registros de 412 visitantes = 31,1 %."],
+  ["Crazy 8s", ["Crazy 8s", "Crazy 8"], "Técnica de ideación visual: dibujar 8 variantes de una solución en 8 minutos (1 por minuto), rápido y sin buscar que quede bonito."],
+  ["CTR", ["CTR"], "Click-through rate: porcentaje de quienes ven un anuncio o un botón que hacen clic en él.", true],
+  ["Customer journey", ["customer journey"], "Mapa de los pasos que sigue una persona para resolver su necesidad (antes, durante y después), con lo que siente y le frustra en cada uno."],
+  ["D2C", ["D2C"], "Direct-to-Consumer: la marca vende directamente al consumidor por sus propios canales digitales, sin distribuidores ni tiendas. Ej.: Hawkers.", true],
+  ["Daily", ["daily", "Daily Scrum"], "Reunión diaria y breve del equipo Scrum (en el curso, al inicio de cada sesión): qué hicimos, qué haremos, qué nos bloquea."],
+  ["Definition of Done", ["Definition of Done", "DoD"], "Acuerdo del equipo sobre cuándo algo está terminado de verdad (p. ej., revisado por otra persona y guardado)."],
+  ["Demo Day", ["Demo Day"], "Sesión en la que cada equipo presenta su pitch de validación con demo del prototipo ante el jurado y la clase."],
+  ["Design Thinking", ["Design Thinking"], "Proceso para resolver problemas centrado en las personas: empatizar, definir, idear, prototipar y testear. Contesta «¿qué deberíamos construir?»."],
+  ["Early adopters", ["early adopters"], "Primeros clientes: los que más sufren el problema y están dispuestos a probar una solución imperfecta. Son el segmento con el que empezar."],
+  ["Embudo", ["embudo"], "Secuencia de pasos con el número de personas que llega a cada uno (visitas → clics → registros). Muestra dónde se pierde la gente."],
+  ["Evidencia", ["evidencia"], "Lo que habéis visto, oído o medido (entrevistas, datos, comportamientos). Se opone a la suposición: lo que creéis sin haberlo comprobado."],
+  ["Fake door", ["fake door"], "MVP que ofrece algo que aún no existe (un botón «Probar Premium») para medir cuánta gente lo quiere. Al pulsar, se explica que está en preparación."],
+  ["Freemium", ["freemium"], "Modelo con versión gratuita y una de pago con más funciones. Funciona si suficientes usuarios gratuitos pasan a pagar."],
+  ["GitHub Pages", ["GitHub Pages"], "Servicio gratuito de GitHub que publica en internet una web a partir de un repositorio. La dirección es usuario.github.io/repositorio."],
+  ["Hipótesis", ["hipótesis"], "Afirmación que creéis cierta y que se puede comprobar con datos, con un criterio de éxito definido antes de medir. Ej.: «≥ 25 % de visitantes deja su email»."],
+  ["¿Cómo podríamos…? (HMW)", ["¿Cómo podríamos", "HMW"], "Pregunta que convierte el POV en un reto para idear (How Might We). Ej.: «¿Cómo podríamos ayudarles a conocer a su compañero antes de firmar?»."],
+  ["Historia de usuario", ["historia de usuario", "historias de usuario"], "Forma de escribir una necesidad del backlog: «Como [usuario], quiero [algo], para [beneficio]»."],
+  ["Insight", ["insight"], "Descubrimiento no evidente sobre las personas que explica por qué hacen lo que hacen. Es la parte del POV que justifica la solución."],
+  ["Intervalo de confianza", ["intervalo de confianza", "IC"], "Rango en el que probablemente está el valor real de la población. Ej.: 48,3 % (IC 95 %: 39,4–57,3 %). Cuanto mayor la muestra, más estrecho."],
+  ["JTBD · Jobs-to-be-Done", ["Jobs-to-be-Done", "JTBD", "job story"], "El «trabajo» que una persona quiere hacer cuando contrata un producto. Se escribe: «Cuando [situación], quiero [motivación], para [resultado]»."],
+  ["Kanban", ["Kanban"], "Tablero con columnas (por hacer, haciendo, hecho) para visualizar el trabajo y limitar cuántas cosas se hacen a la vez."],
+  ["Lean Canvas", ["Lean Canvas"], "Versión del BMC para startups (Maurya): problema, segmentos, propuesta única de valor, solución, canales, ingresos, costes, métricas clave y ventaja injusta. Es el lienzo principal del curso."],
+  ["Lean Startup", ["Lean Startup"], "Método para crear negocios con incertidumbre: convertir la idea en hipótesis y probarlas con MVP en ciclos construir–medir–aprender. Contesta «¿funciona y se puede vender?»."],
+  ["Learning card", ["learning card"], "Tarjeta para cerrar un experimento: creíamos que…, observamos que…, aprendimos que…, por tanto decidimos…"],
+  ["LTV", ["LTV"], "Lifetime value: ingresos que deja un cliente durante toda su relación con la empresa. Un negocio sano suele tener LTV/CAC ≥ 3.", true],
+  ["Mago de Oz", ["Mago de Oz"], "MVP que parece automático para el usuario pero por detrás lo hacen personas a mano (como Zappos al empezar)."],
+  ["Mapa de empatía", ["mapa de empatía"], "Lienzo con lo que el usuario dice, piensa, hace y siente, más sus dolores y ganancias, a partir de entrevistas y observación."],
+  ["Mapa de supuestos", ["mapa de supuestos"], "Matriz que ordena los supuestos por importancia y evidencia. Se prueban primero los importantes y con poca evidencia."],
+  ["Margen de error", ["margen de error"], "Cuánto puede alejarse el resultado de la muestra del valor real. Con n = 120 y 95 % de confianza, unos ±9 puntos."],
+  ["Marketplace", ["marketplace"], "Plataforma que conecta dos o más grupos (p. ej., quien ofrece y quien busca) y suele cobrar una comisión. Ej.: Wallapop."],
+  ["MoSCoW", ["MoSCoW"], "Priorización del backlog: Must (imprescindible), Should (importante), Could (deseable), Won't (ahora no).", true],
+  ["Mom Test", ["Mom Test"], "Reglas para entrevistar sin sesgo (Fitzpatrick): preguntar por hechos pasados, no por opiniones ni por vuestra idea; ni tu madre podría mentirte."],
+  ["MVP", ["MVP", "producto mínimo viable"], "Producto mínimo viable: la versión más barata que permite aprender si una hipótesis es cierta (landing, vídeo, prototipo, servicio manual…)."],
+  ["p-valor", ["p-valor", "p ="], "Probabilidad de ver un resultado así si en realidad no hubiera diferencia. Si p < 0,05 decimos que es estadísticamente significativo."],
+  ["Pitch", ["pitch"], "Presentación breve (5′ en el curso) del problema, la solución con demo, la evidencia, el modelo y el siguiente paso."],
+  ["Pivote", ["pivote", "pivotar"], "Cambio de una pieza del modelo de negocio (segmento, problema, ingresos, canal…) a partir de lo aprendido, sin empezar de cero."],
+  ["POV · Point of View", ["POV", "punto de vista"], "Frase que define el problema desde el usuario: «[usuario] necesita [necesidad] porque [insight]». En la sesión 1 es provisional; se revisa con las entrevistas y se cuantifica con la encuesta."],
+  ["Product Goal", ["Product Goal"], "Objetivo del producto en Scrum: lo que el equipo quiere conseguir al final (en el curso, al final de las 3 sesiones)."],
+  ["Product Owner", ["Product Owner"], "Rol de Scrum que decide las prioridades del backlog y representa al cliente."],
+  ["Propuesta única de valor", ["propuesta única de valor", "PUV", "propuesta de valor"], "Frase clara que dice por qué vuestro producto es diferente y merece la atención del cliente. En el Lean Canvas va en el centro."],
+  ["Prototipo", ["prototipo"], "Versión de prueba de la solución (web, app clicable, campaña) para enseñarla a usuarios y medir. No tiene que estar terminada."],
+  ["Repositorio", ["repositorio"], "Carpeta de un proyecto guardada en GitHub con su historial de cambios. De él se publica la web en GitHub Pages."],
+  ["Re-pitch", ["re-pitch"], "Pitch breve (4′) tras el pivote: qué cambió, por qué, nuevo prototipo y siguiente experimento."],
+  ["Retrospectiva", ["retrospectiva", "retro"], "Reunión al final de cada sprint: qué empezar a hacer, qué dejar de hacer y qué seguir haciendo como equipo."],
+  ["RGPD", ["RGPD"], "Reglamento General de Protección de Datos de la UE. Obliga a pedir consentimiento y a no guardar datos personales sin necesidad.", true],
+  ["SaaS", ["SaaS"], "Software as a Service: software que se usa por internet pagando una suscripción. Ej.: Typeform.", true],
+  ["SCAMPER", ["SCAMPER"], "Técnica de ideación: Sustituir, Combinar, Adaptar, Modificar, Poner en otro uso, Eliminar, Reordenar.", true],
+  ["Scrum", ["Scrum"], "Marco ágil para trabajar en equipo por sprints, con roles (Product Owner, Scrum Master, equipo), un backlog y reuniones cortas. En el curso es la forma de trabajar, no una fase."],
+  ["Scrum Master", ["Scrum Master"], "Rol de Scrum que cuida el proceso: tiempos, bloqueos y que el equipo trabaje bien."],
+  ["Segmento", ["segmento de cliente", "segmentos"], "Grupo de clientes con necesidades parecidas al que se dirige el producto."],
+  ["Smoke test", ["smoke test"], "MVP que mide la demanda antes de construir: una landing con la propuesta de valor y un botón de registro o lista de espera."],
+  ["Sprint", ["sprint", "sprints"], "Bloque de trabajo con un objetivo concreto y una duración fija. En el curso, cada práctica en clase es un sprint."],
+  ["Sprint review", ["sprint review"], "Revisión al final de un sprint en la que el equipo enseña lo hecho y recibe feedback."],
+  ["SUS", ["SUS"], "System Usability Scale: cuestionario de 10 preguntas que da una puntuación de usabilidad de 0 a 100. La media de referencia es 68.", true],
+  ["Supuesto", ["supuesto", "supuestos", "suposición"], "Algo que dais por cierto sin haberlo comprobado. Los más importantes se convierten en hipótesis y se prueban."],
+  ["Tamaño muestral", ["tamaño muestral"], "Número de respuestas necesarias para un margen de error dado. Para ±10 puntos con 95 % de confianza hacen falta unas 97."],
+  ["Test card", ["test card", "test cards"], "Tarjeta que define un experimento antes de hacerlo: hipótesis, prueba, métrica y criterio de éxito."],
+  ["Test de usabilidad", ["test de usabilidad"], "Observar a usuarios mientras usan el prototipo para hacer tareas concretas, pidiéndoles que piensen en voz alta. Con 5 usuarios se ven la mayoría de problemas."],
+  ["Top-2-box", ["top-2-box"], "Porcentaje que elige las dos respuestas más altas de una escala de 1 a 5 (4 y 5). Se usa para medir intención de uso o de compra."],
+  ["UTM", ["UTM", "UTMs"], "Etiquetas que se añaden al final de un enlace (utm_source, utm_campaign…) para saber de qué canal o anuncio llega cada visita.", true],
+  ["Validation board", ["validation board"], "Tabla que reúne cada hipótesis con su criterio, resultado, n y estado (validada, con cautela, no validada) para decidir."],
+  ["VPC · Value Proposition Canvas", ["Value Proposition Canvas", "VPC"], "Lienzo que pone frente a frente el perfil del cliente (trabajos, dolores, ganancias) y vuestra oferta (productos, aliviadores, creadores) para buscar el encaje."],
+  ["Wireframe", ["wireframe"], "Esquema en baja fidelidad de una pantalla o web: qué bloques hay y en qué orden, sin diseño final."]
+];
+G.sort((a, b) => a[0].localeCompare(b[0], "es"));
+const slugT = t => t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+/* patrones: los más largos primero para que «Product Backlog» gane a «Backlog» */
+const pats = [];
+G.forEach(([term, vars, def, cs]) => vars.forEach(v => pats.push({ term, v, def, cs: !!cs })));
+pats.sort((a, b) => b.v.length - a.v.length);
+const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const L = "A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9";
+const rx = pats.map(p => ({ ...p, re: new RegExp(`(^|[^${L}])(${esc(p.v)})(?![${L}])`, p.cs ? "" : "i") }));
+
+/* popover único */
+let pop = null, popFor = null;
+function hidePop(){ if (pop){ pop.remove(); pop = null; popFor = null; } }
+function showPop(btn){
+  if (popFor === btn){ hidePop(); return; }
+  hidePop();
+  const e = G.find(x => x[0] === btn.dataset.term); if (!e) return;
+  pop = document.createElement("div"); pop.className = "glpop"; pop.setAttribute("role", "tooltip");
+  const t = document.createElement("b"); t.textContent = e[0];
+  const p = document.createElement("p"); p.textContent = e[2];
+  const a = document.createElement("button"); a.type = "button"; a.className = "gllink"; a.textContent = "Ver en el glosario →";
+  a.addEventListener("click", () => { hidePop(); window.__glFocus = e[0]; R.go("glosario"); });
+  pop.append(t, p, a); document.body.append(pop); popFor = btn;
+  const r = btn.getBoundingClientRect(), w = Math.min(320, window.innerWidth - 24);
+  pop.style.width = w + "px";
+  let left = r.left + window.scrollX; left = Math.max(12 + window.scrollX, Math.min(left, window.scrollX + window.innerWidth - w - 12));
+  pop.style.left = left + "px"; pop.style.top = (r.bottom + window.scrollY + 6) + "px";
+}
+document.addEventListener("click", ev => { if (pop && !pop.contains(ev.target) && !(ev.target.classList && ev.target.classList.contains("gl"))) hidePop(); });
+document.addEventListener("keydown", ev => { if (ev.key === "Escape") hidePop(); });
+window.addEventListener("resize", hidePop);
+
+/* marcar términos en la estación visible (primera aparición de cada término) */
+const SKIP = "input,textarea,select,option,button,pre,code,a,.prompt,.answer,.dossier,.mp,.glosario,.gl,.glpop,.chip,.tag,h1,.kicker,.cl,.rl,mark,.matrix,.card";
+function mark(root){
+  const seen = new Set();
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: n => (!n.nodeValue.trim() || (n.parentElement && n.parentElement.closest(SKIP))) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
+  const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
+  nodes.forEach(node => {
+    let text = node.nodeValue, best = null;
+    for (const p of rx){
+      if (seen.has(p.term)) continue;
+      const m = p.re.exec(text);
+      if (m && (!best || m.index + m[1].length < best.i)) best = { p, i: m.index + m[1].length, len: m[2].length };
+    }
+    if (!best) return;
+    seen.add(best.p.term);
+    const frag = document.createDocumentFragment();
+    frag.append(document.createTextNode(text.slice(0, best.i)));
+    const b = document.createElement("button"); b.type = "button"; b.className = "gl"; b.dataset.term = best.p.term;
+    b.textContent = text.substr(best.i, best.len); b.setAttribute("aria-label", text.substr(best.i, best.len) + ": ver definición");
+    b.addEventListener("mouseenter", () => { if (matchMedia("(hover:hover)").matches && popFor !== b) showPop(b); });
+    b.addEventListener("click", ev => { ev.stopPropagation(); showPop(b); });
+    frag.append(b);
+    const rest = document.createTextNode(text.slice(best.i + best.len));
+    frag.append(rest);
+    node.replaceWith(frag);
+  });
+}
+const run = () => { const st = document.getElementById("station"); if (st) mark(st); };
+const obs = new MutationObserver(() => { clearTimeout(obs.t); obs.t = setTimeout(run, 60); });
+setTimeout(() => { const st = document.getElementById("station"); if (st){ obs.observe(st, { childList: true }); run(); } }, 0);
+
+R.css("glosario", `
+.gl{all:unset;cursor:help;border-bottom:1.5px dotted var(--red);color:inherit;font:inherit}
+.gl:hover,.gl:focus-visible{background:var(--red-soft);outline:none;border-radius:3px}
+.glpop{position:absolute;z-index:40;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:12px 14px;box-shadow:var(--shadow);font:14px/1.5 var(--f-body);display:flex;flex-direction:column;gap:6px}
+.glpop b{font:700 14px var(--f-body);color:var(--red)}
+.glpop p{margin:0;color:var(--ink)}
+.gllink{all:unset;cursor:pointer;font:600 12.5px var(--f-body);color:var(--navy);align-self:flex-start}
+:root[data-theme="dark"] .gllink{color:var(--soft)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .gllink{color:var(--soft)}}
+.gllink:hover{text-decoration:underline}
+.glosario .gls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.glosario .gls input{flex:1 1 220px;min-width:0;border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:var(--bg)}
+.glosario dl{margin:0;display:grid;grid-template-columns:minmax(150px,240px) minmax(0,1fr);gap:0;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.glosario dt,.glosario dd{margin:0;padding:9px 12px;border-bottom:1px solid var(--line)}
+.glosario dt{font-weight:700;background:var(--sunk)}
+.glosario dd{background:var(--panel)}
+.glosario .hit dt,.glosario .hit dd{background:var(--note);color:var(--note-ink)}
+.glosario .letters{display:flex;flex-wrap:wrap;gap:4px}
+.glosario .letters button{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:2px 8px;cursor:pointer;font:600 12px var(--f-mono)}
+@media(max-width:640px){.glosario dl{grid-template-columns:1fr}.glosario dt{border-bottom:0;padding-bottom:2px}}
+`);
+
+R.station({
+  id: "glosario", intro: true, session: "S0", short: "Glosario", sub: "Todos los términos del curso",
+  title: "Glosario",
+  chips: [G.length + " términos", "Definiciones en una o dos líneas"],
+  goal: "Todos los términos del curso explicados en corto. En cada estación, los términos <b>subrayados con puntos</b> muestran su definición al pasar el ratón o al tocarlos.",
+  render(el, d, R){
+    const box = R.h("div", { class: "glosario", style: "display:flex;flex-direction:column;gap:12px" });
+    const q = R.h("input", { id: "gl-q", type: "search", placeholder: "Buscar un término (p. ej. POV, MVP, chi-cuadrado)…", autocomplete: "off" });
+    const n = R.h("span", { class: "status" });
+    const letters = R.h("div", { class: "letters" });
+    const dl = R.h("dl");
+    box.append(R.h("div", { class: "gls" }, R.h("label", { for: "gl-q", class: "sec-label", style: "margin:0", text: "Buscar" }), q, n), letters, dl);
+    el.append(box);
+    const norm = s => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+    const firstL = t => norm(t.replace(/^[¿·\s]+/, "")).charAt(0).toUpperCase();
+    [...new Set(G.map(g => firstL(g[0])))].forEach(L => letters.append(R.h("button", { type: "button", on: { click: () => { const t = dl.querySelector(`[data-l="${L}"]`); if (t) t.scrollIntoView({ behavior: "smooth", block: "center" }); } } }, L)));
+    function paint(){
+      const f = norm(q.value.trim());
+      dl.replaceChildren();
+      let c = 0;
+      G.forEach(([term, vars, def]) => {
+        if (f && !norm(term + " " + vars.join(" ") + " " + def).includes(f)) return;
+        c++;
+        const wrap = R.h("div", { style: "display:contents", class: window.__glFocus === term ? "hit" : "" });
+        wrap.append(R.h("dt", { id: "gl-" + slugT(term), "data-l": firstL(term), text: term }), R.h("dd", { text: def }));
+        dl.append(wrap);
+      });
+      n.textContent = c + " de " + G.length;
+    }
+    q.addEventListener("input", paint);
+    paint();
+    if (window.__glFocus){ const t = document.getElementById("gl-" + slugT(window.__glFocus)); if (t) setTimeout(() => t.scrollIntoView({ block: "center" }), 50); window.__glFocus = null; }
+  },
+  links: [
+    ["Guía de Scrum", "Definiciones oficiales de Scrum", "https://scrumguides.org/scrum-guide.html"],
+    ["Strategyzer", "BMC, VPC, test card y learning card", "https://www.strategyzer.com/library"]
+  ]
+});
+})();
+
+</script>
+<script>/* 00c_tablero.js */
+/* Tablero del sprint: disponible en todas las estaciones.
+   Sprint = sesión. Las prácticas de la sesión se mueven solas según lo rellenado;
+   pasan a «Hecho» solo si el equipo confirma que cumplen su Definition of Done.
+   Debajo, las historias de usuario del producto (estación Scrum), que mueve el equipo. */
+(() => {
+const COLS = [["todo", "Por hacer"], ["doing", "Haciendo"], ["done", "Hecho"]];
+const SES = [["S1", "Sprint 1 · Sesión 1"], ["S2", "Sprint 2 · Sesión 2"], ["S3", "Sprint 3 · Sesión 3"]];
+let open = false, ses = null;
+const sd = () => { const s = R.state.st.scrum; if (s && !s.dodChecks) s.dodChecks = {}; return s; };
+function statusOf(st){
+  const p = R.progressOf(st), d = sd();
+  if (p <= 0.05) return ["todo", p];
+  if (p >= 0.8 && d && d.dodChecks[st.id]) return ["done", p];
+  return ["doing", p];
+}
+function curSession(){
+  const id = (location.hash || "").slice(1);
+  const st = R.stations.find(s => s.id === id);
+  return st && /^S[123]$/.test(st.session) ? st.session : "S1";
+}
+const btn = R.h("button", { class: "tb-fab", type: "button", "aria-expanded": "false", "aria-controls": "tb-panel" }, "▦ Tablero del sprint");
+const panel = R.h("aside", { class: "tb-panel", id: "tb-panel", hidden: true, "aria-label": "Tablero del sprint" });
+btn.addEventListener("click", () => { open = !open; if (open && !ses) ses = curSession(); paint(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && open){ open = false; paint(); } });
+function card(text, sub, tag, actions, onclick){
+  const c = R.h("div", { class: "card tb-card" + (onclick ? " link" : "") },
+    R.h("span", { class: "tag " + (tag.cls || ""), text: tag.text }),
+    onclick ? R.h("button", { class: "tb-go", type: "button", on: { click: onclick } }, text) : R.h("span", { text }),
+    sub ? R.h("span", { class: "tb-sub", text: sub }) : null,
+    actions || null);
+  return c;
+}
+function sprintObj(d, k){
+  if (!d) return null;
+  if (k === "S1") return d;              /* el sprint 1 usa los campos de la estación Scrum */
+  if (!d.sprints) d.sprints = {};
+  if (!d.sprints[k]) d.sprints[k] = { goal: "", start: "", stop: "", cont: "" };
+  return d.sprints[k];
+}
+function paint(){
+  btn.setAttribute("aria-expanded", String(open));
+  panel.hidden = !open;
+  if (!open) return;
+  const d = sd();
+  panel.replaceChildren();
+  const tabs = R.h("div", { class: "tb-tabs", role: "tablist" }, ...SES.map(([k, l]) => R.h("button", { type: "button", role: "tab", "aria-selected": String(k === ses), class: k === ses ? "on" : "", on: { click: () => { ses = k; paint(); } } }, l)));
+  panel.append(R.h("div", { class: "tb-head" }, R.h("h3", { text: "Tablero del sprint" }), R.h("button", { class: "btn small ghost", type: "button", "aria-label": "Cerrar tablero", on: { click: () => { open = false; paint(); } } }, "✕")), tabs);
+  /* 1 · planificación del sprint: lo que hablan y escriben al empezar */
+  const sp = sprintObj(d, ses);
+  const prevKey = { S2: "S1", S3: "S2" }[ses];
+  const prev = prevKey ? sprintObj(d, prevKey) : null;
+  const plan = R.h("div", { class: "tb-info" });
+  plan.append(R.h("p", { class: "sec-label", style: "margin:0 0 4px", text: "1 · Al empezar: planificación (5′)" }));
+  if (prev && (prev.start || prev.stop)) plan.append(R.h("p", null, R.h("b", { text: "En la retro anterior dijisteis: " }), [prev.start && "empezar a " + prev.start, prev.stop && "dejar de " + prev.stop].filter(Boolean).join(" · ")));
+  if (d){
+    R.field(plan, { label: "Objetivo de este sprint", hint: "Una frase: qué tendréis al acabar la sesión", rows: 2 }, sp, sp === d ? "sprintGoal" : "goal");
+  }
+  plan.append(R.h("p", null, R.h("b", { text: "Definition of Done (cuándo algo está «Hecho»): " }), d && d.dod ? d.dod : R.h("span", { class: "tb-empty", text: "Escribidla en la estación 1 · Equipo y Scrum." })));
+  plan.append(R.h("p", { class: "tb-help" }, "Elegid qué tarea empieza cada uno y pasadla a «Haciendo» empezando a rellenarla."));
+  panel.append(plan);
+
+  /* prácticas del sprint */
+  const sts = R.stations.filter(s => s.session === ses && !s.intro);
+  const cols = { todo: [], doing: [], done: [] };
+  sts.forEach(st => {
+    const [k, p] = statusOf(st);
+    const pc = Math.round(p * 100) + " %";
+    let act = null;
+    if (p >= 0.8 && d){
+      const id = "dod-" + st.id;
+      const cb = R.h("input", { type: "checkbox", id });
+      cb.checked = !!d.dodChecks[st.id];
+      cb.addEventListener("change", () => { d.dodChecks[st.id] = cb.checked; R.save(); paint(); });
+      act = R.h("label", { class: "tb-dod", for: id }, cb, " Cumple nuestra DoD");
+    }
+    const sub = k === "doing" && p >= 0.8 ? pc + " · falta confirmar la DoD" : pc;
+    cols[k].push(card(st.deliverable ? "★ " + st.short : `${st.n}. ${st.short}`, sub, { text: st.deliverable ? "Entregable" : "Práctica", cls: "P" }, act, () => { R.go(st.id); if (innerWidth < 900){ open = false; paint(); } }));
+  });
+  panel.append(R.h("p", { class: "sec-label", text: "2 · Durante el sprint: tareas (se mueven solas)" }), board(cols));
+
+  /* historias del producto */
+  const stories = d && Array.isArray(d.stories) ? d.stories.filter(s => (s.quiero || s.como || "").trim()) : [];
+  const sc = { todo: [], doing: [], done: [] };
+  stories.forEach(s => {
+    const k = s.estado || "todo", ci = COLS.findIndex(c => c[0] === k);
+    const mv = R.h("div", { class: "mv" });
+    if (ci > 0) mv.append(R.h("button", { type: "button", "aria-label": "Mover a " + COLS[ci - 1][1], on: { click: () => { s.estado = COLS[ci - 1][0]; R.save(); paint(); } } }, "←"));
+    if (ci < 2) mv.append(R.h("button", { type: "button", "aria-label": "Mover a " + COLS[ci + 1][1], on: { click: () => { s.estado = COLS[ci + 1][0]; R.save(); paint(); } } }, "→"));
+    (sc[k] || sc.todo).push(card(`Como ${s.como || "…"}, quiero ${s.quiero || "…"}`, null, { text: s.prio || "–", cls: s.prio || "" }, mv));
+  });
+  panel.append(R.h("p", { class: "sec-label", text: "Historias de vuestro producto (las movéis vosotros)" }));
+  panel.append(stories.length ? board(sc) : R.h("p", { class: "tb-empty", text: "Escribid vuestras historias de usuario en la estación 1 · Equipo y Scrum." }));
+  /* 3 · retro del sprint: lo que hablan al acabar */
+  if (d){
+    const rb = R.h("div", { class: "tb-info" });
+    rb.append(R.h("p", { class: "sec-label", style: "margin:0 0 4px", text: "3 · Al acabar: retrospectiva (5′)" }));
+    const r3 = R.h("div", { class: "row3" }); rb.append(r3);
+    const k = sp === d ? ["retroStart", "retroStop", "retroCont"] : ["start", "stop", "cont"];
+    R.field(r3, { label: "Empezar a…", rows: 2 }, sp, k[0]);
+    R.field(r3, { label: "Dejar de…", rows: 2 }, sp, k[1]);
+    R.field(r3, { label: "Seguir…", rows: 2 }, sp, k[2]);
+    rb.append(R.h("p", { class: "tb-help", text: "Lo que pongáis en «Empezar a» y «Dejar de» os aparecerá al planificar el siguiente sprint." }));
+    panel.append(rb);
+  }
+  panel.append(R.h("p", { class: "tb-help" }, "Cómo se usa: al empezar la sesión, el Scrum Master abre el tablero, el equipo acuerda el objetivo del sprint y elige qué tarea pasa a «Haciendo» (máximo 2 a la vez). Una tarea solo pasa a «Hecho» cuando está completa ", R.h("b", { text: "y" }), " cumple vuestra Definition of Done. En la sprint review lo enseñáis; en la retro, revisáis qué se quedó a medias."));
+}
+function board(cols){
+  return R.h("div", { class: "tb-board" }, ...COLS.map(([k, l]) => {
+    const col = R.h("div", { class: "col" }, R.h("h4", null, l, R.h("span", { text: String(cols[k].length) })));
+    if (k === "doing" && cols[k].length > 2) col.append(R.h("div", { class: "tip warn", text: "Más de 2 a la vez: terminad algo antes de empezar otra." }));
+    cols[k].forEach(c => col.append(c));
+    return col;
+  }));
+}
+/* refrescar cuando cambia el progreso (el carril se repinta en cada guardado) */
+const mo = new MutationObserver(() => { if (open){ clearTimeout(mo.t); mo.t = setTimeout(paint, 120); } });
+setTimeout(() => { const rail = document.getElementById("rail"); if (rail) mo.observe(rail, { childList: true }); document.body.append(btn, panel); }, 0);
+window.addEventListener("hashchange", () => { if (open){ ses = curSession(); paint(); } });
+
+R.css("tablero", `
+.tb-fab{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:30;border:0;border-radius:999px;padding:11px 18px;background:var(--navy);color:var(--navy-ink);font:700 14px var(--f-body);box-shadow:var(--shadow);cursor:pointer}
+.tb-fab[aria-expanded="true"]{background:var(--red);color:#fff}
+.tb-panel{position:fixed;top:env(safe-area-inset-top,0px);right:0;bottom:0;width:min(560px,100vw);z-index:35;background:var(--panel);border-left:1px solid var(--line);box-shadow:var(--shadow);overflow-y:auto;padding:16px 16px 90px;display:flex;flex-direction:column;gap:12px}
+.tb-head{display:flex;justify-content:space-between;align-items:center}
+.tb-head h3{margin:0;font:800 22px var(--f-display)}
+.tb-tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tb-tabs button{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:5px 12px;font:600 12.5px var(--f-body);cursor:pointer;color:var(--ink)}
+.tb-tabs button.on{background:var(--navy);border-color:var(--navy);color:var(--navy-ink)}
+.tb-info{background:var(--sunk);border-radius:10px;padding:8px 12px;font-size:13.5px}
+.tb-info p{margin:4px 0}
+.tb-empty{color:var(--soft);font-style:italic;font-size:13px}
+.tb-board{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.tb-board .col{min-height:80px;padding:8px}
+.tb-card{font-size:13px;gap:4px}
+.tb-card .tag.P{background:var(--sunk);color:var(--soft)}
+.tb-go{all:unset;cursor:pointer;font-weight:600;color:var(--ink)}
+.tb-go:hover,.tb-go:focus-visible{text-decoration:underline}
+.tb-sub{font:500 11.5px var(--f-mono);color:var(--soft)}
+.tb-dod{display:flex;gap:6px;align-items:center;font-size:12px;font-weight:600;color:var(--ok);cursor:pointer}
+.tb-help{font-size:12.5px;color:var(--soft);margin:0}
+@media(max-width:520px){.tb-board{grid-template-columns:1fr}}
+@media print{.tb-fab,.tb-panel{display:none!important}}
+`);
+})();
+
+</script>
 <script>/* 00z_entregables_lib.js */
 /* Fábrica de estaciones «Entregable»: reúnen los resultados de varias estaciones en un documento,
    añaden la conclusión del equipo y permiten exportarlo (o imprimirlo en GitHub Pages). */
@@ -1211,8 +1572,8 @@ R.station({
   example: {
     po: "Lucía", sm: "Andrés", devs: "Marta, Iván",
     goal: "En 3 sesiones, demostrar con datos si los estudiantes de máster que llegan a Madrid quieren (y pagarían por) un servicio que les empareje con compañeros de piso compatibles.",
-    sprintGoal: "Salir de la sesión 1 con un POV validado en 3 entrevistas y un Lean Canvas.",
-    dod: "Está en el tablero, lo ha revisado otra persona del equipo y está guardado en esta ruta o en la carpeta del equipo.",
+    sprintGoal: "Salir de la sesión 1 con un POV provisional contrastado en 3 entrevistas exprés y un Lean Canvas.",
+    dod: "Está rellenado en la web, lo ha revisado otra persona del equipo y hemos anotado qué nos llevamos de Claude.",
     stories: [
       { como: "estudiante internacional", quiero: "saber cómo de compatible soy con un posible compañero", para: "evitar conflictos de convivencia", prio: "M", estado: "doing" },
       { como: "estudiante internacional", quiero: "ver perfiles verificados", para: "no caer en estafas", prio: "M", estado: "todo" },
@@ -1223,7 +1584,8 @@ R.station({
     ],
     retroStart: "Preparar el guion de entrevista antes de salir al campus.",
     retroStop: "Discutir la solución antes de entender el problema.",
-    retroCont: "Rotar quién escribe en el tablero."
+    retroCont: "Rotar quién escribe en el tablero.",
+    dodChecks: { semilla: true, scrum: true, empatia: true, lluvia: true, crazy8: true, ideas: true, modelo: true, entregable1: true }
   },
   blank(){ return { po: "", sm: "", devs: "", goal: "", sprintGoal: "", dod: "", stories: [{ como: "", quiero: "", para: "", prio: "M", estado: "todo" }], retroStart: "", retroStop: "", retroCont: "" }; },
   render(el, d, R){
@@ -1236,7 +1598,8 @@ R.station({
     b = R.step(el, 2, "Product Goal y objetivo del sprint", "El Product Goal sale de la idea de partida: qué queréis demostrar al final de las 3 sesiones.");
     R.field(b, { label: "Product Goal", hint: "Para todo el curso", rows: 2 }, d, "goal");
     R.field(b, { label: "Objetivo de este sprint", hint: "Para la sesión de hoy", rows: 2 }, d, "sprintGoal");
-    R.field(b, { label: "Definition of Done", hint: "Cuándo algo está terminado", rows: 2 }, d, "dod");
+    R.field(b, { label: "Definition of Done (DoD)", hint: "Las condiciones para mover una tarea a «Hecho» en el tablero", rows: 2, ph: "Ej.: está rellenado en la web, otra persona del equipo lo ha revisado y hemos anotado qué nos llevamos de Claude." }, d, "dod");
+    R.tip(b, "<b>La DoD evita el «ya casi está».</b> Una tarea solo pasa a «Hecho» en el <b>Tablero del sprint</b> (botón abajo a la derecha, en todas las estaciones) cuando cumple estas condiciones.");
 
     b = R.step(el, 3, "Backlog en historias de usuario", "Como [tipo de usuario], quiero [qué], para [beneficio]. Prioridad MoSCoW: M imprescindible, S importante, C deseable, W ahora no.");
     const board = R.h("div");
@@ -1277,14 +1640,13 @@ R.station({
     const st = R.lines(d.stories, (s, i) => `${i+1}. [${s.prio}] Como ${s.como}, quiero ${s.quiero}, para ${s.para} (${({todo:"por hacer",doing:"haciendo",done:"hecho"})[s.estado] || "por hacer"})`);
     return {
       task: "Revisa nuestro trabajo Scrum. 1) ¿El Product Goal es medible y alcanzable en 3 sesiones? Propón una versión mejor. 2) Revisa cada historia de usuario con el criterio INVEST y reescribe las que fallen. 3) ¿La priorización MoSCoW tiene sentido para validar primero lo más arriesgado? 4) Propón 2 criterios de aceptación para las 2 historias más importantes.",
-      material: [R.kv(d, { po: "Product Owner", sm: "Scrum Master", devs: "Developers", goal: "Product Goal", sprintGoal: "Objetivo del sprint", dod: "Definition of Done" }), "Backlog:", st || "(vacío)"].join("\n"),
+      material: [R.kv(d, { po: "Product Owner", sm: "Scrum Master", devs: "Developers", goal: "Product Goal", sprintGoal: "Objetivo del sprint 1", dod: "Definition of Done" }), "Backlog:", st || "(vacío)",
+        R.kv(d, { retroStart: "Retro S1 · empezar a", retroStop: "Retro S1 · dejar de", retroCont: "Retro S1 · seguir" }),
+        ...["S2", "S3"].filter(k => d.sprints && d.sprints[k] && Object.values(d.sprints[k]).some(v => v && String(v).trim())).map(k => `Sprint ${k.slice(1)}: objetivo: ${d.sprints[k].goal || "—"} · retro: empezar a ${d.sprints[k].start || "—"}; dejar de ${d.sprints[k].stop || "—"}; seguir ${d.sprints[k].cont || "—"}`)].filter(Boolean).join("\n"),
       format: "Cuatro apartados. Reescrituras en formato 'Como… quiero… para…'."
     };
   },
   links: [
-    ["Trello", "Tablero gratuito por equipo", "https://trello.com"],
-    ["Miro", "Pizarra para el equipo", "https://miro.com"],
-    ["Notion", "Backlog y documentación", "https://www.notion.so"],
     ["Guía de Scrum (ES)", "La guía oficial de 2020", "https://scrumguides.org/scrum-guide.html"]
   ]
 });
@@ -1301,7 +1663,7 @@ const blank = () => ({
   jCuando: "", jQuiero: "", jPara: "", jtbd: "",
   povUsuario: "", povNecesidad: "", povInsight: "",
   origen: { usuario: "", necesidad: "", insight: "" },
-  pov: "",
+  pov: "", povV2: "", povV2Ev: "",
   hmw: [{ q: "" }],
   foco: "sintesis"
 });
@@ -1373,6 +1735,8 @@ R.station({
     povInsight: "eligen piso a distancia y la convivencia es la principal causa de malas experiencias",
     origen: { usuario: "E", necesidad: "E", insight: "S" },
     pov: "Los estudiantes de máster internacionales que llegan a Madrid necesitan saber con quién van a convivir antes de firmar, porque eligen piso a distancia y la convivencia es la principal causa de malas experiencias.",
+    povV2: "Los estudiantes de máster internacionales que llegan a Madrid necesitan conocer a sus futuros compañeros y pactar normas de convivencia antes de firmar, porque eligen piso a distancia y lo que más pesa en una mala experiencia son los hábitos de los compañeros, no el piso.",
+    povV2Ev: "5 entrevistas de problema (Mom Test) a estudiantes de máster: 4 de 5 tuvieron un conflicto de convivencia el último año; 3 de 5 eligieron piso sin conocer a nadie. Se confirma el usuario y se matiza la necesidad (pactar normas). Lo cuantificaremos con la encuesta (H1).",
     hmw: [
       { q: "¿Cómo podríamos ayudar a los estudiantes internacionales a conocer a sus futuros compañeros antes de firmar?" },
       { q: "¿Cómo podríamos hacer que elegir piso a distancia dé tanta confianza como visitarlo en persona?" },
@@ -1534,9 +1898,12 @@ R.station({
       });
       R.select(col, { label: "¿De dónde sale?", options: [["", "Sin decidir"], ["E", "Evidencia (lo vimos u oímos)"], ["S", "Suposición (lo creemos)"]], onChange: paintPov }, d.origen, ok);
     });
-    povTa = R.field(b, { label: "Vuestro POV", hint: "Se compone solo con los 3 campos; podéis retocarlo al final", rows: 3 }, d, "pov");
+    povTa = R.field(b, { label: "Vuestro POV provisional (v1)", hint: "Se compone solo con los 3 campos. Es una hipótesis: con 3 entrevistas exprés no queda validado", rows: 3 }, d, "pov");
     povTa.addEventListener("input", paintPov);
     b.append(povPrev, verdict);
+    R.tip(b, "<b>Cómo se valida el POV:</b> en clase (reseñas + 3 entrevistas exprés) es <b>provisional</b>. Antes de la sesión 2, con las <b>5 entrevistas de problema</b>, escribís la versión revisada (v2). Entre la sesión 2 y la 3, la encuesta lo <b>cuantifica</b> (hipótesis H1: cuántos tienen el problema).");
+    R.field(b, { label: "POV revisado tras las 5 entrevistas (v2)", hint: "Antes de la sesión 2. Si lo rellenáis, Claude usará este en vez del v1", rows: 3, ph: "Igual, matizado o distinto: …necesitan …, porque …" }, d, "povV2");
+    R.field(b, { label: "Qué evidencia lo respalda", hint: "Cuántas entrevistas, qué patrones (n de 5) y qué ha cambiado respecto al v1", rows: 2 }, d, "povV2Ev");
     function paintPov(){
       const o = d.origen;
       const m = (k, txt) => R.h("mark", { class: o[k] === "E" ? "e" : o[k] === "S" ? "s" : "", title: o[k] ? ORIG[o[k]] : "sin decidir", text: txt });
@@ -1622,7 +1989,8 @@ R.station({
         "\nEntrevistas (anonimizadas):", ent || "(vacío)",
         "\nMapa de empatía ([E] evidencia, [S] suposición):", mapa || "(vacío)",
         "\nJob-to-be-Done: " + (jtbd || "(vacío)"),
-        "POV: " + (d.pov || "(vacío)"), "Origen de cada parte del POV: " + orig,
+        "POV provisional (v1): " + (d.pov || "(vacío)"), "Origen de cada parte del POV: " + orig,
+        d.povV2 ? "POV revisado (v2): " + d.povV2 + (d.povV2Ev ? " — Evidencia: " + d.povV2Ev : "") : "",
         "\n¿Cómo podríamos…?", hmw || "(vacío)"
       ].filter(Boolean).join("\n"),
       format: "Cuatro apartados numerados, viñetas cortas. Las reescrituras, en una línea cada una. Máximo 350 palabras."
@@ -1636,12 +2004,12 @@ R.station({
     L.push("", "### Entrevistas", d.guion ? "Guion:\n" + d.guion : "", R.lines(d.entrevistas.filter(e => (e.hechos || e.cita || "").trim()), e => `- ${e.perfil || "Entrevista"}: ${e.hechos || ""} ${e.cita || ""} (${SENAL[e.senal] || "sin valorar"})`) || "(vacío)");
     L.push("", "### Mapa de empatía", Object.entries(MAPA).filter(([k]) => d.mapa[k] && d.mapa[k].trim()).map(([k, l]) => `**${l}**\n${d.mapa[k].trim()}`).join("\n") || "(vacío)");
     if (composeJ(d)) L.push("", "### Job-to-be-Done", composeJ(d));
-    L.push("", "### POV", d.pov || "(vacío)", "Origen: " + ["usuario", "necesidad", "insight"].map(k => `${k} = ${ORIG[d.origen[k]] || "sin decidir"}`).join(", "));
+    L.push("", "### POV provisional (v1)", d.pov || "(vacío)", "Origen: " + ["usuario", "necesidad", "insight"].map(k => `${k} = ${ORIG[d.origen[k]] || "sin decidir"}`).join(", "));
+    if (d.povV2 && d.povV2.trim()) L.push("", "### POV revisado (v2)", d.povV2.trim(), d.povV2Ev ? "Evidencia: " + d.povV2Ev.trim() : "");
     L.push("", "### ¿Cómo podríamos…?", R.lines(d.hmw.filter(x => x.q && x.q.trim()), (x, i) => `${i + 1}. ${x.q.trim()}`) || "(vacío)");
     return L.filter(x => x !== "").join("\n");
   },
   links: [
-    ["Miro · Mapa de empatía", "Plantilla para el equipo", "https://miro.com/templates/empathy-map/"],
     ["The Mom Test", "El libro de Fitzpatrick sobre entrevistas", "https://www.momtestbook.com"],
     ["Trustpilot", "Reseñas de servicios y webs", "https://es.trustpilot.com"],
     ["Stanford d.school", "Guías y métodos de Design Thinking", "https://dschool.stanford.edu/resources"],
@@ -2039,11 +2407,7 @@ R.station({
       "Finalistas:", R.lines(d.finalistas, (f, i) => `${i + 1}. ${f}`) || "(sin elegir)"].join("\n");
   },
   links: [
-    ["FigJam", "Pizarra con post-its para el equipo", "https://www.figma.com/figjam/"],
-    ["Miro", "Pizarra colaborativa con votación", "https://miro.com"],
-    ["IDEO Design Kit", "Reglas de brainstorming", "https://www.designkit.org/methods/brainstorm-rules.html"],
-    ["Mentimeter", "Votación anónima en clase", "https://www.mentimeter.com"],
-    ["Excalidraw", "Pizarra rápida sin registro", "https://excalidraw.com"]
+    ["IDEO Design Kit", "Reglas de brainstorming", "https://www.designkit.org/methods/brainstorm-rules.html"]
   ]
 });
 })();
@@ -2254,9 +2618,7 @@ R.station({
   },
   links: [
     ["Design Sprint Kit · Crazy 8s", "Guía de Google del método", "https://designsprintkit.withgoogle.com/methodology/phase3-sketch/crazy-8s"],
-    ["GV · The Design Sprint", "El método de Jake Knapp", "https://www.gv.com/sprint/"],
-    ["Excalidraw", "Bocetar a mano alzada en el navegador", "https://excalidraw.com"],
-    ["FigJam", "Pegar fotos de los bocetos y votar", "https://www.figma.com/figjam/"]
+    ["GV · The Design Sprint", "El método de Jake Knapp", "https://www.gv.com/sprint/"]
   ]
 });
 })();
@@ -2509,10 +2871,8 @@ R.station({
       "Prueba de 2 minutos:", R.kv(d.prueba, { equipo: "Equipo", entendieron: "Qué entendieron", dudas: "Dudas", cambios: "Cambios" }) || "(sin notas)"].join("\n");
   },
   links: [
-    ["Canva", "Maquetar el concept board", "https://www.canva.com"],
     ["Strategyzer · Value Proposition Canvas", "Encajar beneficio y dolor", "https://www.strategyzer.com/library/the-value-proposition-canvas"],
-    ["Tally", "Formulario para probar el concepto", "https://tally.so"],
-    ["Unsplash", "Fotos libres para el board", "https://unsplash.com"]
+    ["Tally", "Formulario para probar el concepto", "https://tally.so"]
   ]
 });
 })();
@@ -2879,9 +3239,7 @@ R.station({
     links: [
       ["LEANSTACK", "Lean Canvas original de Ash Maurya", "https://www.leanstack.com/lean-canvas"],
       ["Strategyzer · VPC", "Value Proposition Canvas explicado", "https://www.strategyzer.com/library/the-value-proposition-canvas"],
-      ["Strategyzer · BMC", "Business Model Canvas", "https://www.strategyzer.com/library/the-business-model-canvas"],
-      ["Miro", "Plantillas de lienzos para el equipo", "https://miro.com/templates/"],
-      ["FigJam", "Pizarra colaborativa de Figma", "https://www.figma.com/figjam/"]
+      ["Strategyzer · BMC", "Business Model Canvas", "https://www.strategyzer.com/library/the-business-model-canvas"]
     ]
   });
 })();
@@ -3115,9 +3473,7 @@ R.deliverable({
     links: [
       ["Strategyzer · Test Card", "Plantilla de test card", "https://www.strategyzer.com/library/the-test-card"],
       ["Tally", "Encuestas y listas de espera gratis", "https://tally.so"],
-      ["Google Forms", "Encuestas rápidas", "https://forms.google.com"],
-      ["Carrd", "Landing de una página para un smoke test", "https://carrd.co"],
-      ["Miro", "Mapa de supuestos en equipo", "https://miro.com"]
+      ["Google Forms", "Encuestas rápidas", "https://forms.google.com"]
     ]
   });
 })();
@@ -3462,11 +3818,6 @@ R.deliverable({
     },
     toText(d){ ensure(d); return wireText(d) || "(wireframe vacío)"; },
     links: [
-      ["Excalidraw", "Bocetos rápidos a mano alzada", "https://excalidraw.com"],
-      ["FigJam", "Wireframes en equipo", "https://www.figma.com/figjam/"],
-      ["Balsamiq", "Wireframes de baja fidelidad", "https://balsamiq.com/wireframes/"],
-      ["Whimsical", "Wireframes y flujos de pantallas", "https://whimsical.com/wireframes"],
-      ["Figma", "Cuando paséis a alta fidelidad", "https://www.figma.com"]
     ]
   });
 })();
@@ -3780,8 +4131,7 @@ Pídeme confirmación antes de cada comando que cambie algo en GitHub. Nunca use
       ["Claude Code", "Documentación para empezar", "https://docs.anthropic.com/en/docs/claude-code/overview"],
       ["GitHub Pages", "Publicar la web desde el repositorio", "https://docs.github.com/es/pages"],
       ["Tally", "Formularios y lista de espera", "https://tally.so"],
-      ["Microsoft Clarity", "Grabaciones y mapas de calor gratis", "https://clarity.microsoft.com"],
-      ["Campaign URL Builder", "Enlaces con UTM de Google", "https://ga-dev-tools.google/campaign-url-builder/"]
+      ["Microsoft Clarity", "Grabaciones y mapas de calor gratis", "https://clarity.microsoft.com"]
     ]
   });
 })();
@@ -4214,7 +4564,6 @@ Pídeme confirmación antes de cada comando que cambie algo en GitHub. Nunca use
     links: [
       ["NN/g · 5 usuarios", "Por qué basta con 5 usuarios por ronda", "https://www.nngroup.com/articles/why-you-only-need-to-test-with-5-users/"],
       ["Tally", "Formulario SUS y consentimiento", "https://tally.so"],
-      ["Miro", "Affinity map en equipo", "https://miro.com"],
       ["Microsoft Clarity", "Grabaciones y mapas de calor del prototipo", "https://clarity.microsoft.com"],
       ["AEPD", "Guías de protección de datos", "https://www.aepd.es"]
     ]
@@ -4606,9 +4955,7 @@ Pídeme confirmación antes de cada comando que cambie algo en GitHub. Nunca use
     links: [
       ["Tally", "Cuestionario gratuito con lógica condicional", "https://tally.so"],
       ["Google Forms", "Alternativa con exportación a Sheets", "https://forms.google.com"],
-      ["Evan Miller · A/B", "Calculadora de tamaño para A/B tests", "https://www.evanmiller.org/ab-testing/sample-size.html"],
-      ["Microsoft Clarity", "Clics y grabaciones de la landing", "https://clarity.microsoft.com"],
-      ["Google Sheets", "Tablas dinámicas y PRUEBA.CHI.CUAD", "https://sheets.google.com"]
+      ["Microsoft Clarity", "Clics y grabaciones de la landing", "https://clarity.microsoft.com"]
     ]
   });
 })();
@@ -4896,8 +5243,6 @@ R.deliverable({
       };
     },
     links: [
-      ["Miro", "Validation board y affinity map en equipo", "https://miro.com"],
-      ["Google Sheets", "Tabla de resultados por test card", "https://sheets.google.com"],
       ["The Lean Startup", "Principios: construir, medir, aprender", "https://theleanstartup.com/principles"],
       ["Strategyzer", "Test card y learning card", "https://www.strategyzer.com/library"]
     ]
@@ -5168,10 +5513,7 @@ R.deliverable({
       };
     },
     links: [
-      ["Google Slides", "Deck de 10–12 slides en equipo", "https://slides.google.com"],
-      ["Canva", "Plantillas de presentación", "https://www.canva.com"],
-      ["Loom", "Vídeo de la demo como plan B", "https://www.loom.com"],
-      ["QR Code Monkey", "QR al prototipo publicado", "https://www.qrcode-monkey.com"]
+      ["Google Slides", "Deck de 10–12 slides en equipo", "https://slides.google.com"]
     ]
   });
 })();
@@ -5616,7 +5958,6 @@ R.deliverable({
       ["Lean Canvas", "El lienzo de Ash Maurya", "https://leanstack.com/lean-canvas"],
       ["GitHub Pages", "Publicar la versión pivotada en el mismo repo", "https://docs.github.com/es/pages"],
       ["Tally", "Formulario «Solicitar piloto»", "https://tally.so"],
-      ["Miro", "Canvas antes/después en equipo", "https://miro.com"],
       ["Claude Code", "Documentación para adaptar el prototipo", "https://docs.anthropic.com/es/docs/claude-code/overview"]
     ]
   });
