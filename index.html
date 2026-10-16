@@ -272,6 +272,10 @@ table.t input{width:100%;border:1px solid var(--line);border-radius:6px;padding:
 .cloud-form label{font:600 11px var(--f-body);letter-spacing:.08em;text-transform:uppercase;color:var(--soft)}
 .cloud-form input{border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--panel);min-width:0}
 .cmsg{color:var(--red);font-weight:600}
+.iabox{border-top:1px dashed var(--line);padding-top:10px}
+.howto{margin:0;padding-left:22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:6px 18px;font-size:13.5px;color:var(--soft)}
+.howto li{padding-left:2px}
+.howto b{color:var(--ink)}
 footer.foot{margin-top:36px;border-top:1px solid var(--line);padding-top:16px;color:var(--soft);font-size:13px;max-width:90ch}
 footer.foot b{color:var(--red)}
 </style>
@@ -779,6 +783,16 @@ const R = (() => {
       i > 0 ? h("button", {class:"btn", type:"button", on:{click:() => go(stations[i-1].id)}}, "← " + stations[i-1].short) : h("span"),
       i < stations.length-1 ? h("button", {class:"btn primary", type:"button", on:{click:() => go(stations[i+1].id)}}, stations[i+1].short + " →") : h("span")));
   }
+  function iaBox(st){
+    const d = S.st[st.id]; if (!d || typeof d !== "object") return null;
+    const id = "ia-" + st.id;
+    const ta = h("textarea", {id, rows:3, placeholder:"Qué os propuso Claude, qué habéis aceptado (y cambiado arriba) y qué habéis descartado y por qué."});
+    ta.value = d._ia || "";
+    ta.addEventListener("input", () => { d._ia = ta.value; save(); });
+    return h("div", {class:"fld iabox"},
+      h("label", {for:id}, "Qué nos llevamos de Claude", h("span", {class:"h", text:"No hace falta pegar su respuesta entera: usadla para mejorar vuestros campos y anotad aquí lo que habéis aceptado y descartado. Va al anexo de uso de IA del entregable."})),
+      ta);
+  }
   function claudePanel(st){
     const pre = h("pre", {class:"prompt", id:"prompt-pre"});
     const copyB = h("button", {class:"btn accent small", type:"button"}, "Copiar prompt");
@@ -808,8 +822,14 @@ const R = (() => {
     if (sampleFn) askB.hidden = false;
     const box = h("section", {class:"claude", "aria-label":"Prompt para Claude"},
       h("div", {class:"claude-h"}, h("h3", {text:"Vuestro prompt para Claude"}), h("div", {class:"acts"}, askB, stopB, copyB)),
+      h("ol", {class:"howto"},
+        h("li", null, h("b", {text:"Rellenad "}), "los pasos de arriba con vuestras ideas."),
+        h("li", null, h("b", {text:"Copiad el prompt "}), "y pegadlo en Claude (o pulsad «Preguntar a Claude aquí» si aparece)."),
+        h("li", null, h("b", {text:"Rehaced arriba "}), "vuestros campos con lo que aceptéis de su respuesta. Decidís vosotros: no copiéis sin pensar."),
+        h("li", null, h("b", {text:"Anotad abajo "}), "qué os habéis llevado y qué habéis descartado.")),
       pre, ans,
-      h("p", {class:"note"}, "El prompt se escribe solo con lo que habéis rellenado. Podéis pegarlo en ", h("a", {href:"https://claude.ai/new", target:"_blank", rel:"noopener", text:"claude.ai"}), " o en Claude Code. Revisad lo que conteste: decidís vosotros."));
+      h("p", {class:"note"}, "El prompt se escribe solo con lo que habéis rellenado. Pegadlo en ", h("a", {href:"https://claude.ai/new", target:"_blank", rel:"noopener", text:"claude.ai"}), " o en Claude Code. Si cambiáis los campos y volvéis a preguntar, el prompt se actualiza solo."),
+      iaBox(st));
     box.dataset.st = st.id;
     setTimeout(refreshPrompt, 0);
     return box;
@@ -827,7 +847,7 @@ const R = (() => {
   const slug = () => (S.project.nombre || S.project.equipo || "proyecto").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"") || "proyecto";
   function allText(){
     const p = S.project; const L = [`# ${p.nombre || "Proyecto"} · Ruta del Emprendedor Digital`, "", `- Equipo: ${p.equipo}`, `- Qué es: ${p.frase}`, `- Cliente objetivo: ${p.segmento}`, `- Miembros: ${p.miembros}`, `- Reto: ${p.reto}`, ""];
-    stations.filter(s => !s.extra).forEach(s => { L.push(`## ${s.n}. ${s.title} (${s.session})`, ""); try { L.push(s.toText ? s.toText(S.st[s.id], api) : s.prompt(S.st[s.id], api).material || ""); } catch(e){ L.push("(sin datos)"); } L.push(""); });
+    stations.filter(s => !s.extra).forEach(s => { L.push(`## ${s.n}. ${s.title} (${s.session})`, ""); try { L.push(s.toText ? s.toText(S.st[s.id], api) : s.prompt(S.st[s.id], api).material || ""); if (S.st[s.id] && S.st[s.id]._ia) L.push("", "Uso de Claude: " + S.st[s.id]._ia); } catch(e){ L.push("(sin datos)"); } L.push(""); });
     return L.join("\n");
   }
   function sheet(title, text, extra){
@@ -902,7 +922,7 @@ const R = (() => {
   }
 
   const css = (id, text) => { if (document.getElementById('css-' + id)) return; const st = document.createElement('style'); st.id = 'css-' + id; st.textContent = text; document.head.append(st); };
-  const api = { h, field, select, number, step, tip, grid, list, links, stats, timer, draw, css, md: mdLite, saveFile, saveCopy: () => saveCopy(), openCopy: () => openCopy(), slug: () => slug(), get standalone(){ return standalone; }, get stations(){ return stations; }, stationText: (st) => { try { return st.toText ? st.toText(S.st[st.id], api) : (st.prompt(S.st[st.id], api).material || ""); } catch(e){ return ""; } }, progressOf, save, clone, filled, esc, get project(){ return S.project; }, get state(){ return S; }, go,
+  const api = { h, field, select, number, step, tip, grid, list, links, stats, timer, draw, css, md: mdLite, saveFile, saveCopy: () => saveCopy(), openCopy: () => openCopy(), slug: () => slug(), get standalone(){ return standalone; }, get stations(){ return stations; }, stationText: (st) => { let t = ""; try { t = st.toText ? st.toText(S.st[st.id], api) : (st.prompt(S.st[st.id], api).material || ""); } catch(e){} const ia = S.st[st.id] && S.st[st.id]._ia && S.st[st.id]._ia.trim(); return ia ? (t ? t + "\n\n" : "") + "**Uso de Claude en esta estación:** " + ia : t; }, progressOf, save, clone, filled, esc, get project(){ return S.project; }, get state(){ return S; }, go,
     station(def){ def.extra = !!(def.intro || def.deliverable); def.n = def.extra ? null : stations.filter(s => !s.extra).length; stations.push(def); }, boot,
     /* helpers for prompt material */
     lines: (arr, fn) => (arr || []).filter(filled).map((x,i) => fn(x,i)).join("\n"),
@@ -1128,6 +1148,8 @@ R.deliverable = function (cfg) {
       function docText() {
         const p = R.project, L = [`# ${cfg.title} · ${p.nombre || "Proyecto"}`, "", `Equipo: ${p.equipo || "—"} · Miembros: ${p.miembros || "—"} · Fecha: ${new Date().toLocaleDateString("es-ES")}`, "", p.frase ? `**${p.frase}**` : "", ""];
         inc().forEach(s => { L.push(`## ${s.n}. ${s.title}`, "", R.stationText(s) || "_(sin completar)_", ""); });
+        const ia = inc().filter(s => R.state.st[s.id] && R.state.st[s.id]._ia && R.state.st[s.id]._ia.trim());
+        L.push("## Anexo · Uso de Claude", "", ia.length ? ia.map(s => `- **${s.n}. ${s.short}:** ${R.state.st[s.id]._ia.trim()}`).join("\n") : "_(Sin anotar. Rellenad «Qué nos llevamos de Claude» en cada estación.)_", "");
         L.push("## Conclusión del equipo", "");
         CONC.forEach(([k, l]) => L.push(`**${l}.** ${d[k] || "_(pendiente)_"}`, ""));
         return L.join("\n");
@@ -1148,6 +1170,11 @@ R.deliverable = function (cfg) {
           if (imgs.length) sec.append(R.h("div", { class: "chips" }, ...imgs.map((src, i) => R.h("img", { class: "sk", src, alt: `Boceto ${i + 1} de ${s.short}` }))));
           doc.append(sec);
         });
+        const iaS = inc().filter(s => R.state.st[s.id] && R.state.st[s.id]._ia && R.state.st[s.id]._ia.trim());
+        const an = R.h("section", { class: "ds" }, R.h("h4", { class: "dh", text: "Anexo · Uso de Claude" }));
+        if (iaS.length) an.append(R.h("ul", null, ...iaS.map(s => R.h("li", null, R.h("b", { text: `${s.n}. ${s.short}: ` }), R.state.st[s.id]._ia.trim()))));
+        else an.append(R.h("p", { class: "empty", text: "Sin anotar: rellenad «Qué nos llevamos de Claude» en cada estación." }));
+        doc.append(an);
         const c = R.h("section", { class: "ds" }, R.h("h4", { class: "dh", text: "Conclusión del equipo" }));
         CONC.forEach(([k, l]) => c.append(R.h("p", { style: "margin:4px 0" }, R.h("b", { text: l + ". " }), d[k] ? d[k] : R.h("span", { class: "empty", text: "Pendiente." }))));
         doc.append(c);
