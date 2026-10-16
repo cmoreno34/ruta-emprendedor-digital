@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 16/10/2026 20:32</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 16/10/2026 20:42</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -2490,8 +2490,7 @@ R.station({
     countH();
     R.tip(b, "<b>Ni muy amplia ni muy estrecha.</b> «¿Cómo podríamos mejorar la vivienda?» no da por dónde empezar; «¿Cómo podríamos hacer una app con test?» ya trae la solución. Buscad el punto medio.");
 
-    const pick = R.h("div", { class: "askpick" }); el.append(pick);
-    R.select(pick, { label: "¿Qué le pedís a Claude en el prompt de abajo?", options: [["sintesis", "Sintetizar: revisar mapa, JTBD, POV y HMW"], ["temas", "Agrupar las reseñas en temas"], ["guion", "Revisar el guion con The Mom Test"]] }, d, "foco");
+    d.foco = "sintesis";
   },
   progress(d){
     if (!d || !d.mapa) return 0;
@@ -2501,6 +2500,8 @@ R.station({
     const hm = (d.hmw || []).filter(x => (typeof x === "string" ? x : x && x.q || "").trim()).length;
     return [Math.min(1, rs / 6), d.temas && d.temas.trim() ? 1 : 0, Math.min(1, en / 3), Math.min(1, mq / 6), d.jQuiero && d.jQuiero.trim() ? 1 : 0, d.pov && d.pov.trim() ? 1 : 0, Math.min(1, hm / 3)].reduce((a, x) => a + x, 0) / 7;
   },
+  promptTitle: "Al final de la estación: Claude revisa vuestra definición del problema",
+  promptHelp: "<b>Cuándo:</b> cuando hayáis terminado los pasos 1 a 6 (reseñas, entrevistas, mapa de empatía, JTBD, POV y «¿Cómo podríamos…?»). <b>Qué hace:</b> el prompt ya lleva todo lo que habéis escrito; Claude comprueba que el mapa, el JTBD, el POV y las preguntas cuentan la misma historia, separa lo que es evidencia de lo que es suposición y os dice qué falta. Las reseñas y la guía de entrevista ya tienen su propio prompt dentro de sus pasos. <b>Después:</b> corregid arriba lo que aceptéis y anotadlo abajo.",
   prompt(d, R){
     fix(d);
     const res = R.lines(d.resenas.filter(r => r.cita && r.cita.trim()), (r, i) => `${i + 1}. [${r.app || "?"} · ${r.fuente || "?"} · ${r.estrellas ? r.estrellas + "★" : "sin estrellas"}] ${r.cita.trim()}`);
@@ -2953,7 +2954,7 @@ R.station({
     vBox.addEventListener("click", e => { if (e.target.closest(".ll-vote")) paintSliders(); });
 
     const pick = R.h("div", { class: "askpick" }); el.append(pick);
-    R.select(pick, { label: "¿Qué le pedís a Claude en el prompt de abajo?", options: [["coideador", "Co-idear: 15 ideas «raras» y señalar las nuestras obvias"], ["evaluar", "Evaluar: votación, temas, matriz y finalistas"]] }, d, "foco");
+    R.select(pick, { label: "¿En qué momento estáis? El prompt de abajo cambia según el momento", options: [["coideador", "Después de vuestra lluvia de ideas (antes de votar): Claude co-idea 15 ideas «raras» y señala las vuestras obvias"], ["evaluar", "Después de votar: Claude revisa votación, temas, matriz y finalistas"]] }, d, "foco");
   },
   progress(d){
     if (!d || !Array.isArray(d.ideas)) return 0;
@@ -3159,7 +3160,7 @@ R.station({
     drawVotes(); paintVotes();
 
     const pick = R.h("div", { class: "askpick" }); el.append(pick);
-    R.select(pick, { label: "¿Qué le pedís a Claude en el prompt de abajo?", options: [["critica", "Criticar el boceto elegido y proponer 3 variantes más"], ["pantalla", "Describir la pantalla clave para el wireframe"]] }, d, "foco2");
+    R.select(pick, { label: "¿En qué momento estáis? El prompt de abajo cambia según el momento", options: [["critica", "Recién elegido el boceto: Claude lo critica y propone 3 variantes"], ["pantalla", "Antes de pasar al wireframe: Claude describe la pantalla clave"]] }, d, "foco2");
   },
   progress(d){
     if (!d || !Array.isArray(d.bocetos)) return 0;
@@ -3621,7 +3622,7 @@ R.station({
     paintBoard(); paintChecks();
 
     const pick = R.h("div", { class: "askpick" }); el.append(pick);
-    R.select(pick, { label: "¿Qué le pedís a Claude en el prompt de abajo?", options: [["variantes", "3 variantes del concept statement y crítica del nuestro"], ["prueba", "Aprender de la prueba de 2′ y reescribir el concepto"]] }, d, "foco");
+    R.select(pick, { label: "¿En qué momento estáis? El prompt de abajo cambia según el momento", options: [["variantes", "Escrito el concept statement: Claude lo critica y propone 3 variantes"], ["prueba", "Después de la prueba de 2′: Claude os ayuda a reescribir el concepto"]] }, d, "foco");
   },
   progress(d){
     if (!d || !d.concept) return 0;
@@ -4740,7 +4741,7 @@ Pídeme confirmación antes de cada comando que cambie algo en GitHub. Nunca use
         "<b>Qué hace:</b> Claude revisa su propio trabajo con una lista y arregla los 3 problemas más graves. Vosotros abrid la URL <b>en el móvil</b> a la vez y comprobad que es verdad."],
       ["Revisión cruzada · 10′", "R · Revisar el prototipo de otro equipo", "10′",
         `Estas son las notas de la revisión cruzada de nuestro prototipo (${url}): otro equipo lo ha probado como si fuera ${seg}. Ordénalas así: 1) problemas detectados, del más grave al menos grave, indicando cuántas personas tropezaron con cada uno; 2) los 3 arreglos con más impacto en que la gente se apunte y que quepan en 10 minutos; 3) lo que funciona y NO hay que tocar. No cambies nada todavía: espera a que te confirmemos qué arreglos aplicar.\n\nNOTAS:\n${notas}`,
-        "<b>Qué es:</b> diez minutos en los que <b>otro equipo prueba vuestro prototipo como si fuera un cliente</b>, y vosotros el suyo. Sirve para ver lo que vosotros ya no veis.<br><b>Cómo (por parejas de equipos, las dice el profesor):</b><br>1 · Pasaos la URL (o dejad el portátil).<br>2 · <b>2′ · Test de 5 segundos:</b> una persona del otro equipo mira la primera pantalla 5 segundos y responde: ¿qué es?, ¿para quién?, ¿qué harías ahora?<br>3 · <b>5′ · Tarea en voz alta:</b> le pedís «apúntate a la lista de espera» (o la acción clave) y lo hace pensando en voz alta. Vosotros <b>observáis y anotáis sin ayudar ni explicar</b>: dónde duda, qué no entiende, qué dice.<br>4 · <b>3′ · Feedback:</b> 3 cosas que funcionan, 3 que confunden o frenan y 1 cambio prioritario.<br>5 · Escribid vuestras notas aquí abajo y copiad el prompt: Claude las convierte en una lista de arreglos para el Sprint B. Decide el Product Owner cuáles se aplican.",
+        "<b>Qué es:</b> diez minutos en los que <b>otro equipo prueba vuestro prototipo como si fuera un cliente</b>, y vosotros el suyo. Sirve para ver lo que vosotros ya no veis.<br><b>Cómo (en rueda: el equipo 1 revisa el prototipo del 2, el 2 el del 3 y el 3 el del 1):</b><br>1 · Pasaos la URL (o dejad el portátil).<br>2 · <b>2′ · Test de 5 segundos:</b> una persona del otro equipo mira la primera pantalla 5 segundos y responde: ¿qué es?, ¿para quién?, ¿qué harías ahora?<br>3 · <b>5′ · Tarea en voz alta:</b> le pedís «apúntate a la lista de espera» (o la acción clave) y lo hace pensando en voz alta. Vosotros <b>observáis y anotáis sin ayudar ni explicar</b>: dónde duda, qué no entiende, qué dice.<br>4 · <b>3′ · Feedback:</b> 3 cosas que funcionan, 3 que confunden o frenan y 1 cambio prioritario.<br>5 · Escribid vuestras notas aquí abajo y copiad el prompt: Claude las convierte en una lista de arreglos para el Sprint B. Decide el Product Owner cuáles se aplican.",
         { key: "cruzada", label: "Notas de la revisión cruzada", hint: "lo que visteis y lo que os dijeron; sin nombres", ph: "5 segundos: pensó que era una web de pisos, no de compañeros.\nTarea: tardó en encontrar el botón; dudó en «test de convivencia».\nFunciona: titular, colores, móvil.\nConfunde: precio, qué pasa al apuntarse, el test.\nCambio prioritario: decir que es gratis junto al botón." }],
       ["Sprint B · 20′", "B1 · Medidor y lista de espera", "15′",
         `Vamos a medir el prototipo sin herramientas externas, con el medidor del curso:\n1) Pega este bloque, tal cual, justo antes de </head> en index.html:\n\n${medidor(R)}\n\n2) Llama a medir("cta") cada vez que se pulse un botón de CTA.\n3) Lista de espera: pide solo el email (como mucho una pregunta más del wireframe) y una casilla obligatoria de consentimiento. Al enviarlo, llama a medir("registro", { email: <el email> }) y cambia el formulario por un mensaje honesto: «¡Gracias! Esto es un prototipo de un proyecto de clase del Máster en Marketing Digital (CEU). Si sale adelante, te avisaremos.» Bajo el botón, una línea de privacidad: el email solo se usa para este experimento, solo lo ve el profesor y se borra al terminar el curso.\n4) Si hay botón Premium (fake door), llama a medir("premium") y muestra «Aún no está disponible: te avisaremos».\n5) No añadas cookies, otros scripts ni servicios externos.\nAl terminar, explícanos en 3 líneas cómo comprobar que funciona (con ?prueba=1 al final de la URL nuestras pruebas no cuentan).` + pub,
@@ -6180,7 +6181,7 @@ details.cl-opt .in{display:flex;flex-direction:column;gap:10px;min-width:0}
         if (!isNaN(price)) L.push(`Precio previsto: ${S.num(price, 2)} €`);
         if (cs.length) L.push("Test cards (hipótesis · métrica · criterio):", ...cs.map(c => `- ${c.id}: ${c.hip} · ${c.met || "(sin métrica)"} · ${c.crit || "(sin criterio)"}`));
         L.push("", "Condiciones:",
-          "- La contestan EN CLASE compañeros del máster desde el móvil (unas 25 personas), como ellos mismos. La primera pregunta es un filtro que separa a quien encaja en nuestro segmento; si casi nadie de la clase encajaría, propón un filtro algo más amplio y avísanos.",
+          "- La contestan EN CLASE compañeros del máster desde el móvil (unas 10 personas: los miembros de los otros equipos) y, hasta la Sesión 3, quien reciba el enlace por WhatsApp o LinkedIn, como ellos mismos. La primera pregunta es un filtro que separa a quien encaja en nuestro segmento; si casi nadie de la clase encajaría, propón un filtro algo más amplio y avísanos.",
           "- Orden: filtro → problema (hechos de los últimos 12 meses, no intenciones) → concepto → intención de uso (escala 1–5 con etiquetas) → precio (concreto, con lo que incluye) → perfil al final. Entre 10 y 15 preguntas.",
           "- Antes de la primera pregunta del bloque concepto se enseñará el texto del concepto y el prototipo: incluye al menos una pregunta de concepto (comprensión) ANTES de la intención.",
           "- Usa EXACTAMENTE estos id cuando la pregunta mida eso: " + MODEL.map(q => `${q.id} (${q.bloque}, ${q.tipo})`).join(", ") + ". Si añades preguntas, id nuevos en minúsculas con guiones bajos. Si alguna no aplica, quítala.",
@@ -6249,7 +6250,7 @@ details.cl-opt .in{display:flex;flex-direction:column;gap:10px;min-width:0}
       drawQs();
 
       /* 2 · publicar y encuesta cruzada */
-      b = R.step(el, 2, "Publicad la encuesta y contestad las de la clase (≈ 15′)", "Encuesta cruzada en clase: cada equipo publica la suya; el profesor enseña el QR de la clase y cada persona contesta desde el móvil las encuestas de todos los demás equipos. Contestad como vosotros mismos, no como personaje: la pregunta filtro separa a quien encaja en cada segmento. Objetivo: 20 respuestas o más por equipo.");
+      b = R.step(el, 2, "Publicad la encuesta y contestad las de la clase (≈ 15′)", "Encuesta cruzada en clase: cada equipo publica la suya; el profesor enseña el QR de la clase y cada persona contesta desde el móvil las encuestas de todos los demás equipos. Contestad como vosotros mismos, no como personaje: la pregunta filtro separa a quien encaja en cada segmento. En clase saldrán unas 10 por equipo (los miembros de los otros equipos). Para llegar a 20–30, <b>compartid el enlace de vuestra encuesta</b> por WhatsApp o LinkedIn hasta la Sesión 3: las respuestas siguen llegando solas y en la S3 pulsáis otra vez «Traer respuestas».");
       if (!T(d.enc.protoTexto) && conceptTxt()) d.enc.protoTexto = conceptTxt();
       if (!T(d.enc.protoUrl) && protoUrl()) d.enc.protoUrl = protoUrl();
       const er = H("div", { class: "row2" }); b.append(er);
@@ -6332,7 +6333,7 @@ details.cl-opt .in{display:flex;flex-direction:column;gap:10px;min-width:0}
       b = R.step(el, 4, "Tablas cruzadas automáticas", "Cada pregunta de perfil (y las de una opción con 2–8 respuestas) se cruza con la intención alta (4–5). Prueba chi-cuadrado de independencia, sin corrección de Yates; si es 2×2 y alguna frecuencia esperada es menor que 5, la exacta de Fisher. Significativa: p < 0,05. V de Cramér: tamaño del efecto (< 0,1 despreciable; 0,1–0,3 pequeño; 0,3–0,5 medio; ≥ 0,5 grande).");
       const tgSel = R.select(b, { label: "Variable que queréis explicar", options: Object.entries(TARGETS).map(([k, v]) => [k, v[0]]), onChange: () => paintAll() }, d, "ctTarget");
       const ctOut = H("div", { class: "cq-out", "aria-live": "polite" }); b.append(ctOut);
-      R.tip(b, "Con unas 25 respuestas, la mayoría de cruces saldrán <b>no significativos</b>: también es un resultado (no se ven diferencias grandes), no un fracaso. Y con muchos cruces alguno puede salir significativo por azar: buscad que tenga sentido con lo que oísteis en las entrevistas.");
+      R.tip(b, "Con 10–30 respuestas, la mayoría de cruces saldrán <b>no significativos</b>: también es un resultado (no se ven diferencias grandes), no un fracaso. Y con muchos cruces alguno puede salir significativo por azar: buscad que tenga sentido con lo que oísteis en las entrevistas.");
 
       /* 5 · interpretar */
       b = R.step(el, 5, "Interpretad (con ayuda de Claude)", "Los números ya están; ahora, qué significan para vuestro negocio. Copiad el prompt: lleva vuestras respuestas, los resultados y los criterios. Claude os explica qué dice cada resultado y qué NO se puede concluir. Después escribid vosotros la interpretación y la decisión de cada hipótesis.");
@@ -6520,7 +6521,7 @@ details.cl-opt .in{display:flex;flex-direction:column;gap:10px;min-width:0}
           const mx = Math.max(...A.dist), rows = cardRows(d, R, A);
           const when = d.data.fecha ? new Date(d.data.fecha).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" }) : "";
           put(resOut,
-            d.data.ejemplo ? H("div", { class: "tip warn" }, H("b", { text: "Ejemplo ilustrativo: " }), "datos inventados de RoomieMatch con n = 120 para ver el análisis completo. En clase cada equipo tendrá unas 25 respuestas: intervalos más anchos y menos cruces significativos.") : null,
+            d.data.ejemplo ? H("div", { class: "tip warn" }, H("b", { text: "Ejemplo ilustrativo: " }), "datos inventados de RoomieMatch con n = 120 para ver el análisis completo. En clase cada equipo tendrá unas 10 respuestas (más si comparte el enlace antes de la S3): intervalos más anchos y menos cruces significativos.") : null,
             H("p", { class: "cq-f", text: `Respuestas traídas ${when}: ${A.nTot} en total · ${A.nOut} no pasan el filtro · ${A.n} válidas. Margen de error con n = ${A.n}: ±${S.num(100 * S.margin(0.5, A.n, 95), 1)} puntos (p = 50 %).` }),
             ...A.warn.map(w => H("div", { class: "tip warn", text: w })),
             H("div", { class: "stat" }, stat(String(A.n), "Respuestas válidas"), stat(S.pct(A.ci.p, 1), `Top-2-box de intención (${A.t2} de ${A.n})`), A.prob ? stat(S.pct(A.prob.c.p, 1), `Ha tenido el problema (${A.prob.x}/${A.prob.n})`) : null, A.pago ? stat(S.pct(A.pago.c.p, 1), `${A.pago.esc ? "Top-2-box de pago" : "Pagaría"} (${A.pago.x}/${A.pago.n})`) : null),
@@ -6815,7 +6816,7 @@ R.deliverable({
   chips: ["S2 · Sprint review 5:25–5:50", "Se sube a Blackboard"],
   goal: "Reúne <b>lo que habéis construido y lo que os han dicho los datos</b>: supuestos y test cards, wireframe, prototipo publicado con el medidor, test cruzado (cualitativo) y encuesta de la clase (cuantitativo) con vuestra interpretación.",
   includes: ["supuestos", "wireframe", "prototipo", "cuali", "cuanti"],
-  requires: "<b>Debe incluir:</b> prototipo publicado (URL) con el medidor, test cards con criterio de éxito, mapa conceptual y veredictos del test cruzado, y resultados e interpretación de la encuesta de la clase. <b>Antes de la S3:</b> dejad la landing abierta y compartid los enlaces con UTM; en la S3 traeréis los números del medidor con un clic.",
+  requires: "<b>Debe incluir:</b> prototipo publicado (URL) con el medidor, test cards con criterio de éxito, mapa conceptual y veredictos del test cruzado, y resultados e interpretación de la encuesta de la clase. <b>Antes de la S3:</b> dejad la landing abierta y compartid los enlaces con UTM y el de vuestra encuesta (WhatsApp, LinkedIn) para llegar a 20–30 respuestas; en la S3 traeréis los números del medidor y las respuestas nuevas con un clic.",
   task: "Revisa el entregable de la Sesión 2. 1) ¿Cada test card tiene métrica, criterio de éxito y plazo antes de medir? 2) ¿El prototipo publicado permite medir esas métricas (lista de espera con el medidor del curso, enlaces con UTM)? 3) ¿El cuestionario y el guion tienen sesgos o preguntas dobles? Reescríbelas. 4) Con el tamaño de muestra conseguido en clase, ¿qué conclusiones se sostienen y cuáles son solo indicios? 5) Propón una conclusión de 5 líneas que podamos corregir.",
   format: "Cinco apartados con viñetas. Máximo 400 palabras.",
   example: {
