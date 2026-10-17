@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 16/10/2026 20:42</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 17/10/2026 11:42</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -353,6 +353,84 @@ const R = (() => {
     corrupt: "La copia de la nube está dañada. Pedid al profesor que recupere una versión del historial."
   };
   const fmtWhen = iso => iso ? new Date(iso).toLocaleString("es-ES", { dateStyle:"short", timeStyle:"short" }) : "hace poco";
+  /* ---------- trabajo simultáneo: combinar a tres bandas (local · base · nube) ----------
+     «base» es la última versión que este navegador sabe que está en la nube. Cada campo:
+     si solo cambió aquí, se queda lo de aquí; si solo cambió en la nube, entra lo de la nube;
+     si cambió en los dos, gana este ordenador (quien está escribiendo). Las filas nuevas de
+     las listas se suman. Se combina DENTRO de los objetos actuales porque los campos de la
+     estación abierta escriben sobre ellos. */
+  const BKEY = KEY + "-base", PKEY = KEY + "-previo";
+  const isObj = v => !!v && typeof v === "object" && !Array.isArray(v);
+  const jeq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const eqB = (x, b) => b === undefined ? !filled(x) : jeq(x, b);
+  function replaceIn(L, Rv){
+    if (isObj(L) && isObj(Rv)){
+      Object.keys(L).forEach(k => { if (!(k in Rv)) delete L[k]; });
+      Object.keys(Rv).forEach(k => { L[k] = replaceIn(L[k], Rv[k]); });
+      return L;
+    }
+    if (Array.isArray(L) && Array.isArray(Rv)){
+      Rv.forEach((x, i) => { L[i] = i < L.length ? replaceIn(L[i], x) : clone(x); });
+      L.length = Rv.length; return L;
+    }
+    return Rv === undefined ? Rv : clone(Rv);
+  }
+  function merge3(L, B, Rv, localWins){
+    if (Rv === undefined || jeq(L, Rv)) return L;
+    if (L === undefined) return clone(Rv);
+    if (eqB(L, B)) return replaceIn(L, Rv);
+    if (eqB(Rv, B)) return L;
+    if (isObj(L) && isObj(Rv)){
+      new Set([...Object.keys(L), ...Object.keys(Rv)]).forEach(k => { L[k] = merge3(L[k], isObj(B) ? B[k] : undefined, Rv[k], localWins); });
+      return L;
+    }
+    if (Array.isArray(L) && Array.isArray(Rv)){
+      const Ba = Array.isArray(B) ? B : [], n = Ba.length;
+      if (L.length < n || Rv.length < n) return localWins ? L : replaceIn(L, Rv);   // alguien borró filas
+      const extra = [];
+      for (let i = 0; i < n; i++){
+        // misma fila rellenada distinto en los dos sitios (p. ej. la fila vacía inicial): se conservan las dos
+        const clash = isObj(L[i]) && isObj(Rv[i]) && isObj(Ba[i]) && Object.keys(Object.assign({}, L[i], Rv[i])).some(k => !eqB(L[i][k], Ba[i][k]) && !eqB(Rv[i][k], Ba[i][k]) && !jeq(L[i][k], Rv[i][k]));
+        if (clash) extra.push(clone(Rv[i])); else L[i] = merge3(L[i], Ba[i], Rv[i], localWins);
+      }
+      const mine = L.slice(n).map(x => JSON.stringify(x));
+      extra.concat(Rv.slice(n)).forEach(x => { if (filled(x) && !mine.includes(JSON.stringify(x))) L.push(clone(x)); });
+      return L;
+    }
+    if (!filled(Rv)) return L;
+    if (!filled(L)) return clone(Rv);
+    return localWins ? L : clone(Rv);
+  }
+  /* Combina r.data (nube) dentro de S. Devuelve las claves que han cambiado ("project" o id de estación). */
+  function mergeRemote(remote, baseData, localWins){
+    const before = {}, changed = [];
+    before.project = JSON.stringify(S.project); Object.keys(S.st).forEach(k => before[k] = JSON.stringify(S.st[k]));
+    const B = baseData || blankState();
+    const Rd = normalize(clone(remote));
+    merge3(S.project, B.project || {}, Rd.project, localWins);
+    Object.keys(Rd.st).forEach(k => { S.st[k] = S.st[k] === undefined ? Rd.st[k] : merge3(S.st[k], (B.st || {})[k], Rd.st[k], localWins); });
+    if (before.project !== JSON.stringify(S.project)) changed.push("project");
+    Object.keys(S.st).forEach(k => { if (before[k] !== JSON.stringify(S.st[k])) changed.push(k); });
+    S.isExample = false;
+    return changed;
+  }
+  function baseLoad(){ try { const b = JSON.parse(localStorage.getItem(BKEY) || "null"); return b && b.team && b.data ? b : null; } catch(e){ return null; } }
+  function baseSave(team, version, dataJson){ try { localStorage.setItem(BKEY, '{"team":' + JSON.stringify(team) + ',"version":' + Number(version || 0) + ',"data":' + dataJson + '}'); } catch(e){ try { localStorage.removeItem(BKEY); } catch(e2){} } }
+  function backupLocal(){ try { if (!S.isExample && (filled(S.project) || filled(S.st))) localStorage.setItem(PKEY, JSON.stringify(S)); } catch(e){} }
+  /* Repinta sin romper lo que alguien está escribiendo: la estación abierta y la ficha se repintan cuando se sale del campo. */
+  let deferred = false;
+  const typingIn = el => { const a = document.activeElement; return !!(a && el && el.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) || !!(a && a.isContentEditable && el && el.contains(a)); };
+  function repaintMerged(changed){
+    paintRail(); paintCloud();
+    const proj = document.getElementById("project"), main = document.getElementById("station");
+    const needP = changed.includes("project"), needS = changed.includes(cur) || needP;
+    if (needP && !typingIn(proj)) paintProject();
+    if (needS){
+      if (typingIn(main) || (needP && typingIn(proj))){
+        if (!deferred){ deferred = setInterval(() => { if (typingIn(main) || typingIn(proj)) return; clearInterval(deferred); deferred = false; paintProject(); paintStation(); }, 800); }
+      } else paintStation();
+    }
+  }
   async function cloudConnect(team, pin){
     cloud.team = String(team || "").trim().toUpperCase(); cloud.pin = String(pin || "").trim(); cloud.conflict = null;
     cloud.status = "working"; cloud.msg = "Conectando con la nube…"; paintCloud();
@@ -361,25 +439,64 @@ const R = (() => {
     catch(e){ cloud.status = "offline"; cloud.msg = "Sin conexión con la nube. Se guarda en este navegador y se reintentará."; cloudCfgSave(); scheduleRetry(); paintCloud(); return; }
     if (!r.ok){ const m = CERR[r.error] || ("No se pudo conectar (" + r.error + ")."); cloudDisconnect(m); return; }
     if (r.exists && r.data && r.data.st){
-      const localHasWork = !S.isExample && !!S.updated;
-      const remoteNewer = !localHasWork || !r.updated || new Date(r.updated) >= new Date(S.updated);
-      if (!remoteNewer && cloud.version !== r.version){
-        cloud.version = r.version; cloud.conflict = { kind:"connect", remote:r }; cloud.status = "conflict"; cloudCfgSave(); paintCloud(); return;
-      }
-      if (remoteNewer){ applyRemote(r); return; }
-      cloud.version = r.version; cloudCfgSave(); cloud.status = "pending"; paintCloud(); cloudSave(); return;
+      const localHasWork = !S.isExample && (filled(S.project) || filled(S.st));
+      const base = baseLoad();
+      const lm = String(S.project.miembros || "").trim(), rm = String((r.data.project || {}).miembros || "").trim();
+      const otherTeam = (base && base.team !== cloud.team) || (S.team && S.team !== cloud.team) || (!base && lm && rm && lm !== rm);
+      if (!localHasWork || otherTeam){ backupLocal(); applyRemote(r); return; }
+      // Lo de este navegador y lo de la nube se combinan: no se pierde nada de ninguno de los dos.
+      backupLocal();
+      const realBase = base && base.team === cloud.team ? base.data : null;
+      mergeRemote(r.data, realBase, !!realBase);
+      afterMerge(r, "Conectado: se ha combinado lo de este ordenador con la nube (versión " + r.version + ").");
+      full();
+      return;
     }
     // equipo nuevo en la nube: si se está viendo el ejemplo, se empieza en blanco
     cloud.version = 0; cloudCfgSave();
     if (S.isExample){ S = blankState(); }
+    S.team = cloud.team;
     S.updated = new Date().toISOString(); persistLocal(); full();
     await cloudSave();
   }
+  /* Tras combinar con la versión r de la nube: nueva base, y si lo combinado difiere de la nube, se sube. */
+  function afterMerge(r, msg){
+    const remoteJson = JSON.stringify(r.data);
+    cloud.version = r.version; cloud.conflict = null; S.team = cloud.team;
+    baseSave(cloud.team, r.version, remoteJson);
+    const differs = !(jeq(S.project, normalize(JSON.parse(remoteJson)).project) && jeq(S.st, normalize(JSON.parse(remoteJson)).st));
+    cloud.status = "ok"; cloud.msg = msg; cloudCfgSave();
+    if (differs){ S.updated = new Date().toISOString(); persistLocal(); scheduleCloud(); } else persistLocal();
+  }
   function applyRemote(r){
-    S = normalize(r.data); S.isExample = false; cloud.version = r.version; cloud.conflict = null; cloud.pending = false;
+    S = normalize(r.data); S.isExample = false; S.team = cloud.team; cloud.version = r.version; cloud.conflict = null; cloud.pending = false;
     cloud.status = "ok"; cloud.msg = "Recuperado de la nube (última versión: " + fmtWhen(r.updated) + ").";
+    baseSave(cloud.team, r.version, JSON.stringify(r.data));
     cloudCfgSave(); persistLocal(); full();
   }
+  /* Otra persona del equipo guardó antes: se descarga su versión, se combina y se vuelve a subir, sin preguntar. */
+  let mergeTries = 0;
+  async function autoMerge(){
+    let r;
+    try { r = await cloudCall({ a:"load", team:cloud.team, pin:cloud.pin }); } catch(e){ r = null; }
+    if (!r || !r.ok || !r.exists || !r.data){ cloud.pending = true; cloud.status = "offline"; cloud.msg = "No se pudo combinar con la nube; se reintentará."; scheduleRetry(); return; }
+    const base = baseLoad();
+    const changed = mergeRemote(r.data, base && base.team === cloud.team ? base.data : null, true);
+    afterMerge(r, "Combinado con los cambios de otra persona del equipo · versión " + r.version + ".");
+    repaintMerged(changed);
+  }
+  /* Cada 30 s, si no hay cambios pendientes aquí, se traen los cambios de los compañeros. */
+  async function cloudPull(){
+    if (!cloudOn() || S.isExample || cloud.busy || cloud.pending || cloud.conflict || document.visibilityState !== "visible") return;
+    let r;
+    try { r = await cloudCall({ a:"load", team:cloud.team, pin:cloud.pin }); } catch(e){ return; }
+    if (!r || !r.ok || !r.exists || !r.data || !(r.version > cloud.version) || cloud.busy) return;
+    const base = baseLoad();
+    const changed = mergeRemote(r.data, base && base.team === cloud.team ? base.data : null, true);
+    afterMerge(r, "Actualizado con los cambios del equipo · versión " + r.version + ".");
+    repaintMerged(changed);
+  }
+  setInterval(cloudPull, 30000);
   function scheduleCloud(){
     if (!cloudOn() || S.isExample || cloud.conflict) return;
     cloud.pending = true; clearTimeout(cloud.timer);
@@ -392,9 +509,12 @@ const R = (() => {
     if (cloud.busy){ cloud.pending = true; return; }
     cloud.busy = true; clearTimeout(cloud.timer); cloud.pending = false;
     try {
-      const r = await cloudCall({ a:"save", team:cloud.team, pin:cloud.pin, base:cloud.version, data:S, info:cloudInfo() });
-      if (r.ok){ cloud.version = r.version; cloud.status = "ok"; cloud.msg = "Guardado en la nube a las " + new Date().toLocaleTimeString("es-ES", { hour:"2-digit", minute:"2-digit" }) + " · versión " + r.version + "."; cloudCfgSave(); }
-      else if (r.error === "conflict"){ cloud.status = "conflict"; cloud.conflict = { kind:"save", version:r.version, updated:r.updated }; }
+      if (!S.team) S.team = cloud.team;
+      const sent = JSON.stringify(S);
+      const r = await cloudCall({ a:"save", team:cloud.team, pin:cloud.pin, base:cloud.version, data:JSON.parse(sent), info:cloudInfo() });
+      if (r.ok){ mergeTries = 0; cloud.version = r.version; baseSave(cloud.team, r.version, sent); cloud.status = "ok"; cloud.msg = "Guardado en la nube a las " + new Date().toLocaleTimeString("es-ES", { hour:"2-digit", minute:"2-digit" }) + " · versión " + r.version + "."; cloudCfgSave(); }
+      else if (r.error === "conflict" && mergeTries < 5){ mergeTries++; cloud.busy = false; await autoMerge(); return; }
+      else if (r.error === "conflict"){ mergeTries = 0; cloud.status = "conflict"; cloud.conflict = { kind:"save", version:r.version, updated:r.updated }; }
       else if (r.error === "busy"){ cloud.pending = true; cloud.status = "offline"; cloud.msg = CERR.busy; scheduleRetry(); }
       else if (r.error === "pin"){ cloudDisconnect(CERR.pin); }
       else { cloud.status = "error"; cloud.msg = CERR[r.error] || ("La nube no aceptó el guardado (" + r.error + ")."); }
@@ -947,6 +1067,16 @@ const R = (() => {
     pick.addEventListener("click", () => fi.click());
     fi.onchange = () => { const f = fi.files && fi.files[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => { ta.value = rd.result; msg.textContent = "Archivo leído: " + f.name; }; rd.readAsText(f); fi.value = ""; };
     go_.addEventListener("click", () => { if (importText(ta.value)) el.remove(); else msg.textContent = "Ese texto no es una copia válida de la ruta."; });
+    let prev = null; try { prev = JSON.parse(localStorage.getItem(PKEY) || "null"); } catch(e){}
+    if (prev && prev.st){
+      const rec = h("button", {class:"btn", type:"button", title:"Lo que había en este navegador antes de conectar o combinar con la nube"}, "Recuperar lo anterior de este navegador");
+      rec.addEventListener("click", () => {
+        const now = S; S = normalize(prev); S.isExample = false;
+        const keep = S; S = now; mergeRemote(keep, null, false);   // se suma lo anterior; si un campo difiere, gana lo anterior
+        S.updated = new Date().toISOString(); persistLocal(); scheduleCloud(); full(); el.remove();
+      });
+      el.querySelector(".acts").prepend(rec);
+    }
     close.addEventListener("click", () => el.remove());
     document.body.append(el); ta.focus();
   }
