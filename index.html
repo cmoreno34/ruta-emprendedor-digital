@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 17/10/2026 13:20</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 17/10/2026 14:25</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -4027,7 +4027,8 @@ R.station({
       function prefillLean(){
         const pov = R.state.st.empatia && String(R.state.st.empatia.pov || "").trim();
         const semilla = R.state.st.semilla || {};
-        const src = { uvp: conceptText(R), segmentos: String(R.project.segmento || "").trim(), problema: pov || String(R.project.reto || "").trim(), alternativas: String(semilla.hoy || "").trim() };
+        const em = R.state.st.empatia || {};
+        const src = { uvp: conceptText(R), segmentos: String(R.project.segmento || em.povUsuario || semilla.quien || "").trim(), problema: pov || String(R.project.reto || semilla.problema || "").trim(), alternativas: String(semilla.hoy || "").trim() };
         const done = [];
         for (const [k, v] of Object.entries(src)) if (v && !String(d.lean[k] || "").trim()){ d.lean[k] = v; done.push(LEAN_LABELS[k]); }
         return done;
