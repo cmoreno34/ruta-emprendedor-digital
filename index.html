@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 17/10/2026 11:42</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 17/10/2026 13:20</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -497,6 +497,22 @@ const R = (() => {
     repaintMerged(changed);
   }
   setInterval(cloudPull, 30000);
+  /* Botón «Actualizar»: sube lo pendiente de este ordenador, trae lo de los compañeros y repinta todo. */
+  async function refreshNow(){
+    if (!cloudOn() || S.isExample) return;
+    cloud.status = "working"; cloud.msg = "Actualizando con el equipo…"; paintCloud();
+    clearTimeout(saveTimer); S.updated = new Date().toISOString(); persistLocal();
+    for (let i = 0; i < 20 && cloud.busy; i++) await new Promise(r => setTimeout(r, 300));
+    cloud.pending = true; await cloudSave();
+    let r = null;
+    try { r = await cloudCall({ a:"load", team:cloud.team, pin:cloud.pin }); } catch(e){}
+    if (r && r.ok && r.exists && r.data){
+      if (r.version > cloud.version){ const base = baseLoad(); mergeRemote(r.data, base && base.team === cloud.team ? base.data : null, true); afterMerge(r, "Actualizado con el equipo · versión " + r.version + "."); }
+      else { cloud.status = "ok"; cloud.msg = "Actualizado: ya tenéis lo último del equipo · versión " + cloud.version + "."; }
+    } else if (cloud.status === "working"){ cloud.status = "offline"; cloud.msg = "No se pudo conectar con la nube; se reintentará."; }
+    if (deferred){ clearInterval(deferred); deferred = false; }
+    full();
+  }
   function scheduleCloud(){
     if (!cloudOn() || S.isExample || cloud.conflict) return;
     cloud.pending = true; clearTimeout(cloud.timer);
@@ -561,6 +577,7 @@ const R = (() => {
       acts.append(h("button", { class:"btn primary small", type:"button", on:{ click:useRemote } }, "Usar la de la nube"),
                   h("button", { class:"btn small", type:"button", on:{ click:keepLocal } }, "Guardar la de este ordenador"));
     } else {
+      if (cloud.status !== "working") acts.append(h("button", { class:"btn primary small", type:"button", title:"Sube lo vuestro y trae lo que han escrito los compañeros", on:{ click:refreshNow } }, "⟳ Actualizar"));
       if (cloud.status === "offline" || cloud.status === "error") acts.append(h("button", { class:"btn small", type:"button", on:{ click:() => { cloud.pending = true; cloudSave(); } } }, "Reintentar"));
       acts.append(h("button", { class:"btn small ghost", type:"button", on:{ click:() => cloudDisconnect("Desconectado en este ordenador. Vuestro trabajo sigue en la nube.") } }, "Desconectar este ordenador"));
     }
