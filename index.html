@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 17/10/2026 14:25</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 22/10/2026 20:22</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -3972,6 +3972,11 @@ R.station({
           const n = mergeEmp(); R.save(); drawVpc();
           msg.textContent = n ? `Añadidas ${n} líneas del mapa de empatía (sin borrar lo vuestro).` : "Ya teníais todo lo del mapa de empatía.";
         } } }, "Traer del mapa de empatía"), msg));
+      const conceptoTxt = () => { const c = (R.state.st.ideas && R.state.st.ideas.concept) || {}; return Object.entries(c).filter(([, v]) => typeof v === "string" && v.trim()).map(([k, v]) => `- ${k}: ${v.trim()}`).join("\n") || "(sin concepto)"; };
+      R.assist(b, { id: "md-vpc", title: "Propone vuestro mapa de valor (izquierda) a partir del concepto y del perfil del cliente. Solo rellena los recuadros vacíos.",
+        build: () => "Rellena el mapa de valor del Value Proposition Canvas de nuestro proyecto. Usa nuestro concepto y el perfil del cliente. Un aliviador por cada dolor importante y un creador por cada ganancia, en el mismo orden. Frases cortas, una por línea, sin inventar datos.\nResponde EXACTAMENTE con estas etiquetas:\nPRODUCTOS:\n- …\nALIVIADORES:\n- …\nCREADORES:\n- …\n\nCONCEPTO:\n" + conceptoTxt() + "\n\nPERFIL DEL CLIENTE:\nTrabajos:\n" + (d.vpc.trabajos || "") + "\nDolores:\n" + (d.vpc.dolores || "") + "\nGanancias:\n" + (d.vpc.ganancias || ""),
+        example: "PRODUCTOS:\n- …\nALIVIADORES:\n- …\nCREADORES:\n- …",
+        apply: t => { const S = R.sections(t, ["PRODUCTOS", "ALIVIADORES", "CREADORES"]); let n = 0; [["PRODUCTOS", "productos"], ["ALIVIADORES", "aliviadores"], ["CREADORES", "creadores"]].forEach(([k, f]) => { if (S[k] && S[k].trim()){ n++; if (!String(d.vpc[f] || "").trim()) d.vpc[f] = S[k].split("\n").map(l => l.replace(/^\s*[-•*]\s*/, "").trim()).filter(Boolean).join("\n"); } }); return n; } });
       b.append(vpcBox);
       function drawVpc(){
         vpcBox.replaceChildren();
@@ -4038,6 +4043,23 @@ R.station({
         const done = prefillLean(); R.save(); drawLean();
         leanMsg.textContent = done.length ? "Rellenado desde estaciones anteriores: " + done.join(", ") + "." : "Nada que traer: esos bloques ya tienen texto (o las estaciones anteriores están vacías).";
       } } }, "Traer del concepto, el proyecto y el POV"), leanMsg));
+      const LEAN_TAGS = [["PROBLEMA", "problema"], ["ALTERNATIVAS", "alternativas"], ["SEGMENTOS", "segmentos"], ["EARLY ADOPTERS", "early"], ["PROPUESTA", "uvp"], ["CONCEPTO DE ALTO NIVEL", "concepto"], ["SOLUCION", "solucion"], ["CANALES", "canales"], ["INGRESOS", "ingresos"], ["COSTES", "costes"], ["METRICAS", "metricas"], ["VENTAJA", "ventaja"]];
+      R.assist(b, { id: "md-lean", title: "Completa los bloques vacíos del Lean Canvas con todo lo anterior. No toca lo que ya habéis escrito.",
+        build: () => {
+          const c = (R.state.st.ideas && R.state.st.ideas.concept) || {};
+          const em = R.state.st.empatia || {};
+          const tengo = LEAN_TAGS.filter(([, k]) => String(d.lean[k] || "").trim()).map(([t, k]) => `${t}: ${String(d.lean[k]).trim()}`).join("\n") || "(nada todavía)";
+          const falta = LEAN_TAGS.filter(([, k]) => !String(d.lean[k] || "").trim()).map(([t]) => t);
+          return "Completa nuestro Lean Canvas (Ash Maurya). Rellena SOLO los bloques que faltan; respeta lo que ya tenemos. Frases cortas. Marca con [S] lo que sea suposición que habrá que probar (precio, canales, métricas…) y con [E] lo que salga de nuestra evidencia. No inventes cifras de mercado. El concepto de alto nivel con formato «X para Y».\n" +
+            "Responde EXACTAMENTE con estas etiquetas, una por bloque que falta:\n" + falta.map(t => t + ":\n- …").join("\n") +
+            "\n\nLO QUE YA TENEMOS EN EL LEAN CANVAS:\n" + tengo +
+            "\n\nCONCEPTO:\n" + conceptoTxt() +
+            "\n\nPOV: " + (em.pov || "(sin POV)") +
+            "\n\nVALUE PROPOSITION CANVAS:\n" + Object.entries(d.vpc || {}).filter(([, v]) => v && String(v).trim()).map(([k, v]) => `${VPC_LABELS[k] || k}:\n${v}`).join("\n") +
+            (d.patron ? "\n\nPATRÓN DE INGRESOS ELEGIDO: " + d.patron : "");
+        },
+        example: "SOLUCION:\n- …\nCANALES:\n- [S] …",
+        apply: t => { const S = R.sections(t, LEAN_TAGS.map(([x]) => x)); let n = 0; LEAN_TAGS.forEach(([x, k]) => { if (S[x] && S[x].trim()){ n++; if (!String(d.lean[k] || "").trim()) d.lean[k] = S[x].split("\n").map(l => l.replace(/^\s*[-•*]\s*/, "").trim()).filter(Boolean).join("\n"); } }); return n; } });
       b.append(leanBox);
       function drawLean(){
         leanBox.replaceChildren();
