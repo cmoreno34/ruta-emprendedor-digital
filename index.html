@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 23/10/2026 10:06</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 23/10/2026 11:11</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -6702,7 +6702,7 @@ details.cl-opt .in{display:flex;flex-direction:column;gap:10px;min-width:0}
           const mx = Math.max(...A.dist), rows = cardRows(d, R, A);
           const when = d.data.fecha ? new Date(d.data.fecha).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" }) : "";
           put(resOut,
-            d.data.ejemplo ? H("div", { class: "tip warn" }, H("b", { text: "Ejemplo ilustrativo: " }), "datos inventados de RoomieMatch con n = 120 para ver el análisis completo. En clase cada equipo tendrá unas 10 respuestas (más si comparte el enlace antes de la S3): intervalos más anchos y menos cruces significativos.") : null,
+            d.data.ejemplo ? H("div", { class: "tip warn" }, H("b", { text: "Ejemplo ilustrativo: " }), "datos inventados de RoomieMatch con n = 120 para ver el análisis completo. En clase cada equipo tendrá unas 10 respuestas (más si comparte el enlace en clase): intervalos más anchos y menos cruces significativos.") : null,
             H("p", { class: "cq-f", text: `Respuestas traídas ${when}: ${A.nTot} en total · ${A.nOut} no pasan el filtro · ${A.n} válidas. Margen de error con n = ${A.n}: ±${S.num(100 * S.margin(0.5, A.n, 95), 1)} puntos (p = 50 %).` }),
             ...A.warn.map(w => H("div", { class: "tip warn", text: w })),
             H("div", { class: "stat" }, stat(String(A.n), "Respuestas válidas"), stat(S.pct(A.ci.p, 1), `Top-2-box de intención (${A.t2} de ${A.n})`), A.prob ? stat(S.pct(A.prob.c.p, 1), `Ha tenido el problema (${A.prob.x}/${A.prob.n})`) : null, A.pago ? stat(S.pct(A.pago.c.p, 1), `${A.pago.esc ? "Top-2-box de pago" : "Pagaría"} (${A.pago.x}/${A.pago.n})`) : null),
@@ -6994,7 +6994,7 @@ R.mobile.encuestas = function (){
 R.deliverable({
   id: "entregable2", session: "S2", file: "entregable_S2", short: "Entregable S2", sub: "Se genera solo",
   title: "Entregable de la Sesión 2",
-  chips: ["S2 · Sprint review 5:25–5:50", "Se sube a Blackboard"],
+  chips: ["S2 · Sprint review 5:30–5:50", "Se sube a Blackboard"],
   goal: "Reúne <b>lo que habéis construido y lo que os han dicho los datos</b>: supuestos y test cards, wireframe, prototipo publicado con el medidor, test cruzado (cualitativo) y encuesta de la clase (cuantitativo) con vuestra interpretación.",
   includes: ["supuestos", "wireframe", "prototipo", "cuali", "cuanti"],
   requires: "<b>Debe incluir:</b> prototipo publicado (URL) con el medidor, test cards con criterio de éxito, mapa conceptual y veredictos del test cruzado, y resultados e interpretación de la encuesta de la clase. <b>Antes de la S3:</b> dejad la landing abierta y compartid los enlaces con UTM y el de vuestra encuesta (WhatsApp, LinkedIn) para llegar a 20–30 respuestas; en la S3 traeréis los números del medidor y las respuestas nuevas con un clic.",
@@ -7056,8 +7056,8 @@ R.deliverable({
   R.station({
     id: "decidir", session: "S3", short: "Decidir con datos", sub: "Validation board y learning card",
     title: "Decidir con datos: validation board y learning card",
-    chips: ["S3 · 3.1", "Práctica P10 · 35′", "Nota NT-ED-08"],
-    goal: "El aprendizaje solo sirve si <b>cambia lo que hacéis después</b>. Juntad lo cuali y lo cuanti en un <b>validation board</b>, comparad cada resultado con el criterio que fijasteis <b>antes</b> de medir, cerrad con una <b>learning card</b> y tomad la decisión: perseverar, iterar, pivotar o abandonar. <b>Empezad el análisis en casa</b> (Claude Code sobre el CSV o las calculadoras de la estación 11) y traed el board en borrador: en clase tenéis 35′ para cerrarlo y decidir.",
+    chips: ["S3 · 3.1", "Práctica P10 · 60′", "Nota NT-ED-08"],
+    goal: "El aprendizaje solo sirve si <b>cambia lo que hacéis después</b>. Juntad lo cuali y lo cuanti en un <b>validation board</b>, comparad cada resultado con el criterio que fijasteis <b>antes</b> de medir, cerrad con una <b>learning card</b> y tomad la decisión: perseverar, iterar, pivotar o abandonar. Los datos se traen con un clic en la estación 11 («Traer respuestas» y «Traer datos del prototipo») y <b>todo el análisis se hace en clase</b>: tenéis 60′ para cerrar el board y decidir.",
     example: {
       rows: [
         { id: "H1", tipo: "Problema", hip: "Los jóvenes que comparten piso en Madrid tienen conflictos de convivencia relevantes.", metodo: "Encuesta online, n = 120 jóvenes que comparten piso", crit: "≥ 60 % ha tenido un conflicto relevante en el último año", critPct: 60, res: "85 de 120 declaran un conflicto relevante", x: 85, n: 120, pct: "", estado: "ok" },
@@ -7617,7 +7617,7 @@ R.deliverable({
   R.station({
     id: "pivote", session: "S3", short: "Pivote", sub: "Cambiar sin empezar de cero",
     title: "Pivot challenge: cambiar sin empezar de cero",
-    chips: ["S3 · 3.4–3.6", "Práctica P12 · 70′ + re-pitch 45′", "Nota NT-ED-08"],
+    chips: ["S3 · 3.4–3.6", "Práctica P12 · 95′ + re-pitch 25′", "Nota NT-ED-08"],
     goal: "Pivotar es <b>mover un pie y dejar el otro anclado</b>: conserváis lo aprendido (el problema validado, el prototipo, la lista de espera) y cambiáis una pieza concreta del modelo. Leéis una carta de evidencia, nombráis el tipo de pivote, rehacéis el Lean Canvas, <b>rehacéis el prototipo con Claude Code y lo publicáis</b>, escribís la nueva test card y lo contáis en un <b>re-pitch de 4′</b>.",
     example: {
       bmc: {"socios": "Residencias universitarias y coliving de Madrid; oficinas internacionales de las universidades; propietarios con varias habitaciones.", "actividades": "Venta B2B a gestores; test de compatibilidad y emparejamiento; acuerdos de convivencia; soporte.", "recursos": "Algoritmo y datos de compatibilidad; base de estudiantes verificados; equipo comercial B2B.", "propuesta": "Para gestores: menos rotación y menos conflictos con inquilinos compatibles. Para estudiantes (gratis): saber con quién vas a vivir.", "relaciones": "Piloto acompañado y cuenta gestionada para residencias; autoservicio y comunidad para estudiantes.", "canales": "Venta directa y LinkedIn a gestores; universidades y asociaciones para estudiantes; SEO.", "segmentos": "Pagan: residencias, coliving y propietarios. Usan gratis: estudiantes de máster internacionales.", "costes": "Equipo comercial, desarrollo y mantenimiento, verificación de perfiles, marketing a estudiantes.", "ingresos": "Unos 29 € por habitación cubierta (o suscripción para gestores); estudiantes gratis."},
@@ -7840,7 +7840,7 @@ R.deliverable({
       drawB();
 
       /* 5 · rehacer el prototipo */
-      b = R.step(el, 6, "Rehacer el prototipo", "35′ con Claude Code: el prototipo tiene que contar el pivote. Decidid qué cambia en la web, la app o la campaña (titular, beneficios, precios, CTA, flujo, público de los anuncios) y qué se queda igual. Antes de rehacer, Claude Code copia la versión actual a la carpeta v1/: así el «antes» sigue publicado y el informe final enlaza las dos URL.");
+      b = R.step(el, 6, "Rehacer el prototipo", "50′ con Claude Code: el prototipo tiene que contar el pivote. Decidid qué cambia en la web, la app o la campaña (titular, beneficios, precios, CTA, flujo, público de los anuncios) y qué se queda igual. Antes de rehacer, Claude Code copia la versión actual a la carpeta v1/: así el «antes» sigue publicado y el informe final enlaza las dos URL.");
       R.list(b, { add: "Añadir cambio", numbered: true, onChange: () => paintPre(), cols: [
         { key: "pieza", label: "Pieza", ph: "Titular, CTA, precios, panel…", w: "150px" },
         { key: "antes", label: "Antes", type: "area", w: "1fr" },
@@ -7932,7 +7932,7 @@ R.deliverable({
       R.field(b, { label: "Coste y tiempo", single: true }, d.tc, "coste");
 
       /* 7 · re-pitch */
-      b = R.step(el, 8, "Re-pitch del pivote", "4′ por equipo y 2′ de feedback. No repitáis el pitch del Demo Day: contad qué cambió, por qué (la evidencia), enseñad el nuevo prototipo en vivo y cerrad con el siguiente experimento.");
+      b = R.step(el, 8, "Re-pitch del pivote", "4′ por equipo y 3′ de feedback. No repitáis el pitch del Demo Day: contad qué cambió, por qué (la evidencia), enseñad el nuevo prototipo en vivo y cerrad con el siguiente experimento.");
       const fr = R.field(b, { label: "Frase del pivote", hint: "«Mantenemos X, cambiamos Y, porque Z»: abre el re-pitch", rows: 3 }, d, "frase");
       const fm = H("div", { class: "pv-m", "aria-live": "polite" });
       b.append(H("div", { style: "display:flex;gap:10px;flex-wrap:wrap;align-items:center" }, H("button", { class: "btn small", type: "button", on: { click: () => {
