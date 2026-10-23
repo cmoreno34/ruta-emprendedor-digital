@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 22/10/2026 20:22</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 23/10/2026 10:06</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -1582,7 +1582,9 @@ function paint(){
   panel.append(plan);
 
   /* prácticas del sprint */
+  // En la S2, si el Modelo de negocio de la S1 está a medias, su tarjeta abre el sprint («Cerrar la S1»)
   const sts = R.stations.filter(s => s.session === ses && !s.intro);
+  if (ses === "S2"){ const mo = R.stations.find(s => s.id === "modelo"); if (mo && R.progressOf(mo) < 0.8) sts.unshift(mo); }
   const cols = { todo: [], doing: [], done: [] };
   sts.forEach(st => {
     const [k, p] = statusOf(st);
@@ -4242,7 +4244,7 @@ R.deliverable({
   R.station({
     id: "supuestos", session: "S2", short: "Supuestos y experimentos", sub: "Qué probar primero y cómo",
     title: "Supuestos y experimentos",
-    chips: ["S2 · 2.1", "Práctica P5 · 30′", "Nota NT-ED-04"],
+    chips: ["S2 · 2.1", "Práctica P5 · 25′", "Nota NT-ED-04"],
     goal: "Vuestro modelo está lleno de cosas que <b>creéis</b> pero no <b>sabéis</b>. Listad esos supuestos, colocadlos en el mapa y elegid los que, si fallan, hunden el proyecto y aún no tienen pruebas. Para cada uno, una <b>test card</b> con el criterio de éxito fijado antes de salir a medir.",
     example: {
       sup: [
@@ -4292,9 +4294,10 @@ R.deliverable({
 
       /* ---------- 1. Lista ---------- */
       let b = R.step(el, 1, "Lista de supuestos", "Un supuesto es algo que dais por cierto sin tener pruebas. Clasificadlo: deseabilidad (¿lo quieren?), viabilidad (¿es negocio?) o factibilidad (¿sabemos hacerlo?). Puntuad de 1 a 5 su importancia (si es falso, ¿se hunde el proyecto?) y la evidencia que ya tenéis.");
+      R.timer(b, { minutes: 25, label: "P5 · supuestos y test cards" });
       const supMsg = R.h("span", { class: "su-msg", "aria-live": "polite" });
       let supList;
-      const LEAN_MAP = [["problema", "deseabilidad", "El problema existe y es importante: "], ["segmentos", "deseabilidad", "Nuestro cliente es: "], ["uvp", "deseabilidad", "Les convence esta propuesta: "], ["canales", "viabilidad", "Llegaremos a ellos por: "], ["ingresos", "viabilidad", "Pagarán así: "], ["costes", "viabilidad", "Los costes serán: "], ["solucion", "factibilidad", "Podemos construir: "]];
+      const LEAN_MAP = [["problema", "deseabilidad", "El problema existe y es importante: "], ["segmentos", "deseabilidad", "Nuestro cliente es: "], ["uvp", "deseabilidad", "Les convence esta propuesta: "], ["canales", "viabilidad", "Llegaremos a ellos por: "], ["ingresos", "viabilidad", "Pagarán así: "], ["costes", "viabilidad", "Los costes serán: "], ["solucion", "factibilidad", "Podemos construir: "], ["early", "deseabilidad", "Los primeros en usarlo serán: "], ["alternativas", "deseabilidad", "Lo que usan hoy no les basta: "], ["metricas", "viabilidad", "Veremos que funciona en: "], ["ventaja", "factibilidad", "Nuestra ventaja no se copia fácil: "]];
       b.append(R.h("div", { class: "su-bar" }, R.h("button", { class: "btn small", type: "button", on: { click: () => {
         const lean = (R.state.st.modelo && R.state.st.modelo.lean) || {};
         const have = d.sup.map(s => String(s.txt || "").trim().toLowerCase());
@@ -4305,11 +4308,13 @@ R.deliverable({
           const txt = pre + first;
           if (!have.includes(txt.toLowerCase())) add.push({ txt, tipo, imp: "3", ev: "1" });
         });
-        if (!add.length){ supMsg.textContent = "No hay nada nuevo que traer: el Lean Canvas está vacío o ya lo habéis traído."; return; }
+        const falta = ["ingresos", "canales"].filter(k => !String(lean[k] || "").trim());
+        const aviso = falta.length ? ` ⚠ En el Lean Canvas faltan ${falta.join(" y ")}: sin ellos no hay supuestos de viabilidad (¿pagarán?, ¿llegaremos?). Completadlos en la estación 6 · paso 3 con el bloque de Claude.` : "";
+        if (!add.length){ supMsg.textContent = "No hay nada nuevo que traer: el Lean Canvas está vacío o ya lo habéis traído." + aviso; return; }
         const keep = d.sup.filter(s => String(s.txt || "").trim());
         d.sup.splice(0, d.sup.length, ...keep, ...add);
         R.save(); supList.redraw(); drawMap();
-        supMsg.textContent = `Añadidos ${add.length} supuestos del Lean Canvas. Ajustad importancia y evidencia.`;
+        supMsg.textContent = `Añadidos ${add.length} supuestos del Lean Canvas. Ajustad importancia y evidencia.` + aviso;
       } } }, "Proponer supuestos desde el Lean Canvas"), supMsg));
       supList = R.list(b, { add: "Añadir supuesto", numbered: true, onChange: () => drawMap(), cols: [
         { key: "txt", label: "Supuesto", ph: "Creemos que…", w: "2fr" },
@@ -4499,7 +4504,7 @@ R.deliverable({
   R.station({
     id: "wireframe", session: "S2", short: "Wireframe", sub: "El esqueleto antes del prototipo",
     title: "Wireframe de baja fidelidad",
-    chips: ["S2 · 2.2", "Antes del LAB", "Nota NT-ED-05"],
+    chips: ["S2 · 2.2", "Antes del LAB · 10′", "Nota NT-ED-05"],
     goal: "Antes de pedirle nada a Claude Code, decidid <b>qué bloques tiene vuestra página o app y en qué orden</b>, con los textos reales (titular, botón). Es rápido de cambiar y es lo que la estación siguiente convierte en el prompt de construcción.",
     example: {
       formato: "movil", tipo: "landing", preHero: true,
@@ -4930,7 +4935,7 @@ Pídeme confirmación antes de cada comando que cambie algo en GitHub. Nunca use
   R.station({
     id: "prototipo", session: "S2", short: "Prototipo con Claude Code", sub: "Del wireframe a una URL publicada",
     title: "Prototipo con Claude Code",
-    chips: ["S2 · 2.2", "LAB P6 · 90′", "Nota NT-ED-05"],
+    chips: ["S2 · 2.2", "LAB P6 · 85′", "Nota NT-ED-05"],
     goal: "En el LAB convertís el wireframe en <b>un prototipo publicado con una URL</b> que mide lo que preguntan vuestras test cards. Claude Code construye; vosotros decidís el brief, revisáis cada paso y no dais nada por bueno sin probarlo en el móvil.",
     example: {
       ghOk: false, ghUser: "",
@@ -5053,6 +5058,8 @@ Pídeme confirmación antes de cada comando que cambie algo en GitHub. Nunca use
 
       /* ---------- 5. Prompts del LAB ---------- */
       b = R.step(el, 5, "Secuencia de prompts del LAB", "Copiad los prompts de uno en uno, en este orden, y no paséis al siguiente sin revisar el resultado en el navegador. Cada prompt que cambia archivos termina con el bloque PUBLICAR: Claude Code sube los cambios a GitHub Pages y os da la URL. Sprint A (45′) construye, la revisión cruzada (10′) aporta ojos de fuera y el Sprint B (20′) conecta la medición con el medidor del curso: sin Tally, sin Clarity, sin cuentas nuevas.");
+      const tms = R.h("div", { class: "row3" }); b.append(tms);
+      [[45, "Sprint A · 45′"], [10, "Revisión cruzada · 10′"], [20, "Sprint B · 20′"]].forEach(([m, l]) => { const c = R.h("div"); tms.append(c); R.timer(c, { minutes: m, label: l }); });
       const seq = R.h("div", { class: "pt-seq" });
       b.append(seq);
       function drawSeq(){
@@ -5065,6 +5072,7 @@ Pídeme confirmación antes de cada comando que cambie algo en GitHub. Nunca use
           btn.addEventListener("click", () => { const cur = (prompts(d, R).find(x => x[1] === title) || [])[3] || text; copy(btn, cur, pre, "Copiar"); });
           const card = R.h("div", { class: "pt-pr" }, R.h("div", { class: "pt-prh" }, R.h("span", null, R.h("b", { text: title }), R.h("span", { class: "t", text: min })), btn));
           if (que){ const q = R.h("p", { class: "pt-que" }); q.innerHTML = que; card.append(q); }
+          if (/^B1/.test(title) && !(R.cloudTeam && R.cloudTeam())){ const w = R.h("p", { class: "pt-que" }); w.innerHTML = "⚠ <b>Conectad el equipo</b> (código + PIN, arriba) <b>antes de copiar este prompt</b>: si no, el medidor sale sin vuestro código y no cuenta nada. Después pulsad «⟳ Actualizar» y copiadlo."; card.append(w); }
           if (fld){ if (d[fld.key] == null) d[fld.key] = ""; R.field(card, { label: fld.label, hint: fld.hint, ph: fld.ph, rows: 4 }, d, fld.key).addEventListener("input", () => { pre.textContent = (prompts(d, R).find(x => x[1] === title) || [])[3] || ""; }); }
           card.append(pre);
           seq.append(card);
@@ -5407,7 +5415,7 @@ Pídeme confirmación antes de cada comando que cambie algo en GitHub. Nunca use
   const ST = {
     id: "cuali", session: "S2", short: "Validación cualitativa", sub: "Test cruzado y mapa de conceptos con Claude",
     title: "Validación cualitativa del concepto",
-    chips: ["S2 · 2.3–2.4", "Práctica P7 · test cruzado 2–3 personas", "Nota NT-ED-06"],
+    chips: ["S2 · 2.3–2.4", "Práctica P7 · 35′ · test cruzado con 2 personas", "Nota NT-ED-06"],
     goal: "Lo cualitativo os dice <b>qué pasa y por qué</b>; lo cuantitativo (siguiente estación), <b>cuánto</b>. Aquí el trabajo a mano es corto: hacéis un <b>test cruzado</b> con 2–3 personas de otro equipo y tomáis <b>notas libres</b>. Claude escribe el guion y analiza las notas: <b>códigos, categorías, mapa conceptual, problemas y evidencia por hipótesis</b>. Al final, <b>vosotros decidís</b> qué se sostiene y qué cambiáis.",
     promptTitle: "Revisión crítica final con Claude",
     promptHelp: "<b>Cuándo:</b> al final, cuando ya hayáis escrito vuestro veredicto y los cambios (paso 4). <b>Qué hace:</b> el prompt lleva el guion, las notas, el análisis y vuestras decisiones; Claude comprueba si las conclusiones se sostienen con 2–3 personas, marca citas dudosas y os dice qué debe confirmar la encuesta. Corregid arriba lo que aceptéis.",
@@ -5536,7 +5544,8 @@ details.cl-opt .in{display:flex;flex-direction:column;gap:10px;min-width:0}
       checkGuion();
 
       /* 2 · test cruzado y notas */
-      b = R.step(el, 2, "Test cruzado y notas", "Probáis el prototipo con 2–3 personas de otro equipo (unos 15′ cada una) y ellos lo hacen con el vuestro. No hay tiempo para más, y no hace falta: con 3 personas aparecen ≈ 2 de cada 3 problemas de usabilidad (1 − 0,69³ ≈ 67 %).");
+      b = R.step(el, 2, "Test cruzado y notas", "Probáis el prototipo con 2 personas de otro equipo (≈ 8′ cada una) y ellos lo hacen con el vuestro. No hay tiempo para más, y no hace falta: con 2 personas ya aparece cerca de la mitad de los problemas de usabilidad (1 − 0,69² ≈ 52 %), y con 3, unos 2 de cada 3.");
+      R.timer(b, { minutes: 20, label: "Test cruzado · 2 × 8′ y cambio de papeles" });
       R.tip(b, "<b>Cómo:</b> una persona modera (lee las tareas y <b>no ayuda</b>), otra anota; el participante piensa en voz alta. Al acabar las tareas, las preguntas. Luego cambiad los papeles con el otro equipo.");
       who(b, "hand", "Lo único que escribís a mano: <b>notas libres por participante</b>. Qué hizo en cada tarea, dónde se atascó y frases literales entre «comillas». Sin nombres reales: P1, P2, P3.");
       const notesBox = H("div", { class: "cl-notes" });
@@ -6225,7 +6234,7 @@ details.cl-opt .in{display:flex;flex-direction:column;gap:10px;min-width:0}
   R.station({
     id: "cuanti", session: "S2", short: "Validación cuantitativa", sub: "Encuesta cruzada en clase",
     title: "Validación cuantitativa: encuesta cruzada en clase",
-    chips: ["S2 · 2.3–2.4", "Encuesta cruzada ≈ 15′", "Nota NT-ED-07"],
+    chips: ["S2 · 2.3–2.4", "Práctica P8 · encuesta cruzada 35′", "Práctica P9 · resultados 20′", "Nota NT-ED-07"],
     goal: "La cuantitativa responde a <b>cuántos</b>: qué proporción tiene el problema, lo usaría y pagaría, <b>con su margen de error</b>. Claude os redacta el cuestionario, lo publicáis aquí con vuestro prototipo dentro, la clase contesta desde el móvil y <b>la web calcula sola</b> los resultados frente a cada test card y las tablas cruzadas. Vuestro trabajo es <b>interpretar</b>.",
     example: {
       preguntas: EX_Q.map(q => Object.assign({}, q)), qPaste: "",
@@ -6420,7 +6429,9 @@ details.cl-opt .in{display:flex;flex-direction:column;gap:10px;min-width:0}
       drawQs();
 
       /* 2 · publicar y encuesta cruzada */
-      b = R.step(el, 2, "Publicad la encuesta y contestad las de la clase (≈ 15′)", "Encuesta cruzada en clase: cada equipo publica la suya; el profesor enseña el QR de la clase y cada persona contesta desde el móvil las encuestas de todos los demás equipos. Contestad como vosotros mismos, no como personaje: la pregunta filtro separa a quien encaja en cada segmento. En clase saldrán unas 10 por equipo (los miembros de los otros equipos). Para llegar a 20–30, <b>compartid el enlace de vuestra encuesta</b> por WhatsApp o LinkedIn hasta la Sesión 3: las respuestas siguen llegando solas y en la S3 pulsáis otra vez «Traer respuestas».");
+      b = R.step(el, 2, "Publicad la encuesta, contestad las de la clase (≈ 15′) y compartid el enlace (meta 20–30)", "Encuesta cruzada en clase: cada equipo publica la suya; el profesor enseña el QR de la clase y cada persona contesta desde el móvil las encuestas de todos los demás equipos. Contestad como vosotros mismos, no como personaje: la pregunta filtro separa a quien encaja en cada segmento. En clase saldrán unas 10 por equipo (los miembros de los otros equipos). Para llegar a 20–30, <b>compartid el enlace de vuestra encuesta</b> por WhatsApp o LinkedIn hasta la Sesión 3: las respuestas siguen llegando solas y en la S3 pulsáis otra vez «Traer respuestas».");
+      R.timer(b, { minutes: 15, label: "Encuesta cruzada en clase" });
+      R.tip(b, "<b>Ampliad la muestra ya, en clase:</b> en cuanto esté publicada, compartid el enlace de vuestra encuesta por WhatsApp o LinkedIn (meta 20–30 respuestas). Las respuestas llegan solas; antes de P9 pulsad «Traer respuestas» y volved a pulsarlo en la S3.");
       if (!T(d.enc.protoTexto) && conceptTxt()) d.enc.protoTexto = conceptTxt();
       if (!T(d.enc.protoUrl) && protoUrl()) d.enc.protoUrl = protoUrl();
       const er = H("div", { class: "row2" }); b.append(er);
@@ -7888,7 +7899,7 @@ R.deliverable({
           "",
           "1) Antes de rehacer nada, copia la versión actual a la carpeta v1/ para conservar el antes (ajusta las rutas relativas si hace falta para que v1/ funcione sola). No modifiques v1/ después.",
           "2) Propón un plan corto (archivos que crearás o cambiarás) y espera mi OK.",
-          "3) Rehaz el prototipo en su sitio de siempre reutilizando estilos, componentes y textos que no cambian. Mantén la identidad visual. No inventes testimonios, logos de clientes ni cifras: usa solo las de este prompt o marca [FALTA DATO]. El CTA debe medir la nueva hipótesis (p. ej., «Solicitar piloto» hacia nuestro formulario de Tally).",
+          "3) Rehaz el prototipo en su sitio de siempre reutilizando estilos, componentes y textos que no cambian. Mantén la identidad visual. No inventes testimonios, logos de clientes ni cifras: usa solo las de este prompt o marca [FALTA DATO]. El CTA debe medir la nueva hipótesis (p. ej., «Solicitar piloto» hacia la lista de espera con el medidor del curso).",
           `4) Actualiza la sección «Hipótesis» de CLAUDE.md con la nueva hipótesis más arriesgada${riskiest ? ": " + riskiest : ""}.`,
           "5) Abre la página en local y revisa que funciona en móvil (la nueva y la de v1/).",
           "",
