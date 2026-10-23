@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 23/10/2026 16:34</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 23/10/2026 19:33</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -6663,6 +6663,9 @@ details.cl-opt .in{display:flex;flex-direction:column;gap:10px;min-width:0}
       function paintShare(){
         const ct = R.cloudTeam();
         if (!ct){ share.replaceChildren(); if (!R.state.isExample) noCloud(share); else share.append(H("div", { class: "tip", text: "En el ejemplo no hay nube: con vuestro equipo conectado aquí aparecerán el enlace y el QR de vuestra encuesta." })); return; }
+        const classBox = H("div", { class: "tip" }, H("b", { text: "Página de la clase: " }), "todas las encuestas publicadas y cuáles has contestado ya. ", H("a", { href: classUrl(), target: "_blank", rel: "noopener", text: classUrl() }), " ",
+          H("button", { class: "btn small", type: "button", on: { click: () => bigQR(classUrl(), "Encuestas de la clase: escanead y contestad las de los otros equipos") } }, "Proyectar el QR de la clase (profesor)"));
+        if (!d.enc.pub){ share.replaceChildren(H("div", { class: "tip warn", text: "Todavía no habéis publicado: pulsad «Publicar la encuesta» y aquí aparecerán el enlace y el QR de vuestra encuesta." }), classBox); return; }
         const url = surveyUrl(ct.team);
         const msgTxt = `Hola: somos el equipo de ${R.project.nombre || "un proyecto del máster"}. ¿Nos ayudas con una encuesta anónima de 3 minutos? Contesta como tú mismo: ${url}`;
         const qr = H("div", { class: "qr", "aria-label": "Código QR de vuestra encuesta" });
@@ -6671,8 +6674,16 @@ details.cl-opt .in{display:flex;flex-direction:column;gap:10px;min-width:0}
           H("div", { class: "cq-acts" }, copyBtn("Copiar enlace", () => url), H("a", { class: "btn small", href: url, target: "_blank", rel: "noopener", text: "Probarla ↗" })),
           H("span", { class: "tb-help", text: "El enlace no lleva vuestro PIN: solo sirve para contestar." }))),
           H("div", { class: "fld" }, H("label", { text: "Mensaje sugerido (WhatsApp, LinkedIn…)" }), H("div", { class: "cq-link", style: "font-family:var(--f-body)", text: msgTxt }), H("div", { class: "cq-acts" }, copyBtn("Copiar mensaje", () => msgTxt))),
-          H("div", { class: "tip" }, H("b", { text: "Página de la clase: " }), "todas las encuestas publicadas y cuáles has contestado ya. ", H("a", { href: classUrl(), target: "_blank", rel: "noopener", text: classUrl() })));
+          classBox);
         loadQR().then(() => { qr.replaceChildren(); new QRCode(qr, { text: url, width: 160, height: 160, correctLevel: QRCode.CorrectLevel.M }); }).catch(() => qr.replaceChildren(H("span", { class: "tb-help", text: "No se pudo generar el QR: usad el enlace." })));
+      }
+      function bigQR(link, title){
+        const qrBig = H("div", { style: "background:#fff;padding:18px;border-radius:16px" });
+        const ov = H("div", { role: "dialog", "aria-modal": "true", "aria-label": title, style: "position:fixed;inset:0;z-index:9999;background:rgba(10,20,40,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:16px;color:#fff;text-align:center" },
+          H("div", { style: "font:800 28px/1.2 var(--f-display)", text: title }), qrBig, H("div", { style: "font:600 18px var(--f-mono);word-break:break-all", text: link }),
+          H("button", { class: "btn", type: "button", on: { click: () => ov.remove() } }, "Cerrar"));
+        document.body.append(ov);
+        loadQR().then(() => { new QRCode(qrBig, { text: link, width: 380, height: 380, correctLevel: QRCode.CorrectLevel.M }); }).catch(() => qrBig.append(H("span", { style: "color:#000", text: "No se pudo generar el QR: usad el enlace." })));
       }
       refreshPub(); paintShare();
 
