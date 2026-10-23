@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 23/10/2026 16:21</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 23/10/2026 16:29</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -5396,6 +5396,48 @@ Pídeme confirmación antes de cada comando que cambie algo en GitHub. Nunca use
     });
     return { nP: P.length, nE: E.length };
   }
+  /* Guion automático: 3 tareas y 6 preguntas con lo que el equipo ya tiene (prototipo, wireframe, JTBD, entrevistas, test cards). */
+  function autoGuion(){
+    const p = R.project, st = R.state.st;
+    const em = st.empatia || {}, w = st.wireframe || {}, br = (st.prototipo || {}).brief || {}, sm = st.semilla || {}, lean = (st.modelo || {}).lean || {};
+    const cs = (st.ideas && st.ideas.concept) || {};
+    const first = x => T(x).split(/\r?\n/).map(l => l.replace(/^\s*[-•*\d.)]+\s*/, "").trim()).find(Boolean) || "";
+    const seg = first(br.publico) || T(p.segmento) || T(em.povUsuario) || "una persona de nuestro público";
+    const cuando = T(em.jCuando), quiero = T(em.jQuiero);
+    const accion = first(w.accion) || first(br.cta) || "apuntarte para cuando esté disponible";
+    const cinco = first(w.cinco) || T(p.frase) || T(cs.frase) || "qué es, para quién es y qué hacer";
+    const wt = (window.RutaED && window.RutaED.wireframeText && st.wireframe) ? window.RutaED.wireframeText(st.wireframe) : "";
+    const hayPrecio = /precio|€|premium|planes?\b|suscrip/i.test(wt + " " + T(lean.ingresos) + " " + T(cs.precio));
+    const hoy = first(sm.hoy) || first(lean.alternativas);
+    const tareas = [
+      { t: "Primera impresión: mira la primera pantalla durante 5 segundos y cuéntanos qué es, para quién es y qué harías ahora.", exito: "Lo explica con sus palabras y coincide con: " + cinco },
+      { t: `Ponte en el lugar de nuestro público (${seg})${cuando ? ". Situación: «" + cuando + "»" : ""}${quiero ? ". Lo que quieres: " + quiero : ""}. Usa la web para conseguirlo.`, exito: `Llega a «${accion}» sin ayuda en menos de 2 minutos` },
+      hayPrecio
+        ? { t: "Antes de decidirte quieres saber cuánto te costaría y qué incluye. Averígualo en la web.", exito: "Encuentra el precio y explica con sus palabras qué incluye la versión de pago" }
+        : { t: "Decide si te apuntarías hoy y cuéntanos qué información te falta para hacerlo.", exito: "Toma una decisión y nombra al menos una duda concreta" }
+    ];
+    const preguntas = [
+      { bloque: "Contexto", q: cuando ? `Cuéntame la última vez que te pasó esto: «${cuando}». ¿Qué hiciste?` : "Cuéntame la última vez que tuviste este problema. ¿Qué hiciste?" },
+      { bloque: "Contexto", q: hoy ? `Hoy, ¿cómo lo resuelves (por ejemplo, ${hoy})? ¿Qué es lo que peor funciona?` : "Hoy, ¿cómo lo resuelves? ¿Qué es lo que peor funciona?" },
+      { bloque: "Reacción", q: "En la segunda tarea, ¿qué esperabas que pasara y qué pasó?" },
+      { bloque: "Debrief usabilidad", q: "¿Qué te ha confundido o te ha hecho dudar? ¿En qué momento?" },
+      { bloque: "Compromiso", q: hayPrecio ? "¿Has pagado alguna vez por algo parecido? ¿Cuánto y por qué?" : "¿Has dedicado tiempo o dinero a resolver esto? ¿Cuánto?" },
+      { bloque: "Cierre", q: "¿Conoces a alguien que tenga este problema? ¿Con quién deberíamos hablar?" }
+    ];
+    return { tareas, preguntas };
+  }
+  /* Lo que ya sabéis de la estación 2 (para el moderador y para triangular en el análisis) */
+  function prevInfo(){
+    const em = R.state.st.empatia || {}, mapa = em.mapa || {};
+    const pov = T(em.povV2) || T(em.pov);
+    const dol = T(mapa.dolores).split(/\r?\n/).map(l => l.trim()).filter(Boolean).slice(0, 3);
+    const citas = (em.entrevistas || []).map(e => T(e && e.cita)).filter(Boolean).slice(0, 3);
+    return { pov, dol, citas, hyps: hyps() };
+  }
+  function prevDocs(){
+    const em = R.state.st.empatia || {};
+    return (em.entrevistas || []).map((e, i) => { const t = [e.notas, e.hechos, e.cita].map(T).filter(Boolean).join(" · "); return t ? `Entrevista de la estación 2 · ${T(e.perfil) || "E" + (i + 1)}: ${t}` : ""; }).filter(Boolean);
+  }
   function guionPrompt(d){
     const p = R.project, st = R.state.st;
     const em = st.empatia || {}, pr = st.prototipo || {}, br = pr.brief || {};
@@ -5598,17 +5640,41 @@ details.cl-opt .in{display:flex;flex-direction:column;gap:10px;min-width:0}
       const copyBtn = (label, getText, pre) => { const b = H("button", { class: "btn accent small", type: "button" }, label); b.addEventListener("click", async () => { try { await navigator.clipboard.writeText(getText()); b.textContent = "Copiado ✓"; } catch (e){ const r = document.createRange(); r.selectNodeContents(pre); getSelection().removeAllRanges(); getSelection().addRange(r); b.textContent = "Seleccionado: Ctrl+C"; } setTimeout(() => b.textContent = label, 1600); }); return b; };
 
       /* 1 · guion con Claude */
-      let b = R.step(el, 1, "Guion del test con Claude", "Claude escribe el guion con vuestro proyecto, el POV, el brief del prototipo y las hipótesis. Vosotros lo leéis y lo ajustáis: 3 tareas (escenarios, sin decir dónde hacer clic) y 5 preguntas sobre hechos pasados.");
-      R.field(b, { label: "Qué queremos aprender con el test", hint: "Opcional · una línea; entra en el prompt", single: true, ph: "¿Entienden…? ¿Confían en…? ¿Pagarían…?" }, d, "pregunta").addEventListener("input", () => { gPre.textContent = guionPrompt(d); });
-      who(b, "ai", "Copiad el prompt, pegadlo en Claude y pegad aquí su respuesta. Pulsad <b>«Leer el guion»</b>: se rellenan las tareas y las preguntas.");
+      let b = R.step(el, 1, "Guion del test (se genera solo)", "La web prepara el guion con lo que ya tenéis: el prototipo publicado, el wireframe, el trabajo por hacer (JTBD) y lo que salió en las entrevistas de la estación 2. Revisadlo y ajustadlo: 3 tareas (escenarios, sin decir dónde hacer clic) y 6 preguntas sobre hechos pasados.");
+      if (!d.tareas.some(t => T(t.t)) && !d.preguntas.some(q => T(q.q))){ const g0 = autoGuion(); const old0 = d.tareas.slice(); d.tareas.splice(0, d.tareas.length, ...g0.tareas.map((t, i) => ({ t: t.t, exito: t.exito, r: (old0[i] && old0[i].r) || [] }))); d.preguntas.splice(0, d.preguntas.length, ...g0.preguntas); ensure(d); R.save(); }
+      {
+        const pi = prevInfo(), url = T((R.state.st.prototipo || {}).url);
+        const box = H("div", { class: "tip" });
+        box.innerHTML = "<b>Lo que ya sabéis (estación 2) y lo que probáis:</b>" +
+          (url ? `<br>Prototipo: <a href="${R.esc(url)}" target="_blank" rel="noopener">${R.esc(url)}</a>` : "<br>Prototipo: <i>todavía sin URL (estación 9)</i>") +
+          (pi.pov ? "<br>POV: " + R.esc(pi.pov) : "") +
+          (pi.dol.length ? "<br>Dolores: " + pi.dol.map(R.esc).join(" · ") : "") +
+          (pi.citas.length ? "<br>Citas de las entrevistas: " + pi.citas.map(c => "«" + R.esc(c.replace(/^[«"]|[»"]$/g, "")) + "»").join(" · ") : "") +
+          (pi.hyps.length ? "<br>Hipótesis: " + pi.hyps.map(h => R.esc(h.code + " · " + h.txt)).join(" · ") : "");
+        b.append(box);
+      }
+      const regen = H("button", { class: "btn primary small", type: "button" }, "Volver a generar el guion");
+      const regenMsg = H("span", { class: "status", "aria-live": "polite" });
+      regen.addEventListener("click", () => {
+        if (d.tareas.some(t => T(t.t)) && !regen.dataset.ok){ regen.dataset.ok = "1"; regen.textContent = "Sí, sustituir las tareas y preguntas"; regenMsg.textContent = "Se sustituirán las tareas y preguntas de abajo (las notas no se tocan)."; return; }
+        const g = autoGuion(); const old = d.tareas.slice();
+        d.tareas.splice(0, d.tareas.length, ...g.tareas.map((t, i) => ({ t: t.t, exito: t.exito, r: (old[i] && old[i].r) || [] })));
+        d.preguntas.splice(0, d.preguntas.length, ...g.preguntas);
+        ensure(d); R.save(); R.go("cuali");
+      });
+      b.append(H("div", { class: "chips" }, regen, regenMsg));
+      const gOpt = H("details", { class: "cl-opt" }, H("summary", { text: "Opcional: mejorar el guion con Claude" }));
+      const gIn = H("div", { class: "in" }); gOpt.append(gIn); b.append(gOpt);
+      R.field(gIn, { label: "Qué queremos aprender con el test", hint: "Opcional · una línea; entra en el prompt", single: true, ph: "¿Entienden…? ¿Confían en…? ¿Pagarían…?" }, d, "pregunta").addEventListener("input", () => { gPre.textContent = guionPrompt(d); });
+      who(gIn, "ai", "Copiad el prompt, pegadlo en Claude y pegad aquí su respuesta. Pulsad <b>«Leer el guion»</b>: se sustituyen las tareas y las preguntas.");
       const gPre = H("pre", { class: "prompt", style: "max-height:200px" }); gPre.textContent = guionPrompt(d);
-      b.append(H("div", { class: "chips" }, copyBtn("Copiar prompt del guion", () => guionPrompt(d), gPre)), gPre);
+      gIn.append(H("div", { class: "chips" }, copyBtn("Copiar prompt del guion", () => guionPrompt(d), gPre)), gPre);
       const gId = "cl-guion-raw";
       const gTa = H("textarea", { id: gId, rows: 5, placeholder: "TAREA: escenario | éxito: criterio\nPREGUNTA: Contexto | Cuéntame la última vez que…" }); gTa.value = d.guionRaw || "";
       gTa.addEventListener("input", () => { d.guionRaw = gTa.value; R.save(); });
       const gMsg = H("span", { class: "status", "aria-live": "polite" });
       const gRead = H("button", { class: "btn primary small", type: "button" }, "Leer el guion");
-      b.append(H("div", { class: "fld" }, H("label", { for: gId, text: "Respuesta de Claude (guion)" }), gTa), H("div", { class: "chips" }, gRead, gMsg));
+      gIn.append(H("div", { class: "fld" }, H("label", { for: gId, text: "Respuesta de Claude (guion)" }), gTa), H("div", { class: "chips" }, gRead, gMsg));
       who(b, "hand", "Revisad el guion y editad lo que no os convenza. El aviso de abajo comprueba que ninguna tarea diga dónde hacer clic.");
       b.append(H("p", { class: "sec-label", text: "Tareas del test (escenario y criterio de éxito)" }));
       const tList = R.list(b, { add: "Añadir tarea", numbered: true, onChange: () => { ensure(d); checkGuion(); drawObs(); drawSummary(); }, cols: [
@@ -5648,7 +5714,7 @@ details.cl-opt .in{display:flex;flex-direction:column;gap:10px;min-width:0}
       /* 2 · test cruzado y notas */
       b = R.step(el, 2, "Test cruzado y notas", "Probáis el prototipo con 2 personas de otro equipo (≈ 8′ cada una) y ellos lo hacen con el vuestro. No hay tiempo para más, y no hace falta: con 2 personas ya aparece cerca de la mitad de los problemas de usabilidad (1 − 0,69² ≈ 52 %), y con 3, unos 2 de cada 3.");
       R.timer(b, { minutes: 20, label: "Test cruzado · 2 × 8′ y cambio de papeles" });
-      R.tip(b, "<b>Cómo:</b> una persona modera (lee las tareas y <b>no ayuda</b>), otra anota; el participante piensa en voz alta. Al acabar las tareas, las preguntas. Luego cambiad los papeles con el otro equipo.");
+      R.tip(b, "<b>Cómo, en anillo (1→2→3→1):</b> vienen 2 personas del equipo siguiente y prueban vuestro prototipo <b>de una en una</b> (≈ 8′ cada una) en un móvil. De vuestro equipo, una persona <b>modera</b> (lee las tareas y <b>no ayuda</b>) y otra <b>anota</b>; el participante piensa en voz alta. Orden: tareas → cuestionario SUS → preguntas. Después, vosotros hacéis de participantes en el equipo anterior.");
       who(b, "hand", "Lo único que escribís a mano: <b>notas libres por participante</b>. Qué hizo en cada tarea, dónde se atascó y frases literales entre «comillas». Sin nombres reales: P1, P2, P3.");
       const notesBox = H("div", { class: "cl-notes" });
       const partActs = H("div", { class: "chips" });
@@ -5671,10 +5737,10 @@ details.cl-opt .in{display:flex;flex-direction:column;gap:10px;min-width:0}
       RGPD.forEach(([k, txt]) => { const id = "cl-rgpd-" + k; const c = H("input", { type: "checkbox", id }); c.checked = !!d.rgpd[k]; c.addEventListener("change", () => { d.rgpd[k] = c.checked; R.save(); }); chk.append(H("label", { for: id }, c, H("span", { text: txt }))); });
       b.append(chk);
 
-      /* opcional · SUS */
-      const susDet = H("details", { class: "cl-opt" }, H("summary", { text: "Opcional: cuestionario SUS (System Usability Scale)" }));
-      const susIn = H("div", { class: "in" }); susDet.append(susIn); b.append(susDet);
-      susIn.append(H("p", { class: "tb-help", style: "margin:0", text: "Si os sobra tiempo: al acabar las tareas, cada participante puntúa 10 afirmaciones de 1 (totalmente en desacuerdo) a 5 (totalmente de acuerdo). Los ítems impares son positivos y los pares, negativos." }));
+      /* obligatorio · SUS */
+      const susDet = H("div", { class: "cl-note", style: "background:var(--panel)" }, H("h4", { text: "Cuestionario de usabilidad SUS (obligatorio)" }));
+      const susIn = H("div", { class: "in", style: "display:flex;flex-direction:column;gap:10px" }); susDet.append(susIn); b.append(susDet);
+      susIn.append(H("p", { class: "tb-help", style: "margin:0", text: "Al acabar las tareas y antes de las preguntas (≈ 2′): cada participante puntúa las 10 afirmaciones de 1 (totalmente en desacuerdo) a 5 (totalmente de acuerdo). Los ítems impares son positivos y los pares, negativos. Sin él no hay puntuación de usabilidad para el informe." }));
       const susBox = H("div", { style: "display:flex;flex-direction:column;gap:10px" });
       const susOut = H("div", { style: "display:flex;flex-direction:column;gap:10px", "aria-live": "polite" });
       susIn.append(susBox, H("p", { class: "cl-f", text: "SUS = 2,5 × [ Σ(ítems impares − 1) + Σ(5 − ítems pares) ] · rango 0–100 · no es un porcentaje" }), susOut);
@@ -5761,7 +5827,7 @@ details.cl-opt .in{display:flex;flex-direction:column;gap:10px;min-width:0}
       R.qual(b, d.qualE, {
         fuente: "notas anonimizadas del test cruzado (una por participante)",
         docsHelp: "Cada participante es un documento (D01 = P1, D02 = P2…). Pulsad «Traer las notas del paso 2» para cargarlas o actualizarlas (sustituye los documentos). Podéis añadir otros textos anonimizados pegándolos abajo.",
-        importers: [{ label: "Traer las notas del paso 2", fn: () => noteDocs(d), replace: true, primary: true }],
+        importers: [{ label: "Traer las notas del paso 2", fn: () => noteDocs(d), replace: true, primary: true }, { label: "Añadir las entrevistas de la estación 2 (triangulación)", fn: () => prevDocs() }],
         extraTask: () => {
           const Hs = hyps();
           return [
@@ -5832,6 +5898,7 @@ details.cl-opt .in{display:flex;flex-direction:column;gap:10px;min-width:0}
         d.tareas.filter(t => T(t.t)).length >= 2 ? "x" : "",
         d.preguntas.filter(q => T(q.q)).length >= 3 ? "x" : "",
         notes >= 2 ? "x" : "",
+        d.sus.filter(a => Array.isArray(a) && a.filter(v => Number(v) >= 1).length === 10).length >= 2 ? "x" : "",
         cats >= 2 ? "x" : "",
         d.problemas.filter(p => T(p.txt)).length ? "x" : "",
         d.evid.some(e => e.veredicto) ? "x" : "",
