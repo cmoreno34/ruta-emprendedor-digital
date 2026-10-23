@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 23/10/2026 16:29</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 23/10/2026 16:34</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -6055,6 +6055,29 @@ details.cl-opt .in{display:flex;flex-direction:column;gap:10px;min-width:0}
     qq("genero", "perfil", "opcion", "¿Con qué género te identificas?", "Mujer; Hombre; Otro / prefiero no decirlo"),
     qq("comentario", "otro", "texto", "¿Qué te haría usarlo o no usarlo? (opcional)", "", { oblig: "no" })
   ];
+  /* Cuestionario automático: el modelo del concept test con los datos del equipo (sin Claude). */
+  function autoQuest(){
+    const st = R.state.st || {}, p = R.project || {};
+    const em = st.empatia || {}, sm = st.semilla || {}, lean = (st.modelo || {}).lean || {}, cs = (st.ideas && st.ideas.concept) || {};
+    const first = x => T(x).split(/\r?\n/).map(l => l.replace(/^\s*[-•*\d.)]+\s*|^\[[SE]\]\s*/g, "").trim()).find(Boolean) || "";
+    const sent = x => first(x).split(/(?<=[.!?])\s/)[0].replace(/[.;:]+$/, "");
+    const lc = x => x ? x.charAt(0).toLowerCase() + x.slice(1) : x;
+    const name = T(p.nombre) || T(cs.nombre) || "este servicio";
+    const situ = T(em.jCuando) || sent(sm.problema) || sent(p.reto);
+    const prob = sent(sm.problema) || sent(p.reto) || sent(em.povNecesidad);
+    const tarea = (T(em.jQuiero) || sent(em.povNecesidad)).replace(/(^|[^\p{L}])mis(?![\p{L}])/giu, "$1tus").replace(/(^|[^\p{L}])mi(?![\p{L}])/giu, "$1tu").replace(/(^|[^\p{L}])me(?![\p{L}])/giu, "$1te").replace(/(^|[^\p{L}])conmigo(?![\p{L}])/giu, "$1contigo");
+    const alts = (first(sm.hoy) || first(lean.alternativas)).split(/,|;|\/| y | o /).map(x => x.replace(/\.{2,}|…/g, "").trim()).filter(x => x && x.length < 40).slice(0, 3);
+    const precio = first(cs.precio) || first(lean.ingresos);
+    const out = MODEL.map(q => Object.assign({}, q));
+    const set = (id, k, v) => { const q = out.find(x => x.id === id); if (q && v) q[k] = v; };
+    set("filtro", "texto", situ ? `¿Te reconoces en esta situación: «${situ}»?` : "");
+    set("problema", "texto", prob ? `En los últimos 12 meses, ¿te ha pasado esto: «${prob}»?` : "");
+    set("alternativa", "ops", alts.length ? alts.join("; ") + "; Otra" : "");
+    set("comprension", "texto", `Después de ver ${name}, ¿te queda claro qué ofrece y para quién es?`);
+    set("intencion_uso", "texto", `Si ${name} estuviera disponible, ¿qué probabilidad hay de que lo usaras${tarea ? " para " + lc(tarea.replace(/[.]+$/, "")) : ""}?`);
+    set("pagaria", "texto", precio ? `${name}: ${precio.replace(/[.]+$/, "")}. ¿Qué probabilidad hay de que lo contrataras?` : "");
+    return out;
+  }
   const MODEL_WHY = { filtro: "separa a quien encaja en el segmento (si responde «No», termina)", problema: "incidencia del problema (H1)", problema_frecuencia: "intensidad", alternativa: "cómo lo resuelven hoy", comprension: "antes de esta pregunta se enseña el concepto y el prototipo", intencion_uso: "top-2-box de intención (H3)", credibilidad: "¿se lo creen?", unicidad: "¿es diferente?", pagaria: "top-2-box de pago (H4)", precio_max: "disposición a pagar en €", situacion: "perfil para cruzar", origen: "perfil para cruzar", edad_tramo: "perfil para cruzar", genero: "perfil para cruzar", comentario: "no se cruza" };
   const EX_Q = [
     qq("filtro", "filtro", "opcion", "¿Vives en un piso compartido o vas a buscar uno en los próximos 12 meses?", "Sí; No", { fin: "No" }),
@@ -6514,7 +6537,11 @@ details.cl-opt .in{display:flex;flex-direction:column;gap:10px;min-width:0}
       R.tip(el, "<b>En esta estación el orden cambia:</b> Claude os prepara el cuestionario (1) → lo publicáis y la clase contesta (2) → <b>la web calcula</b> los resultados (3 y 4) → <b>vosotros interpretáis</b>, con ayuda de Claude (5) → Claude critica vuestra interpretación (abajo).", "ok");
 
       /* 1 · cuestionario con Claude */
-      let b = R.step(el, 1, "Cuestionario con Claude", "Esquema del concept test: filtro → problema (hechos pasados) → concepto (aquí el móvil enseña vuestro prototipo) → intención 1–5 → precio → perfil, al final. 3–4 minutos en el móvil. Los id de la tabla son fijos: así la web sabe qué calcular.");
+      if (!Array.isArray(d.preguntas) || !d.preguntas.length){ d.preguntas = autoQuest(); R.save(); }
+      if (!T(d.enc.titulo) && T(R.project.nombre || concept.nombre)) d.enc.titulo = `${T(R.project.nombre) || T(concept.nombre)} · 3 minutos`;
+      if (!T(d.enc.intro)) d.enc.intro = "Somos un equipo del máster y estamos probando una idea. Contesta como tú mismo. Es anónima y se tarda unos 3 minutos.";
+      if (!T(d.enc.gracias)) d.enc.gracias = "¡Gracias! Con tus respuestas decidiremos si seguimos con la idea.";
+      let b = R.step(el, 1, "Cuestionario (se genera solo con vuestro proyecto)", "La web rellena el cuestionario con lo que ya tenéis (situación del JTBD, problema, alternativas, nombre y precio). Revisad lo que quede entre [corchetes] y lo que no encaje; si queréis, Claude lo mejora. Esquema del concept test: filtro → problema (hechos pasados) → concepto (aquí el móvil enseña vuestro prototipo) → intención 1–5 → precio → perfil, al final. 3–4 minutos en el móvil. Los id de la tabla son fijos: así la web sabe qué calcular.");
       b.append(H("details", null, H("summary", { style: "cursor:pointer;font-weight:600;font-size:13.5px", text: "Ver el esquema con los id fijos" }),
         H("div", { class: "tablewrap", style: "margin-top:8px" }, H("table", { class: "t cq-schema" },
           H("thead", null, H("tr", null, ...["id", "Bloque", "Tipo", "Para qué"].map(x => H("th", { text: x })))),
@@ -6563,9 +6590,9 @@ details.cl-opt .in{display:flex;flex-direction:column;gap:10px;min-width:0}
           if (d.preguntas.length) askInline(qMsg, `Se sustituirán vuestras ${d.preguntas.length} preguntas por las ${r.qs.length} de Claude.`, go); else go();
         } } }, "Leer cuestionario"),
         H("button", { class: "btn small", type: "button", on: { click: () => {
-          const go = () => { d.preguntas.splice(0, d.preguntas.length, ...MODEL.map(q => Object.assign({}, q))); R.save(); drawQs(); qMsg.replaceChildren(H("div", { class: "tip", text: "Cargado el modelo: cambiad lo que va entre [corchetes]." })); };
-          if (d.preguntas.length) askInline(qMsg, `Se sustituirán vuestras ${d.preguntas.length} preguntas por el cuestionario modelo.`, go); else go();
-        } } }, "Empezar desde el modelo")),
+          const go = () => { d.preguntas.splice(0, d.preguntas.length, ...autoQuest()); R.save(); drawQs(); qMsg.replaceChildren(H("div", { class: "tip", text: "Cuestionario generado con vuestro proyecto. Revisad lo que quede entre [corchetes]." })); };
+          if (d.preguntas.length) askInline(qMsg, `Se sustituirán vuestras ${d.preguntas.length} preguntas por el cuestionario generado.`, go); else go();
+        } } }, "Volver a generar con vuestro proyecto")),
         qMsg, qBox);
       const qWarn = H("div", { style: "display:flex;flex-direction:column;gap:6px", "aria-live": "polite" });
       const prev = H("div", { class: "cq-prev" });
