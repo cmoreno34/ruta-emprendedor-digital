@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 23/10/2026 11:11</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 23/10/2026 16:21</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -3359,6 +3359,7 @@ R.station({
 const N = 8, SECS = 60;
 const slug = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, "").slice(0, 10);
 const keyFor = (team, name) => (String(team).toUpperCase() + "-C8-" + slug(name)).slice(0, 24);
+const keyForWF = (team, name) => (String(team).toUpperCase() + "-WF-" + slug(name)).slice(0, 24);
 const membersOf = txt => String(txt || "").split(/[,;\n]| y /).map(s => s.replace(/\(.*?\)/g, "").trim()).filter(Boolean);
 const QR_SRC = "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js";
 function loadQR(){ return new Promise((res, rej) => { if (window.QRCode) return res(); const s = document.createElement("script"); s.src = QR_SRC; s.onload = () => res(); s.onerror = rej; document.head.append(s); }); }
@@ -3440,11 +3441,107 @@ R.crazy8Movil = function (parent, d){
   paintGal();
 };
 
+
+/* ---------- portátil: bocetos para el wireframe (estación 8 · paso 4) ----------
+   Reúne el boceto a mano, las viñetas y los bocetos de móvil del Crazy 8s y los nuevos del móvil;
+   el equipo marca varios, que pasan al wireframe, al CLAUDE.md y a los prompts del prototipo. */
+function bocetosDisponibles(d){
+  const out = [];
+  if (d.boceto) out.push({ id: "mano", img: d.boceto, titulo: "Boceto a mano", origen: "wireframe" });
+  Object.entries(d.movil || {}).forEach(([n, v]) => (v.bocetos || []).forEach((b, i) => { if (b && b.img) out.push({ id: `wf:${n}:${i}`, img: b.img, titulo: b.titulo || `Pantalla ${i + 1}`, origen: `wireframe · ${n}` }); }));
+  const c8 = (R.state.st && R.state.st.crazy8) || {};
+  (c8.bocetos || []).forEach((b, i) => { if (b && b.img) out.push({ id: `c8:${i}`, img: b.img, titulo: b.titulo || `Viñeta ${i + 1}`, origen: String(i + 1) === String(c8.elegido) ? "Crazy 8s · ELEGIDO" : "Crazy 8s · viñeta " + (i + 1) }); });
+  Object.entries(c8.movil || {}).forEach(([n, v]) => (v.bocetos || []).forEach((b, i) => { if (b && b.img) out.push({ id: `c8m:${n}:${i}`, img: b.img, titulo: b.titulo || `Boceto ${i + 1}`, origen: `Crazy 8s · móvil de ${n}` }); }));
+  return out;
+}
+window.RutaED = window.RutaED || {};
+window.RutaED.bocetosElegidos = d => { const all = bocetosDisponibles(d), sel = Array.isArray(d.selBocetos) ? d.selBocetos : []; return sel.map(id => all.find(x => x.id === id)).filter(Boolean); };
+function collage(list){
+  const cols = Math.min(3, list.length), rows = Math.ceil(list.length / cols), W = 360, Hh = 480, CAP = 46;
+  const cv = document.createElement("canvas"); cv.width = cols * W; cv.height = rows * (Hh + CAP);
+  const ctx = cv.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, cv.width, cv.height);
+  return Promise.all(list.map(b => new Promise(res => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = b.img; }))).then(ims => {
+    ims.forEach((im, k) => {
+      const x = (k % cols) * W, y = Math.floor(k / cols) * (Hh + CAP);
+      if (im){ const r = Math.min(W / im.width, Hh / im.height), w = im.width * r, h = im.height * r; ctx.drawImage(im, x + (W - w) / 2, y + (Hh - h) / 2, w, h); }
+      ctx.strokeStyle = "#BFC7DA"; ctx.strokeRect(x + 0.5, y + 0.5, W - 1, Hh + CAP - 1);
+      ctx.fillStyle = "#14203A"; ctx.font = "bold 20px sans-serif"; ctx.fillText(`${k + 1}. ${String(list[k].titulo).slice(0, 26)}`, x + 10, y + Hh + 22);
+      ctx.font = "13px sans-serif"; ctx.fillStyle = "#555"; ctx.fillText(String(list[k].origen).slice(0, 40), x + 10, y + Hh + 40);
+    });
+    return cv.toDataURL("image/jpeg", 0.85);
+  });
+}
+R.wireMovil = function (parent, d){
+  if (!d.movil || typeof d.movil !== "object") d.movil = {};
+  if (!Array.isArray(d.selBocetos)) d.selBocetos = [];
+  const box = R.h("div", { class: "c8m-card", style: "background:var(--bg)" });
+  parent.append(box);
+  box.append(R.h("b", { text: "Dibujar en el móvil" }), R.h("p", { class: "tb-help", text: "Como en el Crazy 8s: cada persona escanea el QR, pone el PIN del equipo, elige su nombre y dibuja hasta 3 pantallas con el dedo. Al terminar pulsa «Enviar al equipo» y aquí pulsáis «Traer bocetos de los móviles»." }));
+  const ct = R.cloudTeam();
+  const msg = R.h("span", { class: "status" });
+  if (!R.cloudUrl || !ct) box.append(R.h("div", { class: "tip warn", text: "Para usar los móviles, conectad antes el equipo a la nube (barra de arriba, código y PIN). Los bocetos del Crazy 8s y el boceto a mano se pueden elegir igualmente abajo." }));
+  else {
+    const url = location.origin + location.pathname + "?movil=crazy8&modo=wf&equipo=" + encodeURIComponent(ct.team);
+    const qr = R.h("div", { class: "qr", "aria-label": "Código QR para dibujar el wireframe en el móvil" });
+    box.append(R.h("div", { class: "c8-qr" }, qr, R.h("div", { style: "display:flex;flex-direction:column;gap:6px;min-width:0;flex:1 1 220px" },
+      R.h("p", { style: "margin:0;font-weight:600", text: `Equipo ${ct.team}` }), R.h("p", { class: "tb-help", style: "word-break:break-all", text: url }),
+      R.h("p", { class: "tb-help", text: "El PIN no va en el QR: decídselo a vuestro equipo." }))));
+    loadQR().then(() => { qr.replaceChildren(); new QRCode(qr, { text: url, width: 160, height: 160, correctLevel: QRCode.CorrectLevel.M }); }).catch(() => { qr.replaceChildren(R.h("span", { class: "tb-help", text: "No se pudo generar el QR: escribid la dirección de al lado en el móvil." })); });
+    const getB = R.h("button", { class: "btn primary small", type: "button" }, "Traer bocetos de los móviles");
+    getB.addEventListener("click", async () => {
+      const names = membersOf(R.project.miembros);
+      if (!names.length){ msg.textContent = "Escribid los miembros del equipo arriba (Miembros y roles)."; return; }
+      getB.disabled = true; msg.textContent = "Buscando bocetos…";
+      let got = 0;
+      for (const n of names){
+        try { const r = await R.cloudCall({ a: "load", team: keyForWF(ct.team, n), pin: ct.pin }); if (r && r.ok && r.exists && r.data && r.data.c8){ d.movil[n] = { bocetos: r.data.c8.bocetos || [], fecha: r.updated || "" }; got++; } } catch (e){}
+      }
+      getB.disabled = false; msg.textContent = got ? `Bocetos de ${got} persona(s).` : "Todavía no ha enviado nadie: pulsad de nuevo cuando terminen.";
+      R.save(); paint();
+    });
+    box.append(R.h("div", { class: "chips" }, getB, msg));
+  }
+  const gal = R.h("div", { class: "c8-gal" });
+  const selMsg = R.h("span", { class: "status", "aria-live": "polite" });
+  const dl = R.h("button", { class: "btn accent small", type: "button" }, "Descargar los elegidos (una imagen)");
+  dl.addEventListener("click", async () => {
+    const sel = window.RutaED.bocetosElegidos(d);
+    if (!sel.length){ selMsg.textContent = "Marcad antes al menos un boceto."; return; }
+    const url = await collage(sel);
+    const a = document.createElement("a"); a.href = url; a.download = "ed-bocetos.jpg"; document.body.append(a); a.click(); a.remove();
+    selMsg.textContent = "Descargado ed-bocetos.jpg. El prompt A1 del LAB le pide a Claude Code que lo mueva a la carpeta bocetos/ y lo mire; en el chat de Claude, adjuntadlo.";
+  });
+  box.append(R.h("p", { class: "sec-label", text: "Elegid los bocetos que tiene que tener en cuenta Claude (podéis marcar varios)" }), gal, R.h("div", { class: "chips" }, dl, selMsg));
+  function paint(){
+    gal.replaceChildren();
+    const all = bocetosDisponibles(d);
+    d.selBocetos = d.selBocetos.filter(id => all.some(x => x.id === id));
+    if (!all.length){ gal.append(R.h("p", { class: "tb-help", text: "Todavía no hay bocetos: dibujad en el móvil, abajo a mano, o traed los del Crazy 8s (estación 4)." })); return; }
+    const groups = {};
+    all.forEach(x => { const g = x.origen.startsWith("Crazy") ? (x.id.startsWith("c8m") ? "Crazy 8s · bocetos de los móviles" : "Crazy 8s · viñetas del equipo") : "Wireframe"; (groups[g] = groups[g] || []).push(x); });
+    Object.entries(groups).forEach(([g, items]) => {
+      const row = R.h("div", { class: "row" });
+      items.forEach(x => {
+        const id = "bs-" + x.id.replace(/[^a-z0-9]/gi, "_");
+        const cb = R.h("input", { type: "checkbox", id }); cb.checked = d.selBocetos.includes(x.id);
+        cb.addEventListener("change", () => { d.selBocetos = d.selBocetos.filter(v => v !== x.id); if (cb.checked) d.selBocetos.push(x.id); R.save(); count(); });
+        row.append(R.h("figure", null, R.h("img", { src: x.img, alt: x.titulo }), R.h("figcaption", { text: `${x.titulo} · ${x.origen}` }), R.h("label", { for: id, style: "font-size:12.5px;display:flex;gap:6px;align-items:center" }, cb, "Usar")));
+      });
+      gal.append(R.h("div", { class: "per" }, R.h("h4", { text: `${g} · ${items.length}` }), row));
+    });
+    count();
+  }
+  function count(){ const n = window.RutaED.bocetosElegidos(d).length; selMsg.textContent = n ? `${n} boceto(s) elegido(s): entran en el wireframe, el CLAUDE.md y los prompts del prototipo.` : ""; }
+  paint();
+  return { paint };
+};
+
 /* ---------- móvil: página propia ---------- */
 R.mobile.crazy8 = function (){
   const qs = new URLSearchParams(location.search);
-  const DKEY = "ruta-c8-movil";
-  let st = { team: (qs.get("equipo") || "").toUpperCase(), pin: "", name: "", foco: "", members: [], i: 0, bocetos: Array.from({ length: N }, () => ({ img: "", titulo: "" })) };
+  const WF = qs.get("modo") === "wf", NB = WF ? 3 : N, KF = WF ? keyForWF : keyFor;
+  const DKEY = WF ? "ruta-wf-movil" : "ruta-c8-movil";
+  let st = { team: (qs.get("equipo") || "").toUpperCase(), pin: "", name: "", foco: "", members: [], i: 0, bocetos: Array.from({ length: NB }, () => ({ img: "", titulo: "" })) };
   try { const sv = JSON.parse(localStorage.getItem(DKEY) || "null"); if (sv && sv.team === st.team) st = Object.assign(st, sv, { pin: "" }); } catch (e){}
   const keep = () => { try { localStorage.setItem(DKEY, JSON.stringify(Object.assign({}, st, { pin: "" }))); } catch (e){} };
   const root = R.h("div", { class: "c8m-wrap" });
@@ -3453,7 +3550,7 @@ R.mobile.crazy8 = function (){
   const H = R.h;
 
   function screenLogin(err){
-    root.replaceChildren(H("h1", { text: "Crazy 8s en el móvil" }), H("p", { class: "tb-help", text: "8 bocetos, 1 minuto cada uno. Feo y rápido: cuenta la idea, no el dibujo." }));
+    root.replaceChildren(H("h1", { text: WF ? "Boceto del wireframe en el móvil" : "Crazy 8s en el móvil" }), H("p", { class: "tb-help", text: WF ? "Hasta 3 bocetos de la pantalla principal, de arriba abajo: cajas para los bloques, el titular y el botón. Sin diseño." : "8 bocetos, 1 minuto cada uno. Feo y rápido: cuenta la idea, no el dibujo." }));
     const team = H("input", { id: "m-team", type: "text", value: st.team, autocomplete: "off", "aria-label": "Código de equipo" });
     const pin = H("input", { id: "m-pin", type: "password", autocomplete: "off", "aria-label": "PIN del equipo" });
     const go = H("button", { class: "btn primary", type: "button" }, "Entrar");
@@ -3481,7 +3578,7 @@ R.mobile.crazy8 = function (){
     const go = H("button", { class: "btn primary", type: "button" }, "Empezar a dibujar");
     go.addEventListener("click", () => { st.name = nm.value.trim(); if (!st.name) return; keep(); screenDraw(); });
     root.append(H("div", { class: "c8m-card" }, st.members.length ? chips : null, H("label", { for: "m-name", text: "Tu nombre (tal cual está en el equipo)" }), nm,
-      st.foco ? H("p", { class: "tb-help" }, H("b", { text: "Qué dibujar: " }), st.foco) : H("p", { class: "tb-help", text: "Dibujad 8 variantes de la pantalla o el momento clave de vuestra solución." }), go));
+      WF ? H("p", { class: "tb-help" }, H("b", { text: "Qué dibujar: " }), "la pantalla principal del prototipo, de arriba abajo (menú, titular, beneficios, formulario, pie). Si queréis, una segunda y tercera pantalla.") : st.foco ? H("p", { class: "tb-help" }, H("b", { text: "Qué dibujar: " }), st.foco) : H("p", { class: "tb-help", text: "Dibujad 8 variantes de la pantalla o el momento clave de vuestra solución." }), go));
   }
   function screenDraw(){
     stop();
@@ -3489,7 +3586,7 @@ R.mobile.crazy8 = function (){
     root.replaceChildren();
     const time = H("span", { class: "c8m-time", text: "1:00" });
     const auto = H("button", { class: "btn small", type: "button" }, "▶ Reloj");
-    root.append(H("div", { class: "c8m-bar" }, H("b", { text: `Boceto ${i + 1} de ${N} · ${st.name}` }), time, auto));
+    root.append(H("div", { class: "c8m-bar" }, H("b", { text: `Boceto ${i + 1} de ${NB} · ${st.name}` }), time, WF ? null : auto));
     if (st.foco) root.append(H("p", { class: "tb-help", style: "margin:0", text: st.foco }));
     const W = Math.min(innerWidth - 32, 520), Hh = Math.round(W * 4 / 3), dpr = Math.min(2, devicePixelRatio || 1);
     const cv = H("canvas", { class: "c8m-canvas", width: Math.round(W * dpr), height: Math.round(Hh * dpr), "aria-label": `Lienzo del boceto ${i + 1}` });
@@ -3518,12 +3615,12 @@ R.mobile.crazy8 = function (){
     gom.addEventListener("click", () => { erase = true; gom.setAttribute("aria-pressed", "true"); pen.setAttribute("aria-pressed", "false"); });
     clr.addEventListener("click", () => { bg(); bo.img = ""; dirty = false; keep(); });
     const prev = H("button", { class: "btn", type: "button", disabled: i === 0 }, "◂");
-    const next = H("button", { class: "btn primary", type: "button" }, i < N - 1 ? "Siguiente ▸" : "Ver mis 8 bocetos ▸");
+    const next = H("button", { class: "btn primary", type: "button" }, i < NB - 1 ? "Siguiente ▸" : (WF ? "Ver mis bocetos ▸" : "Ver mis 8 bocetos ▸"));
     prev.addEventListener("click", () => { saveImg(); st.i = Math.max(0, i - 1); keep(); screenDraw(); });
-    next.addEventListener("click", () => { saveImg(); if (i < N - 1){ st.i = i + 1; keep(); screenDraw(); if (running) start(); } else screenReview(); });
+    next.addEventListener("click", () => { saveImg(); if (i < NB - 1){ st.i = i + 1; keep(); screenDraw(); if (running) start(); } else screenReview(); });
     root.append(cv, H("div", { class: "c8m-bar" }, H("span", { class: "chips" }, pen, gom, clr), H("span", { class: "chips" }, prev, next)), title);
     const paintT = () => { const m = Math.floor(left / 60), s = left % 60; time.textContent = `${m}:${String(s).padStart(2, "0")}`; time.classList.toggle("low", left <= 10); };
-    function start(){ stop(); running = true; auto.textContent = "⏸ Pausa"; timer = setInterval(() => { left--; paintT(); if (left <= 0){ beep(); left = SECS; if (st.i < N - 1){ saveImg(); st.i++; keep(); screenDraw(); start(); } else { stop(); saveImg(); screenReview(); } } }, 1000); }
+    function start(){ stop(); running = true; auto.textContent = "⏸ Pausa"; timer = setInterval(() => { left--; paintT(); if (left <= 0){ beep(); left = SECS; if (st.i < NB - 1){ saveImg(); st.i++; keep(); screenDraw(); start(); } else { stop(); saveImg(); screenReview(); } } }, 1000); }
     auto.addEventListener("click", () => { if (running){ stop(); auto.textContent = "▶ Reloj"; } else start(); });
     left = SECS; paintT();
   }
@@ -3531,7 +3628,7 @@ R.mobile.crazy8 = function (){
   let ac = null; function beep(){ try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); const g = ac.createGain(), o = ac.createOscillator(); o.frequency.value = 880; g.gain.value = 0.1; o.connect(g); g.connect(ac.destination); o.start(); o.stop(ac.currentTime + 0.2); } catch (e){} if (navigator.vibrate) try { navigator.vibrate(200); } catch (e){} }
   function screenReview(msg){
     stop();
-    root.replaceChildren(H("h1", { text: "Tus 8 bocetos" }));
+    root.replaceChildren(H("h1", { text: WF ? "Tus bocetos del wireframe" : "Tus 8 bocetos" }));
     root.append(H("div", { class: "c8m-grid" }, ...st.bocetos.map((b, i) => { const el = b.img ? H("img", { src: b.img, alt: `Boceto ${i + 1}` }) : H("div", { class: "ph", text: String(i + 1) }); el.addEventListener("click", () => { st.i = i; screenDraw(); }); return el; })));
     const pin = H("input", { id: "m-pin2", type: "password", autocomplete: "off", placeholder: "PIN del equipo", style: "width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:16px var(--f-body);background:var(--bg)" });
     pin.value = st.pin || "";
@@ -3541,12 +3638,12 @@ R.mobile.crazy8 = function (){
       st.pin = pin.value.trim() || st.pin;
       if (!st.pin){ m.className = "cmsg"; m.textContent = "Escribid el PIN del equipo."; return; }
       send.disabled = true; m.className = "tb-help"; m.textContent = "Enviando…";
-      const key = keyFor(st.team, st.name);
+      const key = KF(st.team, st.name);
       try {
         const cur = await R.cloudCall({ a: "load", team: key, pin: st.pin });
         if (!cur.ok){ send.disabled = false; m.className = "cmsg"; m.textContent = cur.error === "pin" ? "El PIN no coincide." : "No se pudo enviar (" + cur.error + ")."; return; }
-        const r = await R.cloudCall({ a: "save", team: key, pin: st.pin, base: cur.version || 0, data: { v: 1, isExample: false, project: { nombre: "Crazy 8s · " + st.name, equipo: st.team }, st: {}, c8: { nombre: st.name, foco: st.foco, bocetos: st.bocetos } }, info: { proyecto: "Crazy 8s de " + st.name + " (" + st.team + ")", progreso: Math.round(100 * st.bocetos.filter(b => b.img).length / N), estacion: "Crazy 8s móvil" } });
-        if (r.ok){ screenReview({ ok: true, text: "Enviado ✓. Ya podéis traerlos en el portátil del equipo (estación 4 · «Traer bocetos de los móviles»)." }); }
+        const r = await R.cloudCall({ a: "save", team: key, pin: st.pin, base: cur.version || 0, data: { v: 1, isExample: false, project: { nombre: (WF ? "Wireframe · " : "Crazy 8s · ") + st.name, equipo: st.team }, st: {}, c8: { nombre: st.name, foco: st.foco, bocetos: st.bocetos } }, info: { proyecto: "Crazy 8s de " + st.name + " (" + st.team + ")", progreso: Math.round(100 * st.bocetos.filter(b => b.img).length / N), estacion: "Crazy 8s móvil" } });
+        if (r.ok){ screenReview({ ok: true, text: WF ? "Enviado ✓. Ya podéis traerlos en el portátil del equipo (estación 8 · Wireframe, paso 4 · «Traer bocetos de los móviles»)." : "Enviado ✓. Ya podéis traerlos en el portátil del equipo (estación 4 · «Traer bocetos de los móviles»)." }); }
         else { send.disabled = false; m.className = "cmsg"; m.textContent = "No se pudo enviar (" + r.error + "). Volved a pulsar."; }
       } catch (e){ send.disabled = false; m.className = "cmsg"; m.textContent = "Sin conexión. Volved a pulsar cuando tengáis wifi."; }
     });
@@ -4486,7 +4583,9 @@ R.deliverable({
     });
     if (String(d.cinco || "").trim()) L.push("", `En 5 segundos debe entenderse: ${d.cinco.trim()}`);
     if (String(d.accion || "").trim()) L.push(`Acción principal: ${d.accion.trim()}`);
-    if (d.boceto) L.push("Además: un boceto a mano dibujado en la ruta.");
+    const selB = window.RutaED && window.RutaED.bocetosElegidos ? window.RutaED.bocetosElegidos(d) : [];
+    if (selB.length) L.push("", `Bocetos elegidos por el equipo (${selB.length}), todos en la imagen ed-bocetos.jpg, numerados: ` + selB.map((x, i) => `${i + 1}) ${x.titulo} [${x.origen}]`).join(" · ") + ". Respetad su estructura; si se contradicen con la lista de bloques, manda la lista.");
+    else if (d.boceto) L.push("Además: un boceto a mano dibujado en la ruta.");
     return L.join("\n");
   }
   window.RutaED = window.RutaED || {};
@@ -4755,8 +4854,11 @@ R.deliverable({
       R.field(r3, { label: "La acción principal (una sola)", rows: 2 }, d, "accion");
 
       /* ---------- 4. Boceto a mano ---------- */
-      b = R.step(el, 4, "Boceto a mano (opcional)", "Si os resulta más rápido, dibujad aquí con el dedo o el ratón la pantalla principal antes de montarla por bloques. Sirve para discutir en equipo; Claude trabajará con la lista de bloques.");
+      b = R.step(el, 4, "Bocetos de la pantalla (móvil, Crazy 8s o a mano)", "Dibujad la pantalla principal en el móvil con el QR (como en el Crazy 8s) o aquí abajo a mano, y marcad los bocetos que Claude tiene que tener en cuenta: los nuevos y los del Crazy 8s. Podéis elegir varios.");
+      const wm = R.wireMovil(b, d);
+      b.append(R.h("p", { class: "sec-label", text: "O dibujad aquí a mano (con el dedo o el ratón)" }));
       R.draw(b, { label: "Boceto a mano", width: 360, height: 300 }, d, "boceto");
+      b.addEventListener("pointerup", () => setTimeout(() => wm && wm.paint(), 300));
     },
     progress(d){
       ensure(d);
@@ -4908,7 +5010,7 @@ Pídeme confirmación antes de cada comando que cambie algo en GitHub. Nunca use
     const ct = R.cloudTeam && R.cloudTeam();
     const notas = T(d.cruzada) || "[PEGAD AQUÍ VUESTRAS NOTAS DE LA REVISIÓN CRUZADA]";
     return [
-      ["Sprint A · 45′", "A1 · Plan", "5′", `Lee CLAUDE.md. Antes de escribir código, propón un plan breve: estructura de secciones siguiendo el wireframe, textos de cada bloque (marcando lo que falte), paleta y tipografía coherentes con el brief, y cómo vamos a medir el CTA. No crees ni modifiques archivos todavía: espera nuestro OK.`,
+      ["Sprint A · 45′", "A1 · Plan", "5′", `Lee CLAUDE.md.${(window.RutaED.bocetosElegidos && R.state.st.wireframe && window.RutaED.bocetosElegidos(R.state.st.wireframe).length) ? " Antes de nada: busca ed-bocetos.jpg en mi carpeta Descargas, muévelo a la carpeta bocetos/ de este proyecto (créala si no existe) y míralo: son los bocetos que hemos elegido, numerados." : ""} Antes de escribir código, propón un plan breve: estructura de secciones siguiendo el wireframe, textos de cada bloque (marcando lo que falte), paleta y tipografía coherentes con el brief, y cómo vamos a medir el CTA. No crees ni modifiques archivos todavía: espera nuestro OK.`,
         "<b>Qué hace:</b> Claude os enseña el plan y <b>no toca nada</b> hasta que le digáis OK. Leedlo en equipo; si algo no cuadra con el wireframe, decídselo. Decide el Product Owner."],
       ["Sprint A · 45′", "A2 · Construir y publicar", "30′", buildTask(d) + "\n\n" + buildMaterial(d, R) + pub,
         "<b>Qué hace:</b> Claude crea el <code>index.html</code> con vuestros textos y lo publica en GitHub Pages; al final os da la URL. Os pedirá permiso antes de cada comando: leed qué va a hacer y aceptad."],
