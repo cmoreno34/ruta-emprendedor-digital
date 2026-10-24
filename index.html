@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 24/10/2026 11:50</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 24/10/2026 12:01</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -4928,7 +4928,7 @@ R.deliverable({
 (() => {
   const RUTAS = {
     web: { l: "Web (landing de validación)", d: "Una landing de una sola página para el smoke test: titular, cómo funciona, CTA y lista de espera. Es la opción más habitual y la que mejor se mide.", what: "una landing de una sola página (index.html)" },
-    app: { l: "App (prototipo clicable)", d: "Las 3–5 pantallas clave de la app en un único HTML, con botones que pasan de una pantalla a otra y datos ficticios. Sirve para tests de usabilidad.", what: "un prototipo clicable de app en un único index.html (una sección por pantalla, solo una visible a la vez, navegación con botones, marco de móvil de 375 px, sin backend)" },
+    app: { l: "App (web + app instalable en el móvil)", d: "Dos versiones: una web (landing) que presenta la app con su CTA, y la app con las 3–5 pantallas clave, que se instala en el móvil desde el navegador («Añadir a pantalla de inicio») y se abre a pantalla completa. Datos ficticios, sin backend. Sirve para tests de usabilidad y para medir interés.", what: "dos versiones: (1) la web, una landing en index.html en la raíz que presenta la app, con el CTA «Probar la app» que lleva a app/ y un bloque «Cómo instalarla en el móvil» (Android: Chrome → menú ⋮ → Instalar aplicación o Añadir a pantalla de inicio; iPhone: Safari → botón Compartir → Añadir a pantalla de inicio); y (2) la app instalable en app/: app/index.html con una sección por pantalla (solo una visible a la vez, navegación con botones, diseño de 375 px a pantalla completa, sin backend), app/manifest.webmanifest (name, short_name, start_url ./, display standalone, theme_color, background_color e iconos), iconos app/icon-192.png y app/icon-512.png (si no puedes generar PNG, usa app/icon.svg y avísanos), <link rel=\"manifest\">, meta theme-color y apple-mobile-web-app-capable, y un service worker mínimo app/sw.js registrado desde app/index.html. El medidor del curso va en las dos versiones" },
     campana: { l: "Campaña (piezas + landing mínima)", d: "Las piezas de lanzamiento (anuncio de Instagram, carrusel, email) maquetadas en HTML, más una landing mínima a la que apuntan. Para equipos cuyo reto es sobre todo de captación.", what: "un kit de campaña en un único index.html: un anuncio de Instagram 4:5 (1080×1350) maquetado en HTML/CSS, un carrusel de 3 diapositivas, un email de lanzamiento (asunto, preheader y cuerpo) y una landing mínima con el CTA" }
   };
   const CHECKS = [
@@ -4963,6 +4963,16 @@ Sube los cambios directamente (commit y push), sin pedirme confirmación; solo a
   const projSlug = R => slug(T(R.project.nombre) || T(R.project.equipo) || "proyecto");
   const publicar = (d, R) => PUBLICAR.split("⟨proyecto⟩").join(projSlug(R)).split("⟨usuario⟩").join(ghUser(d));
   const pagesUrl = (d, R) => `https://${ghUser(d)}.github.io/ed-${projSlug(R)}/`;
+  window.RutaED = window.RutaED || {};
+  /* URL publicadas del prototipo: la que guardó el equipo (paso 6) o la calculada con su usuario de GitHub */
+  window.RutaED.protoLinks = () => {
+    const pd = (R.state.st && R.state.st.prototipo) || {};
+    let web = T(pd.url) || (T(pd.ghUser) ? pagesUrl(pd, R) : "");
+    if (web && !/\/$/.test(web) && !/\.html?$/.test(web)) web += "/";
+    if (pd.ruta === "app" && web){ const base = web.replace(/app\/?$/, ""); return { ruta: "app", web: base, app: base + "app/" }; }
+    return { ruta: pd.ruta || "web", web, app: "" };
+  };
+  window.RutaED.installHtml = app => `<b>Instalar la app en el móvil</b> (para probarla como una app de verdad)${app ? `: abrid <a href="${R.esc(app)}" target="_blank" rel="noopener">${R.esc(app)}</a>` : ""}<br>· <b>Android (Chrome):</b> menú <b>⋮</b> → <b>Instalar aplicación</b> o <b>Añadir a pantalla de inicio</b> → Instalar.<br>· <b>iPhone (Safari):</b> botón <b>Compartir</b> (cuadrado con flecha) → <b>Añadir a pantalla de inicio</b> → Añadir.<br>Después se abre desde el icono, a pantalla completa. Si no aparece «Instalar», funciona igual desde el navegador.`;
   const arranque = (d, R) => `Prepara el proyecto en GitHub desde ya, sin pedirme confirmación en cada paso (solo avísame si algo falla):
 1. Crea en esta carpeta el archivo CLAUDE.md con exactamente el contenido de abajo (si ya existe, sustitúyelo) y un .gitignore que excluya datos/, .env y cualquier archivo con datos personales.
 2. Si la carpeta no es un repositorio git, inicialízalo con la rama main y haz el primer commit.
@@ -5098,7 +5108,7 @@ ${claudeMd(d, R)}`;
         "<b>Qué es:</b> diez minutos en los que <b>otro equipo prueba vuestro prototipo como si fuera un cliente</b>, y vosotros el suyo. Sirve para ver lo que vosotros ya no veis.<br><b>Cómo (en rueda: el equipo 1 revisa el prototipo del 2, el 2 el del 3 y el 3 el del 1):</b><br>1 · Pasaos la URL (o dejad el portátil).<br>2 · <b>2′ · Test de 5 segundos:</b> una persona del otro equipo mira la primera pantalla 5 segundos y responde: ¿qué es?, ¿para quién?, ¿qué harías ahora?<br>3 · <b>5′ · Tarea en voz alta:</b> le pedís «apúntate a la lista de espera» (o la acción clave) y lo hace pensando en voz alta. Vosotros <b>observáis y anotáis sin ayudar ni explicar</b>: dónde duda, qué no entiende, qué dice.<br>4 · <b>3′ · Feedback:</b> 3 cosas que funcionan, 3 que confunden o frenan y 1 cambio prioritario.<br>5 · Escribid vuestras notas aquí abajo y copiad el prompt: Claude las convierte en una lista de arreglos para el Sprint B. Decide el Product Owner cuáles se aplican.",
         { key: "cruzada", label: "Notas de la revisión cruzada", hint: "lo que visteis y lo que os dijeron; sin nombres", ph: "5 segundos: pensó que era una web de pisos, no de compañeros.\nTarea: tardó en encontrar el botón; dudó en «test de convivencia».\nFunciona: titular, colores, móvil.\nConfunde: precio, qué pasa al apuntarse, el test.\nCambio prioritario: decir que es gratis junto al botón." }],
       ["Sprint B · 20′", "B1 · Medidor y lista de espera", "15′",
-        `Vamos a medir el prototipo sin herramientas externas, con el medidor del curso:\n1) Pega este bloque, tal cual, justo antes de </head> en index.html:\n\n${medidor(R)}\n\n2) Llama a medir("cta") cada vez que se pulse un botón de CTA.\n3) Lista de espera: pide solo el email (como mucho una pregunta más del wireframe) y una casilla obligatoria de consentimiento. Al enviarlo, llama a medir("registro", { email: <el email> }) y cambia el formulario por un mensaje honesto: «¡Gracias! Esto es un prototipo de un proyecto de clase del Máster en Marketing Digital (CEU). Si sale adelante, te avisaremos.» Bajo el botón, una línea de privacidad: el email solo se usa para este experimento, solo lo ve el profesor y se borra al terminar el curso.\n4) Si hay botón Premium (fake door), llama a medir("premium") y muestra «Aún no está disponible: te avisaremos».\n5) No añadas cookies, otros scripts ni servicios externos.\nAl terminar, explícanos en 3 líneas cómo comprobar que funciona (con ?prueba=1 al final de la URL nuestras pruebas no cuentan).` + pub,
+        `Vamos a medir el prototipo sin herramientas externas, con el medidor del curso:\n1) Pega este bloque, tal cual, justo antes de </head> en index.html (y también en app/index.html si el prototipo tiene versión app):\n\n${medidor(R)}\n\n2) Llama a medir("cta") cada vez que se pulse un botón de CTA.\n3) Lista de espera: pide solo el email (como mucho una pregunta más del wireframe) y una casilla obligatoria de consentimiento. Al enviarlo, llama a medir("registro", { email: <el email> }) y cambia el formulario por un mensaje honesto: «¡Gracias! Esto es un prototipo de un proyecto de clase del Máster en Marketing Digital (CEU). Si sale adelante, te avisaremos.» Bajo el botón, una línea de privacidad: el email solo se usa para este experimento, solo lo ve el profesor y se borra al terminar el curso.\n4) Si hay botón Premium (fake door), llama a medir("premium") y muestra «Aún no está disponible: te avisaremos».\n5) No añadas cookies, otros scripts ni servicios externos.\nAl terminar, explícanos en 3 líneas cómo comprobar que funciona (con ?prueba=1 al final de la URL nuestras pruebas no cuentan).` + pub,
         "<b>Qué es:</b> un <b>medidor casero del curso</b>, sin cuentas ni instalaciones. Es un trozo de código que Claude pega en vuestra página: cada vez que alguien la abre, pulsa el botón, se apunta o pulsa Premium, la página lo apunta en la nube del curso (la misma que guarda esta Ruta), con el canal de origen (UTM). <b>Dónde veis los números:</b> en la estación 11 · Validación cuantitativa, paso 5, botón «Traer datos del prototipo». Los emails no los veis vosotros: solo el profesor, y se borran al terminar el curso. <b>Vuestras pruebas:</b> abrid la página con <code>?prueba=1</code> al final para no inflar los datos." + (ct ? ` Vuestro código de equipo (<b>${R.esc(ct.team)}</b>) ya va dentro del prompt.` : " <span class=\"pt-warn\">⚠ Conectad antes el equipo a la nube (barra de arriba): el prompt necesita vuestro código de equipo.</span>")],
       ["Sprint B · 20′", "B2 · Enlaces con UTM", "5′", `Genera los enlaces con UTM para ${url}: Instagram (utm_source=instagram, utm_medium=social), WhatsApp de grupos de máster (utm_source=whatsapp, utm_medium=mensajeria), LinkedIn (utm_source=linkedin, utm_medium=social) y email (utm_source=email, utm_medium=email), todos con utm_campaign=${camp}. Devuélvelos en una tabla (canal, enlace completo) y recuérdanos qué número mirar en cada canal para H2. Guarda la tabla en utm.md dentro de la carpeta.` + pub,
         "<b>Qué es:</b> la misma URL con etiquetas al final (<code>?utm_source=instagram…</code>) para saber <b>de qué canal viene cada visita</b>. Compartid cada enlace solo en su canal; el medidor lee las etiquetas solo y en la estación 11 veréis visitas y registros por canal."]
@@ -5277,6 +5287,7 @@ ${claudeMd(d, R)}`;
       R.tip(b, "Si Claude Code se lía, no sigáis parcheando: pedidle que <b>explique qué ha hecho</b> y volved al último paso que funcionaba. Y no peguéis claves ni contraseñas en el chat.", "warn");
 
       /* ---------- 6. Checklist y URL ---------- */
+      if (d.ruta === "app") R.tip(b, "<b>Itinerario app:</b> pedid a Claude que, al publicar, os dé las dos URL: la web (raíz) y la app (…/app/). Probad a instalarla en un móvil antes del test.<br>" + window.RutaED.installHtml(window.RutaED.protoLinks().app));
       b = R.step(el, 6, "Checklist de calidad y URL publicada", "Antes de compartir el enlace, repasad la lista. Las marcadas con ★ son imprescindibles: sin ellas el experimento no mide bien o no es ético.");
       const stat = R.h("div");
       const cks = R.h("div", { class: "pt-checks" });
@@ -5503,7 +5514,7 @@ ${claudeMd(d, R)}`;
     const hoy = first(sm.hoy) || first(lean.alternativas);
     const tareas = [
       { t: "Primera impresión: mira la primera pantalla durante 5 segundos y cuéntanos qué es, para quién es y qué harías ahora.", exito: "Lo explica con sus palabras y coincide con: " + cinco },
-      { t: `Ponte en el lugar de nuestro público (${seg})${cuando ? ". Situación: «" + cuando + "»" : ""}${quiero ? ". Lo que quieres: " + quiero : ""}. Usa la web para conseguirlo.`, exito: `Llega a «${accion}» sin ayuda en menos de 2 minutos` },
+      { t: `Ponte en el lugar de nuestro público (${seg})${cuando ? ". Situación: «" + cuando + "»" : ""}${quiero ? ". Lo que quieres: " + quiero : ""}. Usa ${((st.prototipo || {}).ruta === "app") ? "la app" : "la web"} para conseguirlo.`, exito: `Llega a «${accion}» sin ayuda en menos de 2 minutos` },
       hayPrecio
         ? { t: "Antes de decidirte quieres saber cuánto te costaría y qué incluye. Averígualo en la web.", exito: "Encuentra el precio y explica con sus palabras qué incluye la versión de pago" }
         : { t: "Decide si te apuntarías hoy y cuéntanos qué información te falta para hacerlo.", exito: "Toma una decisión y nombra al menos una duda concreta" }
@@ -5735,7 +5746,7 @@ details.cl-opt .in{display:flex;flex-direction:column;gap:10px;min-width:0}
       let b = R.step(el, 1, "Guion del test (se genera solo)", "La web prepara el guion con lo que ya tenéis: el prototipo publicado, el wireframe, el trabajo por hacer (JTBD) y lo que salió en las entrevistas de la estación 2. Revisadlo y ajustadlo: 3 tareas (escenarios, sin decir dónde hacer clic) y 6 preguntas sobre hechos pasados.");
       if (!d.tareas.some(t => T(t.t)) && !d.preguntas.some(q => T(q.q))){ const g0 = autoGuion(); const old0 = d.tareas.slice(); d.tareas.splice(0, d.tareas.length, ...g0.tareas.map((t, i) => ({ t: t.t, exito: t.exito, r: (old0[i] && old0[i].r) || [] }))); d.preguntas.splice(0, d.preguntas.length, ...g0.preguntas); ensure(d); R.save(); }
       {
-        const pi = prevInfo(), url = T((R.state.st.prototipo || {}).url);
+        const pi = prevInfo(), lk = window.RutaED.protoLinks ? window.RutaED.protoLinks() : {}, url = lk.app || lk.web || T((R.state.st.prototipo || {}).url);
         const box = H("div", { class: "tip" });
         box.innerHTML = "<b>Lo que ya sabéis (estación 2) y lo que probáis:</b>" +
           (url ? `<br>Prototipo: <a href="${R.esc(url)}" target="_blank" rel="noopener">${R.esc(url)}</a>` : "<br>Prototipo: <i>todavía sin URL (estación 9)</i>") +
@@ -5806,6 +5817,24 @@ details.cl-opt .in{display:flex;flex-direction:column;gap:10px;min-width:0}
       /* 2 · test cruzado y notas */
       b = R.step(el, 2, "Test cruzado y notas", "Probáis el prototipo con 2 personas de otro equipo (≈ 8′ cada una) y ellos lo hacen con el vuestro. No hay tiempo para más, y no hace falta: con 2 personas ya aparece cerca de la mitad de los problemas de usabilidad (1 − 0,69² ≈ 52 %), y con 3, unos 2 de cada 3.");
       R.timer(b, { minutes: 20, label: "Test cruzado · 2 × 8′ y cambio de papeles" });
+      {
+        const lk = window.RutaED.protoLinks ? window.RutaED.protoLinks() : {};
+        const box = H("div", { class: "cl-note", style: "background:var(--panel)" }, H("h4", { text: "El prototipo para el test" }));
+        if (!lk.web) box.append(H("div", { class: "tip warn", text: "Todavía no hay URL del prototipo: guardadla en la estación 9 · paso 6 (o poned allí vuestro usuario de GitHub)." }));
+        else {
+          const links = lk.app ? [["Web (landing)", lk.web], ["App (para instalar)", lk.app]] : [["Prototipo", lk.web]];
+          const row = H("div", { style: "display:flex;gap:16px;flex-wrap:wrap" });
+          links.forEach(([l, u]) => {
+            const qr = H("div", { style: "background:#fff;padding:8px;border-radius:10px;border:1px solid var(--line);width:146px;height:146px" });
+            row.append(H("div", { style: "display:flex;flex-direction:column;gap:4px;max-width:240px" }, H("b", { text: l }), qr, H("a", { href: u, target: "_blank", rel: "noopener", style: "word-break:break-all;font-size:12.5px", text: u })));
+            const go = () => { try { new QRCode(qr, { text: u, width: 130, height: 130, correctLevel: QRCode.CorrectLevel.M }); } catch (e){ qr.textContent = "Usad el enlace."; } };
+            if (window.QRCode) go(); else { const sc = document.createElement("script"); sc.src = "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"; sc.onload = go; sc.onerror = () => { qr.textContent = "Usad el enlace."; }; document.head.append(sc); }
+          });
+          box.append(H("p", { class: "tb-help", style: "margin:0", text: "El participante lo abre en su móvil escaneando el QR (con ?prueba=1 no cuenta en el medidor: añadidlo si queréis que el test no sume visitas)." }), row);
+          if (lk.app){ const ins = H("div", { class: "tip" }); ins.innerHTML = window.RutaED.installHtml(lk.app); box.append(ins); }
+        }
+        b.append(box);
+      }
       R.tip(b, "<b>Cómo, en anillo (1→2→3→1):</b> vienen 2 personas del equipo siguiente y prueban vuestro prototipo <b>de una en una</b> (≈ 8′ cada una) en un móvil. De vuestro equipo, una persona <b>modera</b> (lee las tareas y <b>no ayuda</b>) y otra <b>anota</b>; el participante piensa en voz alta. Orden: tareas → cuestionario SUS → preguntas. Después, vosotros hacéis de participantes en el equipo anterior.");
       who(b, "hand", "Lo único que escribís a mano: <b>notas libres por participante</b>. Qué hizo en cada tarea, dónde se atascó y frases literales entre «comillas». Sin nombres reales: P1, P2, P3.");
       const notesBox = H("div", { class: "cl-notes" });
@@ -6616,7 +6645,7 @@ details.cl-opt .in{display:flex;flex-direction:column;gap:10px;min-width:0}
       const st = R.state.st || {};
       const concept = st.ideas && st.ideas.concept && typeof st.ideas.concept === "object" ? st.ideas.concept : {};
       const conceptTxt = () => [concept.nombre, concept.frase, concept.beneficio, concept.razon, concept.precio].map(T).filter(Boolean).join(". ").replace(/\.\./g, ".");
-      const protoUrl = () => T(st.prototipo && st.prototipo.url);
+      const protoUrl = () => { const lk = window.RutaED && window.RutaED.protoLinks ? window.RutaED.protoLinks() : {}; return lk.app || lk.web || T(st.prototipo && st.prototipo.url); };
       const surveyUrl = team => R.encuestaUrl ? R.encuestaUrl(team) : location.origin + location.pathname + "?movil=encuesta&equipo=" + encodeURIComponent(team);
       const classUrl = () => R.encuestasUrl ? R.encuestasUrl() : location.origin + location.pathname + "?movil=encuestas";
       /* confirmación en línea (confirm() no funciona en todos los navegadores incrustados) */
@@ -6725,6 +6754,7 @@ details.cl-opt .in{display:flex;flex-direction:column;gap:10px;min-width:0}
       const er = H("div", { class: "row2" }); b.append(er);
       encF.titulo = R.field(er, { label: "Título", single: true, ph: "Proyecto · 3 minutos sobre…" }, d.enc, "titulo");
       encF.protoUrl = R.field(er, { label: "URL del prototipo", hint: "estación 9; se enseña dentro de la encuesta", single: true, ph: "https://…github.io/…" }, d.enc, "protoUrl");
+      if (protoUrl() && T(d.enc.protoUrl) !== protoUrl()) er.append(H("div", { class: "chips" }, H("button", { class: "btn small", type: "button", on: { click: () => { d.enc.protoUrl = protoUrl(); encF.protoUrl.value = d.enc.protoUrl; R.save(); } } }, "Usar la URL publicada (estación 9): " + protoUrl())));
       encF.protoTexto = R.field(b, { label: "Concepto que se enseña junto al prototipo", hint: "60–90 palabras, neutro", rows: 3 }, d.enc, "protoTexto");
       encF.intro = R.field(b, { label: "Introducción", hint: "anónima, 3 minutos, que contesten como ellos mismos", rows: 2 }, d.enc, "intro");
       encF.gracias = R.field(b, { label: "Mensaje final", single: true, ph: "¡Gracias! Tu respuesta nos ayuda a decidir." }, d.enc, "gracias");
@@ -7248,6 +7278,7 @@ R.mobile.encuesta = function (){
       box.append(H("div", { class: "enc-phone" }, H("iframe", { src: url, title: "Prototipo del equipo", loading: "lazy", referrerpolicy: "no-referrer" })),
         H("a", { class: "btn", href: url, target: "_blank", rel: "noopener", text: "Abrir el prototipo en otra pestaña ↗" }),
         H("p", { class: "tb-help", style: "margin:0", text: "Navega un minuto por él como si te lo hubieras encontrado en Instagram. Después vuelve aquí y sigue." }));
+      if (/\/app\/?$/.test(url)) box.append(H("p", { class: "tb-help", style: "margin:0", text: "Es una app: si quieres, instálala. Android (Chrome): menú ⋮ → Instalar aplicación. iPhone (Safari): Compartir → Añadir a pantalla de inicio." }));
     }
     return box;
   }
