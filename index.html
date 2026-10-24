@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 24/10/2026 12:01</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 24/10/2026 12:09</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -5053,7 +5053,7 @@ ${claudeMd(d, R)}`;
       "- No inventes cifras, testimonios, logos ni premios. Si hace falta un dato, deja [DATO PENDIENTE] y avísanos.",
       "- Respeta el orden de bloques y los textos del wireframe; si propones cambios, explícalos antes de aplicarlos.",
       "- Pide confirmación antes de borrar o sobrescribir cualquier archivo.",
-      `- Publicas tú en GitHub Pages cuando te lo pidamos (bloque PUBLICAR): repositorio público ed-${projSlug(R)} en la cuenta ${ghUser(d)}, URL ${pagesUrl(d, R)}. No subas datos/, CSV de encuestas, transcripciones, .env, contraseñas ni claves; pide confirmación antes de cada comando que cambie algo en GitHub y nunca uses --force ni borres repositorios.`,
+      `- Publicas tú en GitHub Pages cada vez que terminamos un paso (bloque PUBLICAR): repositorio público ed-${projSlug(R)} en nuestra cuenta de GitHub (la enlazada con gh)${T(d.ghUser) ? ", URL " + pagesUrl(d, R) : ""}. Sube los cambios (commit y push) sin pedirnos confirmación; solo avísanos si algo falla. No subas datos/, CSV de encuestas, transcripciones, .env, contraseñas ni claves, y nunca uses --force ni borres repositorios.`,
       "- Trabaja por pasos (plan → construir → revisar) y, tras cada paso, resume en 3 líneas qué has hecho y qué falta.");
     if (T(d.extra)) L.push(...T(d.extra).split(/\r?\n/).map(s => s.trim()).filter(Boolean).map(s => s.startsWith("-") ? s : "- " + s));
     return L.join("\n");
@@ -8238,7 +8238,7 @@ R.deliverable({
           `2. Si el repositorio aún no existe en GitHub, créalo público con «gh repo create ed-${p} --public --source=. --remote=origin --push». Si ya existe, haz commit con un mensaje claro en castellano y «git push».`,
           `3. Si GitHub Pages no está activo, actívalo desde la rama main y la raíz con «gh api -X POST repos/${u}/ed-${p}/pages -f "source[branch]=main" -f "source[path]=/"» (si responde que ya existe, sigue).`,
           `4. Comprueba cada 20 segundos, durante un máximo de 5 minutos, que la web responde, y dame la URL final: https://${u}.github.io/ed-${p}/ (y la de la subcarpeta web/ o app/ si el prototipo está ahí).`,
-          "Pídeme confirmación antes de cada comando que cambie algo en GitHub. Nunca uses --force ni borres repositorios.",
+          "Sube los cambios (commit y push) sin pedirme confirmación; solo avísame si algo falla. Nunca uses --force ni borres repositorios.",
           "",
           `Al final dame las dos URL: antes (${bs}v1/) y después (${bs}), y comprueba que las dos responden.`
         ].join(NL);
