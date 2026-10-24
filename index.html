@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 24/10/2026 12:52</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 24/10/2026 12:56</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -4961,7 +4961,12 @@ No me pidas contraseñas ni tokens y no los guardes en ningún archivo.`;
 Sube los cambios directamente (commit y push), sin pedirme confirmación; solo avísame si algo falla. Nunca uses --force ni borres repositorios.`;
   const ghUser = d => T(d.ghUser).replace(/^@/, "") || "vuestro-usuario";
   const projSlug = R => slug(T(R.project.nombre) || T(R.project.equipo) || "proyecto");
-  const publicar = (d, R) => PUBLICAR.split("⟨proyecto⟩").join(projSlug(R)).split("⟨usuario⟩").join(ghUser(d));
+  const PUBLICAR_WEB = `Cuando termines, publica en GitHub:
+1. Haz commit con un mensaje claro en castellano y sube los cambios directamente a la rama main de este repositorio (si no puedes subir a main, súbelos a una rama y dime en una línea cómo fusionarla en main desde GitHub).
+2. No subas datos/, CSV de encuestas, transcripciones, .env, contraseñas ni claves.
+3. Recuérdame la URL de la web: https://⟨usuario⟩.github.io/ed-⟨proyecto⟩/ (y la de app/ si el prototipo tiene versión app). GitHub Pages tarda 1–5 minutos en actualizarse.
+Sube los cambios sin pedirme confirmación; solo avísame si algo falla. Nunca uses --force ni borres el repositorio.`;
+  const publicar = (d, R) => (d.modo === "navegador" ? PUBLICAR_WEB : PUBLICAR).split("⟨proyecto⟩").join(projSlug(R)).split("⟨usuario⟩").join(ghUser(d));
   const pagesUrl = (d, R) => `https://${ghUser(d)}.github.io/ed-${projSlug(R)}/`;
   window.RutaED = window.RutaED || {};
   /* URL publicadas del prototipo: la que guardó el equipo (paso 6) o la calculada con su usuario de GitHub */
@@ -4973,7 +4978,17 @@ Sube los cambios directamente (commit y push), sin pedirme confirmación; solo a
     return { ruta: pd.ruta || "web", web, app: "" };
   };
   window.RutaED.installHtml = app => `<b>Instalar la app en el móvil</b> (para probarla como una app de verdad)${app ? `: abrid <a href="${R.esc(app)}" target="_blank" rel="noopener">${R.esc(app)}</a>` : ""}<br>· <b>Android (Chrome):</b> menú <b>⋮</b> → <b>Instalar aplicación</b> o <b>Añadir a pantalla de inicio</b> → Instalar.<br>· <b>iPhone (Safari):</b> botón <b>Compartir</b> (cuadrado con flecha) → <b>Añadir a pantalla de inicio</b> → Añadir.<br>Después se abre desde el icono, a pantalla completa. Si no aparece «Instalar», funciona igual desde el navegador.`;
-  const arranque = (d, R) => `Prepara el proyecto en GitHub desde ya, sin pedirme confirmación en cada paso (solo avísame si algo falla):
+  const arranqueWeb = (d, R) => `Prepara este repositorio (ed-${projSlug(R)}) para el prototipo, sin pedirme confirmación en cada paso (solo avísame si algo falla):
+1. Crea en la raíz el archivo CLAUDE.md con exactamente el contenido de abajo (si ya existe, sustitúyelo) y un .gitignore que excluya datos/, .env y cualquier archivo con datos personales.
+2. Haz commit y súbelo directamente a la rama main (si no puedes subir a main, súbelo a una rama y dime en una línea cómo fusionarla en main desde GitHub).
+3. Recuérdame que active GitHub Pages en el repositorio (Settings → Pages → Deploy from a branch → main → / (root) → Save) y dame la URL que tendrá la web: https://<mi-usuario>.github.io/ed-${projSlug(R)}/.
+A partir de ahora, lee siempre el CLAUDE.md de este repositorio antes de trabajar y, cada vez que terminemos un paso, sube los cambios a main. Nunca uses --force ni borres el repositorio.
+
+CONTENIDO DEL CLAUDE.md:
+
+${claudeMd(d, R)}`;
+  const arranque = (d, R) => d.modo === "navegador" ? arranqueWeb(d, R) : arranqueDesk(d, R);
+  const arranqueDesk = (d, R) => `Prepara el proyecto en GitHub desde ya, sin pedirme confirmación en cada paso (solo avísame si algo falla):
 1. Crea en esta carpeta el archivo CLAUDE.md con exactamente el contenido de abajo (si ya existe, sustitúyelo) y un .gitignore que excluya datos/, .env y cualquier archivo con datos personales.
 2. Si la carpeta no es un repositorio git, inicialízalo con la rama main y haz el primer commit.
 3. Crea el repositorio público en mi cuenta de GitHub con «gh repo create ed-${projSlug(R)} --public --source=. --remote=origin --push» (si ya existe, haz commit y git push).
@@ -4990,6 +5005,7 @@ ${claudeMd(d, R)}`;
     if (!RUTAS[d.ruta]) d.ruta = d.ruta || "";
     if (d.ghUser == null) d.ghUser = "";
     if (d.ghOk == null) d.ghOk = false;
+    if (d.modo !== "navegador") d.modo = "escritorio";
     return d;
   }
   function wire(R){
@@ -5097,7 +5113,7 @@ ${claudeMd(d, R)}`;
     const ct = R.cloudTeam && R.cloudTeam();
     const notas = T(d.cruzada) || "[PEGAD AQUÍ VUESTRAS NOTAS DE LA REVISIÓN CRUZADA]";
     return [
-      ["Sprint A · 45′", "A1 · Plan", "5′", `Lee CLAUDE.md.${(window.RutaED.bocetosElegidos && R.state.st.wireframe && window.RutaED.bocetosElegidos(R.state.st.wireframe).length) ? " Antes de nada: busca ed-bocetos.jpg en mi carpeta Descargas, muévelo a la carpeta bocetos/ de este proyecto (créala si no existe) y míralo: son los bocetos que hemos elegido, numerados." : ""} Antes de escribir código, propón un plan breve: estructura de secciones siguiendo el wireframe, textos de cada bloque sacados de «Lo que ya sabemos» (dolores, ganancias, aliviadores, propuesta de valor, alternativas y precio; marca lo que falte), paleta y tipografía coherentes con el brief, y qué hipótesis de las test cards mide cada CTA. No crees ni modifiques archivos todavía: espera nuestro OK.`,
+      ["Sprint A · 45′", "A1 · Plan", "5′", `Lee CLAUDE.md.${(window.RutaED.bocetosElegidos && R.state.st.wireframe && window.RutaED.bocetosElegidos(R.state.st.wireframe).length) ? ((R.state.st.prototipo || {}).modo === "navegador" ? " Antes de nada: mira la imagen bocetos/ed-bocetos.jpg del repositorio (la hemos subido nosotros): son los bocetos que hemos elegido, numerados." : " Antes de nada: busca ed-bocetos.jpg en mi carpeta Descargas, muévelo a la carpeta bocetos/ de este proyecto (créala si no existe) y míralo: son los bocetos que hemos elegido, numerados.") : ""} Antes de escribir código, propón un plan breve: estructura de secciones siguiendo el wireframe, textos de cada bloque sacados de «Lo que ya sabemos» (dolores, ganancias, aliviadores, propuesta de valor, alternativas y precio; marca lo que falte), paleta y tipografía coherentes con el brief, y qué hipótesis de las test cards mide cada CTA. No crees ni modifiques archivos todavía: espera nuestro OK.`,
         "<b>Qué hace:</b> Claude os enseña el plan y <b>no toca nada</b> hasta que le digáis OK. Leedlo en equipo; si algo no cuadra con el wireframe, decídselo. Decide el Product Owner."],
       ["Sprint A · 45′", "A2 · Construir y publicar", "30′", buildTask(d) + "\n\n" + buildMaterial(d, R) + pub,
         "<b>Qué hace:</b> Claude crea el <code>index.html</code> con vuestros textos y lo publica en GitHub Pages; al final os da la URL. Os pedirá permiso antes de cada comando: leed qué va a hacer y aceptad."],
@@ -5170,6 +5186,7 @@ ${claudeMd(d, R)}`;
       const refresh = () => refreshers.forEach(f => f());
 
       /* ---------- 1. Enlazar Claude con GitHub ---------- */
+      R.tip(el, "<b>¿App de escritorio o navegador?</b> Lo normal es la app de escritorio (pestaña Code), que trabaja en una carpeta enlazada con GitHub. Si no podéis instalarla, usad Claude Code en el navegador (claude.ai/code), que trabaja directamente sobre un repositorio de GitHub: elegidlo en el paso 4 y no hace falta el PROMPT 0.");
       let b = R.step(el, 1, "Enlazar Claude con GitHub (una sola vez por ordenador)", "Claude Code puede crear el repositorio, subir los archivos, activar GitHub Pages y daros la URL. Solo necesitáis una cuenta en github.com y enlazar Claude con GitHub una vez en cada ordenador (≈ 3 min): abrid Claude Code, pegad este prompt y seguid sus indicaciones; os dará un código para autorizar en github.com/login/device.");
       const p0Pre = R.h("pre", { class: "prompt", tabindex: "0", "aria-label": "Prompt 0: enlazar Claude con GitHub", text: PROMPT0 });
       const p0Btn = R.h("button", { class: "btn accent small", type: "button", "aria-label": "Copiar prompt 0" }, "Copiar");
@@ -5236,6 +5253,15 @@ ${claudeMd(d, R)}`;
       /* ---------- 4. CLAUDE.md ---------- */
       b = R.step(el, 4, "El CLAUDE.md del equipo", "CLAUDE.md es un archivo de instrucciones que Claude Code lee solo al empezar a trabajar en una carpeta: así no repetís el contexto ni las reglas en cada prompt. Se genera aquí con vuestro proyecto, concepto, brief y wireframe.");
       R.field(b, { label: "Reglas propias del equipo (opcional)", hint: "una por línea; se añaden al final", rows: 2 }, d, "extra").addEventListener("input", refresh);
+      {
+        const pick = R.h("div", { class: "chips", role: "group", "aria-label": "Dónde usáis Claude Code" });
+        [["escritorio", "App de escritorio (carpeta + GitHub)"], ["navegador", "Navegador · claude.ai/code (solo GitHub)"]].forEach(([v, l]) => {
+          const bt = R.h("button", { class: "btn small" + (d.modo === v ? " primary" : ""), type: "button", "aria-pressed": String(d.modo === v) }, l);
+          bt.addEventListener("click", () => { d.modo = v; R.save(); R.go("prototipo"); });
+          pick.append(bt);
+        });
+        b.append(R.h("p", { class: "sec-label", text: "¿Dónde usáis Claude Code?" }), pick);
+      }
       const mdPre = R.h("pre", { class: "prompt", tabindex: "0", "aria-label": "Contenido del CLAUDE.md" });
       const mdGo = R.h("button", { class: "btn accent small", type: "button" }, "Copiar prompt: crear el proyecto en GitHub");
       mdGo.addEventListener("click", () => copy(mdGo, arranque(d, R), mdPre, "Copiar prompt: crear el proyecto en GitHub"));
@@ -5259,6 +5285,17 @@ ${claudeMd(d, R)}`;
 <ol style="display:none">
 </ol>
 <p style="margin:6px 0 0">Si cambiáis el brief o el wireframe, volved a pegar el prompt de arranque: actualiza el CLAUDE.md y lo sube. Todo lo que hay en esa carpeta se publica: nada de datos personales.</p>`;
+        if (d.modo === "navegador"){
+          box.innerHTML = `<b>Cómo empezar en el navegador (claude.ai/code), solo con GitHub:</b>
+<ol style="margin:6px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:4px">
+<li><b>Cread el repositorio en GitHub:</b> github.com → botón <b>New</b> (o «+» → <i>New repository</i>) → nombre <code>${R.esc(fol)}</code> → <b>Public</b> → marcad <b>Add a README file</b> → <b>Create repository</b>.</li>
+<li><b>Activad GitHub Pages:</b> en el repositorio → <b>Settings</b> → <b>Pages</b> → <i>Deploy from a branch</i> → rama <b>main</b> y carpeta <b>/ (root)</b> → <b>Save</b>. La web estará en <code>https://vuestro-usuario.github.io/${R.esc(fol)}/</code>.</li>
+<li><b>Abrid Claude Code en el navegador:</b> claude.ai/code → conectad GitHub la primera vez (os pedirá autorizar la app de Claude en GitHub: dadle acceso a <code>${R.esc(fol)}</code>) → elegid el repositorio <code>${R.esc(fol)}</code>.</li>
+<li><b>Pegad el prompt</b> «crear el proyecto en GitHub» (botón de abajo): Claude crea el CLAUDE.md y lo sube a main. Si os dice que los cambios han quedado en una rama, en GitHub pulsad <b>Compare &amp; pull request</b> → <b>Create pull request</b> → <b>Merge pull request</b>.</li>
+<li><b>El resto del LAB, siempre en ese repositorio</b> (paso 5): cada prompt termina subiendo los cambios. <b>Bocetos:</b> si elegisteis bocetos en la estación 8, subid ed-bocetos.jpg al repositorio (<b>Add file</b> → <b>Upload files</b>, dentro de una carpeta <code>bocetos/</code>).</li>
+</ol>
+<p style="margin:6px 0 0">Aquí no hay carpeta en el ordenador: todo vive en GitHub y Claude lee el CLAUDE.md del repositorio. No hace falta el PROMPT 0. Todo lo que hay en el repositorio se publica: nada de datos personales.</p>`;
+        }
         b.append(box);
       }
       refreshers.push(() => { mdPre.textContent = claudeMd(d, R); });
