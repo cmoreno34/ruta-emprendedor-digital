@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 24/10/2026 11:37</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 24/10/2026 11:46</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -4958,11 +4958,22 @@ No me pidas contraseñas ni tokens y no los guardes en ningún archivo.`;
 2. Si el repositorio aún no existe en GitHub, créalo público con «gh repo create ed-⟨proyecto⟩ --public --source=. --remote=origin --push». Si ya existe, haz commit con un mensaje claro en castellano y «git push».
 3. Si GitHub Pages no está activo, actívalo desde la rama main y la raíz con «gh api -X POST repos/⟨usuario⟩/ed-⟨proyecto⟩/pages -f "source[branch]=main" -f "source[path]=/"» (si responde que ya existe, sigue).
 4. Comprueba cada 20 segundos, durante un máximo de 5 minutos, que la web responde, y dame la URL final: https://⟨usuario⟩.github.io/ed-⟨proyecto⟩/ (y la de la subcarpeta web/ o app/ si el prototipo está ahí).
-Pídeme confirmación antes de cada comando que cambie algo en GitHub. Nunca uses --force ni borres repositorios.`;
+Sube los cambios directamente (commit y push), sin pedirme confirmación; solo avísame si algo falla. Nunca uses --force ni borres repositorios.`;
   const ghUser = d => T(d.ghUser).replace(/^@/, "") || "vuestro-usuario";
   const projSlug = R => slug(T(R.project.nombre) || T(R.project.equipo) || "proyecto");
   const publicar = (d, R) => PUBLICAR.split("⟨proyecto⟩").join(projSlug(R)).split("⟨usuario⟩").join(ghUser(d));
   const pagesUrl = (d, R) => `https://${ghUser(d)}.github.io/ed-${projSlug(R)}/`;
+  const arranque = (d, R) => `Prepara el proyecto en GitHub desde ya, sin pedirme confirmación en cada paso (solo avísame si algo falla):
+1. Crea en esta carpeta el archivo CLAUDE.md con exactamente el contenido de abajo (si ya existe, sustitúyelo) y un .gitignore que excluya datos/, .env y cualquier archivo con datos personales.
+2. Si la carpeta no es un repositorio git, inicialízalo con la rama main y haz el primer commit.
+3. Crea el repositorio público en mi cuenta de GitHub con «gh repo create ed-${projSlug(R)} --public --source=. --remote=origin --push» (si ya existe, haz commit y git push).
+4. Activa GitHub Pages desde main y la raíz con «gh api -X POST repos/{owner}/ed-${projSlug(R)}/pages -f "source[branch]=main" -f "source[path]=/"» (si dice que ya existe, sigue).
+5. Dame la URL del repositorio y la de la web (https://<mi-usuario>.github.io/ed-${projSlug(R)}/); al principio puede tardar unos minutos en verse.
+Nunca uses --force ni borres repositorios. Desde ahora, cada vez que terminemos un paso, sube los cambios a este repositorio.
+
+CONTENIDO DEL CLAUDE.md:
+
+${claudeMd(d, R)}`;
 
   function ensure(d){
     d.brief = d.brief || {}; d.checks = d.checks || {};
@@ -5216,12 +5227,14 @@ Pídeme confirmación antes de cada comando que cambie algo en GitHub. Nunca use
       b = R.step(el, 4, "El CLAUDE.md del equipo", "CLAUDE.md es un archivo de instrucciones que Claude Code lee solo al empezar a trabajar en una carpeta: así no repetís el contexto ni las reglas en cada prompt. Se genera aquí con vuestro proyecto, concepto, brief y wireframe.");
       R.field(b, { label: "Reglas propias del equipo (opcional)", hint: "una por línea; se añaden al final", rows: 2 }, d, "extra").addEventListener("input", refresh);
       const mdPre = R.h("pre", { class: "prompt", tabindex: "0", "aria-label": "Contenido del CLAUDE.md" });
-      const mdBtn = R.h("button", { class: "btn accent small", type: "button" }, "Descargar CLAUDE.md");
+      const mdGo = R.h("button", { class: "btn accent small", type: "button" }, "Copiar prompt: crear el proyecto en GitHub");
+      mdGo.addEventListener("click", () => copy(mdGo, arranque(d, R), mdPre, "Copiar prompt: crear el proyecto en GitHub"));
+      const mdBtn = R.h("button", { class: "btn small ghost", type: "button" }, "Descargar CLAUDE.md");
       mdBtn.addEventListener("click", () => R.saveFile("CLAUDE.md", claudeMd(d, R), "CLAUDE.md"));
       const mdAlt = R.h("button", { class: "btn small", type: "button" }, "Copiar prompt «crea el CLAUDE.md»");
       mdAlt.addEventListener("click", () => copy(mdAlt, "Crea en esta carpeta un archivo llamado CLAUDE.md (si ya existe, sustitúyelo) con exactamente este contenido y confírmame cuando esté:\n\n" + claudeMd(d, R), mdPre, "Copiar prompt «crea el CLAUDE.md»"));
-      b.append(R.h("div", { class: "pt-md", style: "display:flex;flex-direction:column;gap:8px" }, R.h("div", { class: "pt-bar" }, mdBtn, mdAlt), mdPre));
-      R.tip(b, "<b>Dónde va:</b> en la carpeta del prototipo, la que abrís en la pestaña <b>Code</b> de la app de Claude (por ejemplo <i>Documentos › ed-vuestro-proyecto</i>; vale la misma del PROMPT 0).<br>1 · <b>Descargar CLAUDE.md</b>: se guarda en <i>Descargas</i>. Movedlo a esa carpeta; tiene que llamarse exactamente <b>CLAUDE.md</b> (sin .txt).<br>2 · En la pestaña Code, elegid esa carpeta: Claude Code lo lee solo, no hay que subirlo a ningún sitio.<br><b>Sin mover archivos:</b> abrid la carpeta en Claude Code y pegad el prompt «crea el CLAUDE.md»: lo crea él.<br>Si cambiáis el brief o el wireframe, volved a descargarlo. Se publica en GitHub junto con la web: nada de datos personales.");
+      b.append(R.h("div", { class: "pt-md", style: "display:flex;flex-direction:column;gap:8px" }, R.h("div", { class: "pt-bar" }, mdGo, mdAlt, mdBtn), mdPre));
+      R.tip(b, "<b>Sin descargar nada (recomendado):</b> en la pestaña <b>Code</b> de la app de Claude, abrid una carpeta vacía (por ejemplo <i>Documentos › ed-vuestro-proyecto</i>) y pegad el prompt <b>«crear el proyecto en GitHub»</b>. Claude crea el CLAUDE.md, el repositorio <b>ed-…</b> en vuestro GitHub y activa GitHub Pages. Desde ese momento todo vive en GitHub: cada prompt del LAB termina subiendo los cambios. La app os pedirá permiso para ejecutar comandos: pulsad <b>Permitir</b> (o «permitir siempre» para git y gh).<br>Si cambiáis el brief o el wireframe, volved a copiar el prompt: actualiza el CLAUDE.md y lo sube. Se publica en GitHub junto con la web: nada de datos personales.");
       refreshers.push(() => { mdPre.textContent = claudeMd(d, R); });
 
       /* ---------- 5. Prompts del LAB ---------- */
