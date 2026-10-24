@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 24/10/2026 09:44</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 24/10/2026 11:37</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -4996,7 +4996,32 @@ Pídeme confirmación antes de cada comando que cambie algo en GitHub. Nunca use
     if (pov) L.push(`- Problema (POV): ${pov}`);
     if (T(c.nombre) || T(c.frase) || T(c.beneficio)) L.push(`- Concepto: ${[T(c.nombre), T(c.frase), T(c.beneficio)].filter(Boolean).join(" — ")}`);
     if (T(p.miembros)) L.push(`- Equipo: ${T(p.miembros)}`);
-    L.push(`- Qué construimos: ${ru.what}.`, "", "## Brief");
+    L.push(`- Qué construimos: ${ru.what}.`);
+    /* Todo lo trabajado antes, resumido: sirve para los textos (beneficios, objeciones, precio) y para saber qué medir */
+    {
+      const st = R.state.st, em = st.empatia || {}, mapa = em.mapa || {}, mo = st.modelo || {}, vpc = mo.vpc || {}, lean = mo.lean || {};
+      const lines = (x, n) => T(x).split(/\r?\n/).map(l => l.replace(/^\s*[-•*]\s*/, "").trim()).filter(Boolean).slice(0, n);
+      const K = [];
+      if (T(em.jtbd)) K.push(`- Trabajo por hacer (JTBD): ${T(em.jtbd)}`);
+      const dol = lines(mapa.dolores || vpc.dolores, 5), gan = lines(mapa.ganancias || vpc.ganancias, 5);
+      if (dol.length) K.push("- Dolores del cliente ([E] = evidencia, [S] = suposición):", ...dol.map(l => "  - " + l));
+      if (gan.length) K.push("- Ganancias que busca:", ...gan.map(l => "  - " + l));
+      const citas = (em.entrevistas || []).map(e => T(e && e.cita)).filter(Boolean).concat((em.resenas || []).map(r => T(r && r.cita)).filter(Boolean)).slice(0, 4);
+      if (citas.length) K.push("- Frases reales de entrevistas y reseñas (para inspirar el tono; no las pongas como testimonios):", ...citas.map(c => "  - " + c));
+      const ali = lines(vpc.aliviadores, 5), cre = lines(vpc.creadores, 5), prod = lines(vpc.productos, 4);
+      if (prod.length) K.push("- Qué ofrecemos (VPC):", ...prod.map(l => "  - " + l));
+      if (ali.length) K.push("- Cómo aliviamos cada dolor (para los beneficios):", ...ali.map(l => "  - " + l));
+      if (cre.length) K.push("- Cómo creamos ganancias:", ...cre.map(l => "  - " + l));
+      [["uvp", "Propuesta única de valor"], ["concepto", "Concepto de alto nivel"], ["solucion", "Solución"], ["early", "Early adopters"], ["alternativas", "Alternativas que usan hoy (competencia)"], ["ingresos", "Ingresos y precio"], ["canales", "Canales"]]
+        .forEach(([k, l]) => { const v = lines(lean[k], 3); if (v.length) K.push(`- ${l}: ${v.join(" · ")}`); });
+      if (T(c.insight)) K.push(`- Insight del concepto: ${T(c.insight)}`);
+      if (T(c.razon)) K.push(`- Razón para creer: ${T(c.razon)}`);
+      if (T(c.precio)) K.push(`- Precio del concepto: ${T(c.precio)}`);
+      const cards = ((st.supuestos && st.supuestos.cards) || []).filter(x => T(x && x.hip));
+      if (cards.length) K.push("- Hipótesis que el prototipo tiene que permitir medir (test cards):", ...cards.map((x, i) => `  - H${i + 1}: ${T(x.hip)}${T(x.metrica) ? " · mediremos: " + T(x.metrica) : ""}${T(x.criterio) ? " · acertamos si: " + T(x.criterio) : ""}`));
+      if (K.length) L.push("", "## Lo que ya sabemos (estaciones 0–7)", ...K);
+    }
+    L.push("", "## Brief");
     Object.entries(BRIEF_L).forEach(([k, l]) => { if (T(d.brief[k])) L.push(`- ${l}: ${T(d.brief[k])}`); });
     L.push("", "## Wireframe aprobado", wire(R), "", "## Reglas de trabajo",
       "- Todo en castellano de España: los textos de la página y tus explicaciones.",
@@ -5015,7 +5040,7 @@ Pídeme confirmación antes de cada comando que cambie algo en GitHub. Nunca use
 
   function buildTask(d){
     const ru = RUTAS[d.ruta] || RUTAS.web;
-    return `Lee el CLAUDE.md del proyecto. Construye ${ru.what}, siguiendo EXACTAMENTE el orden de bloques del wireframe y con sus textos reales; donde falte texto, propón uno breve y márcalo con [REVISAR]. Mobile-first, accesible y sin cifras ni testimonios inventados (usa [DATO PENDIENTE]). El CTA principal tiene que verse sin hacer scroll y repetirse al final. El formulario de la lista de espera, de momento, solo muestra un mensaje de gracias al enviarlo: en el Sprint B lo conectaremos al medidor del curso. Al terminar, resume en 5 líneas qué has hecho y qué falta.`;
+    return `Lee el CLAUDE.md del proyecto. Construye ${ru.what}, siguiendo EXACTAMENTE el orden de bloques del wireframe y con sus textos reales; donde falte texto, escríbelo a partir de la sección «Lo que ya sabemos» del CLAUDE.md y márcalo con [REVISAR]: el titular y la propuesta, de la propuesta única de valor; los beneficios, de cómo aliviamos los dolores y creamos ganancias; las preguntas frecuentes, de los dolores y dudas del cliente; la comparación, de las alternativas que usan hoy; el precio, de ingresos y precio. El tono, inspirado en las frases reales (nunca como testimonios). La página tiene que permitir medir las hipótesis de las test cards (CTA, registro y, si hay precio, botón Premium). Mobile-first, accesible y sin cifras ni testimonios inventados (usa [DATO PENDIENTE]). El CTA principal tiene que verse sin hacer scroll y repetirse al final. El formulario de la lista de espera, de momento, solo muestra un mensaje de gracias al enviarlo: en el Sprint B lo conectaremos al medidor del curso. Al terminar, resume en 5 líneas qué has hecho y qué falta.`;
   }
   function buildMaterial(d, R){
     return ["Brief:", R.kv(d.brief, BRIEF_L) || "(vacío)", "", "Wireframe:", wire(R)].join("\n");
@@ -5051,7 +5076,7 @@ Pídeme confirmación antes de cada comando que cambie algo en GitHub. Nunca use
     const ct = R.cloudTeam && R.cloudTeam();
     const notas = T(d.cruzada) || "[PEGAD AQUÍ VUESTRAS NOTAS DE LA REVISIÓN CRUZADA]";
     return [
-      ["Sprint A · 45′", "A1 · Plan", "5′", `Lee CLAUDE.md.${(window.RutaED.bocetosElegidos && R.state.st.wireframe && window.RutaED.bocetosElegidos(R.state.st.wireframe).length) ? " Antes de nada: busca ed-bocetos.jpg en mi carpeta Descargas, muévelo a la carpeta bocetos/ de este proyecto (créala si no existe) y míralo: son los bocetos que hemos elegido, numerados." : ""} Antes de escribir código, propón un plan breve: estructura de secciones siguiendo el wireframe, textos de cada bloque (marcando lo que falte), paleta y tipografía coherentes con el brief, y cómo vamos a medir el CTA. No crees ni modifiques archivos todavía: espera nuestro OK.`,
+      ["Sprint A · 45′", "A1 · Plan", "5′", `Lee CLAUDE.md.${(window.RutaED.bocetosElegidos && R.state.st.wireframe && window.RutaED.bocetosElegidos(R.state.st.wireframe).length) ? " Antes de nada: busca ed-bocetos.jpg en mi carpeta Descargas, muévelo a la carpeta bocetos/ de este proyecto (créala si no existe) y míralo: son los bocetos que hemos elegido, numerados." : ""} Antes de escribir código, propón un plan breve: estructura de secciones siguiendo el wireframe, textos de cada bloque sacados de «Lo que ya sabemos» (dolores, ganancias, aliviadores, propuesta de valor, alternativas y precio; marca lo que falte), paleta y tipografía coherentes con el brief, y qué hipótesis de las test cards mide cada CTA. No crees ni modifiques archivos todavía: espera nuestro OK.`,
         "<b>Qué hace:</b> Claude os enseña el plan y <b>no toca nada</b> hasta que le digáis OK. Leedlo en equipo; si algo no cuadra con el wireframe, decídselo. Decide el Product Owner."],
       ["Sprint A · 45′", "A2 · Construir y publicar", "30′", buildTask(d) + "\n\n" + buildMaterial(d, R) + pub,
         "<b>Qué hace:</b> Claude crea el <code>index.html</code> con vuestros textos y lo publica en GitHub Pages; al final os da la URL. Os pedirá permiso antes de cada comando: leed qué va a hacer y aceptad."],
