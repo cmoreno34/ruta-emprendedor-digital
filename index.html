@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 23/10/2026 19:33</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 24/10/2026 09:28</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -399,6 +399,7 @@ const R = (() => {
     }
     if (!filled(Rv)) return L;
     if (!filled(L)) return clone(Rv);
+    if (typeof L === "string" && typeof Rv === "string" && (L.includes(NL) || Rv.includes(NL))) return mergeText(typeof B === "string" ? B : "", L, Rv);
     return localWins ? L : clone(Rv);
   }
   /* Combina r.data (nube) dentro de S. Devuelve las claves que han cambiado ("project" o id de estación). */
@@ -730,13 +731,37 @@ const R = (() => {
       body));
     return body;
   }
+  /* Texto compartido: si otra persona del equipo cambió este recuadro mientras escribíais, se suman sus líneas en vez de pisarlas. */
+  const NL = String.fromCharCode(10);
+  function mergeText(base, mine, theirs){
+    base = String(base ?? ""); mine = String(mine ?? ""); theirs = String(theirs ?? "");
+    if (theirs === base || theirs === mine) return mine;
+    if (mine === base) return theirs;
+    const B = base.split("\n"), M = mine.split("\n"), Th = theirs.split("\n");
+    const gone = new Set(B.filter(l => l.trim() && !Th.includes(l)));
+    const out = M.filter(l => !gone.has(l));
+    Th.forEach(l => { if (l.trim() && !B.includes(l) && !out.includes(l)) out.push(l); });
+    return out.join("\n");
+  }
+  function bindText(ctl, get, set, after){
+    let last = String(get() ?? "");
+    ctl.addEventListener("focus", () => { const cur = String(get() ?? ""); if (cur !== last && ctl.value === last){ ctl.value = cur; } last = String(get() ?? ""); });
+    ctl.addEventListener("input", () => {
+      const cur = String(get() ?? "");
+      if (cur !== last){
+        const merged = mergeText(last, ctl.value, cur);
+        if (merged !== ctl.value){ const a = ctl.selectionStart, e = ctl.selectionEnd; ctl.value = merged; try { ctl.setSelectionRange(a, e); } catch(err){} }
+      }
+      set(ctl.value); last = ctl.value; save(); if (after) after();
+    });
+  }
   function field(parent, o, obj, key){
     const id = o.id || nid("f");
     const ctl = o.single
       ? h("input", {id, type:"text", placeholder:o.ph || "", autocomplete:"off"})
       : h("textarea", {id, rows:o.rows || 2, placeholder:o.ph || ""});
     ctl.value = obj[key] ?? "";
-    ctl.addEventListener("input", () => { obj[key] = ctl.value; save(); });
+    bindText(ctl, () => obj[key], v => { obj[key] = v; });
     const el = h("div", {class:"fld"}, h("label", {for:id}, o.label, o.hint ? h("span", {class:"h", text:o.hint}) : null), ctl);
     parent.append(el); return ctl;
   }
@@ -761,7 +786,7 @@ const R = (() => {
     o.cells.forEach(c => {
       const id = nid("c");
       const ta = h("textarea", {id, placeholder:c.ph || ""}); ta.value = obj[c.key] ?? "";
-      ta.addEventListener("input", () => { obj[c.key] = ta.value; save(); });
+      bindText(ta, () => obj[c.key], v => { obj[c.key] = v; });
       const pos = [c.col ? `grid-column:${c.col}` : "", c.row ? `grid-row:${c.row}` : ""].filter(Boolean).join(";");
       g.append(h("div", {class:"cell" + (c.hi ? " hi" : ""), style:pos}, h("label", {class:"cl", for:id, text:c.label}), c.hint ? h("span", {class:"ch", text:c.hint}) : null, ta));
     });
@@ -779,9 +804,9 @@ const R = (() => {
         o.cols.forEach(c => {
           const id = nid("l"); let ctl;
           if (c.type === "select"){ ctl = h("select", {id}, ...c.options.map(op => { const [v,l] = Array.isArray(op)?op:[op,op]; return h("option",{value:v,text:l}); })); ctl.value = item[c.key] ?? ""; ctl.addEventListener("change", () => { item[c.key] = ctl.value; save(); if (o.onChange) o.onChange(); }); }
-          else if (c.type === "area"){ ctl = h("textarea", {id, rows:c.rows||2, placeholder:c.ph||""}); ctl.value = item[c.key] ?? ""; ctl.addEventListener("input", () => { item[c.key] = ctl.value; save(); if (o.onChange) o.onChange(); }); }
+          else if (c.type === "area"){ ctl = h("textarea", {id, rows:c.rows||2, placeholder:c.ph||""}); ctl.value = item[c.key] ?? ""; bindText(ctl, () => item[c.key], v => { item[c.key] = v; }, () => { if (o.onChange) o.onChange(); }); }
           else if (c.type === "number"){ ctl = h("input", {id, type:"number", step:"any", placeholder:c.ph||""}); ctl.value = item[c.key] ?? ""; ctl.addEventListener("input", () => { item[c.key] = ctl.value===""?"":Number(ctl.value); save(); if (o.onChange) o.onChange(); }); }
-          else { ctl = h("input", {id, type:"text", placeholder:c.ph||""}); ctl.value = item[c.key] ?? ""; ctl.addEventListener("input", () => { item[c.key] = ctl.value; save(); if (o.onChange) o.onChange(); }); }
+          else { ctl = h("input", {id, type:"text", placeholder:c.ph||""}); ctl.value = item[c.key] ?? ""; bindText(ctl, () => item[c.key], v => { item[c.key] = v; }, () => { if (o.onChange) o.onChange(); }); }
           r.append(h("div", {style:"min-width:0"}, h("label", {class:"rl", for:id, text:c.label}), ctl));
         });
         r.append(h("button", {class:"del", type:"button", "aria-label":"Quitar fila " + (i+1), title:"Quitar", on:{click:() => { arr.splice(i,1); draw(); save(); if (o.onChange) o.onChange(); }}}, "×"));
