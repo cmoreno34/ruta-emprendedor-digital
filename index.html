@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 24/10/2026 09:28</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 24/10/2026 09:44</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -415,8 +415,16 @@ const R = (() => {
     S.isExample = false;
     return changed;
   }
-  function baseLoad(){ try { const b = JSON.parse(localStorage.getItem(BKEY) || "null"); return b && b.team && b.data ? b : null; } catch(e){ return null; } }
-  function baseSave(team, version, dataJson){ try { localStorage.setItem(BKEY, '{"team":' + JSON.stringify(team) + ',"version":' + Number(version || 0) + ',"data":' + dataJson + '}'); } catch(e){ try { localStorage.removeItem(BKEY); } catch(e2){} } }
+  /* La base vive en memoria (siempre disponible) y, si cabe, también en el navegador para después de recargar.
+     Los proyectos con bocetos pesan más de 1 MB: si no cabe, se libera antes la copia previa (PKEY). */
+  let baseMem = null;
+  function baseLoad(){ if (baseMem) return baseMem; try { const b = JSON.parse(localStorage.getItem(BKEY) || "null"); if (b && b.team && b.data){ baseMem = b; return b; } } catch(e){} return null; }
+  function baseSave(team, version, dataJson){
+    try { baseMem = { team, version: Number(version || 0), data: JSON.parse(dataJson) }; } catch(e){ baseMem = null; }
+    const txt = '{"team":' + JSON.stringify(team) + ',"version":' + Number(version || 0) + ',"data":' + dataJson + '}';
+    try { localStorage.setItem(BKEY, txt); }
+    catch(e){ try { localStorage.removeItem(PKEY); localStorage.setItem(BKEY, txt); } catch(e2){ try { localStorage.removeItem(BKEY); } catch(e3){} } }
+  }
   function backupLocal(){ try { if (!S.isExample && (filled(S.project) || filled(S.st))) localStorage.setItem(PKEY, JSON.stringify(S)); } catch(e){} }
   /* Repinta sin romper lo que alguien está escribiendo: la estación abierta y la ficha se repintan cuando se sale del campo. */
   let deferred = false;
@@ -740,7 +748,15 @@ const R = (() => {
     const B = base.split("\n"), M = mine.split("\n"), Th = theirs.split("\n");
     const gone = new Set(B.filter(l => l.trim() && !Th.includes(l)));
     const out = M.filter(l => !gone.has(l));
-    Th.forEach(l => { if (l.trim() && !B.includes(l) && !out.includes(l)) out.push(l); });
+    // una línea a medio escribir y su versión más larga son la misma línea: se queda la más larga
+    const key = l => l.trim().toLowerCase();
+    Th.forEach(l => {
+      const k = key(l);
+      if (!k || B.includes(l) || out.includes(l)) return;
+      const i = out.findIndex(o => { const ko = key(o); return ko.length >= 3 && k.length >= 3 && (k.startsWith(ko) || ko.startsWith(k)); });
+      if (i >= 0){ if (k.length > key(out[i]).length) out[i] = l; return; }
+      out.push(l);
+    });
     return out.join("\n");
   }
   function bindText(ctl, get, set, after){
