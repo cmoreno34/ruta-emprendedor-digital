@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 24/10/2026 12:09</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 24/10/2026 12:52</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -5254,6 +5254,9 @@ ${claudeMd(d, R)}`;
 <li><b>Pegad el prompt</b> «crear el proyecto en GitHub» (botón de abajo) y pulsad Enter. Cuando la app pida permiso para ejecutar comandos (git, gh), pulsad <b>Permitir</b> («permitir siempre» para no repetirlo).</li>
 <li>Claude crea el CLAUDE.md, el repositorio <b>${R.esc(fol)}</b> en vuestro GitHub y GitHub Pages, y os da las dos URL. <b>Guardad la URL de la web</b> abajo, en el paso 6.</li>
 <li><b>El resto del LAB, siempre en esa misma carpeta</b> (paso 5): cada prompt termina subiendo los cambios a GitHub.</li>
+</ol>
+<p style="margin:6px 0 0"><b>Carpeta y GitHub, cómo se relacionan:</b> Claude Code trabaja en la carpeta de vuestro ordenador (ahí lee solo el CLAUDE.md en cada sesión: no hay que subirlo ni pegarlo a Claude) y el prompt de arranque la deja enlazada con vuestro repositorio de GitHub, que es la copia publicada. ¿Otro ordenador? Carpeta vacía nueva → pestaña Code → «clona mi repositorio ed-… aquí».</p>
+<ol style="display:none">
 </ol>
 <p style="margin:6px 0 0">Si cambiáis el brief o el wireframe, volved a pegar el prompt de arranque: actualiza el CLAUDE.md y lo sube. Todo lo que hay en esa carpeta se publica: nada de datos personales.</p>`;
         b.append(box);
