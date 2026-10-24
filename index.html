@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 24/10/2026 13:44</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 24/10/2026 14:11</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -2165,7 +2165,20 @@ R.deliverable = function (cfg) {
       // 3. documento
       b = R.step(el, 3, "Vuestro entregable", "Revisadlo entero, descargad el PDF y subidlo a Blackboard.");
       const acts = R.h("div", { class: "chips no-print" });
-      if (R.standalone) acts.append(R.h("button", { class: "btn primary small", type: "button", on: { click: () => window.print() } }, "Descargar PDF"));
+      /* PDF: solo el documento, en una ventana aparte (imprimir toda la Ruta fallaba con entregables largos) */
+      const pdf = () => {
+        const w = window.open("", "_blank");
+        if (!w){ window.print(); return; }
+        const css = [...document.querySelectorAll("style")].map(x => x.outerHTML).join("\n");
+        const fonts = [...document.querySelectorAll('link[rel="stylesheet"]')].map(x => x.outerHTML).join("\n");
+        const title = `${cfg.title} · ${R.project.nombre || R.project.equipo || "proyecto"}`;
+        w.document.open();
+        w.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${R.esc(title)}</title>${fonts}${css}<style>body{background:#fff;color:#111;padding:24px;max-width:900px;margin:0 auto}.dossier{border:0;box-shadow:none}.no-print{display:none!important}@media print{body{padding:0}}</style></head><body><p class="no-print" style="font:14px sans-serif;background:#eef2fb;padding:10px 12px;border-radius:8px">Para guardarlo: en la ventana de impresión elegid <b>Guardar como PDF</b> como destino. Si no se abre sola, pulsad Ctrl+P (Cmd+P en Mac).</p>${doc.outerHTML}</body></html>`);
+        w.document.close();
+        w.focus();
+        setTimeout(() => { try { w.print(); } catch (e){} }, 600);
+      };
+      acts.append(R.h("button", { class: "btn primary small", type: "button", on: { click: pdf } }, "Descargar PDF"));
       acts.append(R.h("button", { class: "btn accent small", type: "button", on: { click: () => R.saveCopy() } }, "Guardar copia del proyecto (.json)"));
       const exp = R.h("button", { class: "btn small", type: "button", on: { click: () => R.saveFile(`${cfg.file}_${R.slug()}.md`, docText(), cfg.title) } }, "Exportar texto (.md)");
       const cp = R.h("button", { class: "btn small", type: "button" }, "Copiar texto");
