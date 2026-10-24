@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 24/10/2026 13:18</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 24/10/2026 13:34</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -6919,7 +6919,7 @@ details.cl-opt .in{display:flex;flex-direction:column;gap:10px;min-width:0}
       fIn.reg = R.number(fr, { label: "Registros", min: 0, step: 1, onChange: paintFun }, fu, "reg");
       R.number(fr, { label: "Criterio de conversión (H2)", hint: "%", min: 0, max: 100, onChange: paintFun }, fu, "crit");
       const funOut = H("div", { class: "cq-out", "aria-live": "polite" }); b.append(funOut);
-      medB.addEventListener("click", async () => {
+      const traer = async () => {
         const ct = R.cloudTeam(); if (!ct){ medMsg.replaceChildren(); noCloud(medMsg); return; }
         medB.disabled = true; medMsg.replaceChildren(H("div", { class: "tip", text: "Leyendo el medidor…" }));
         try {
@@ -6937,7 +6937,37 @@ details.cl-opt .in{display:flex;flex-direction:column;gap:10px;min-width:0}
           } else medMsg.replaceChildren(H("div", { class: "tip warn", text: ({ pin: "El PIN no coincide con el del equipo.", team: "Código de equipo no válido." })[r && r.error] || "No se pudo leer el medidor (" + (r && r.error) + ")." }));
         } catch (e){ medMsg.replaceChildren(H("div", { class: "tip warn", text: "Sin conexión con la nube. Probad de nuevo en un momento." })); }
         medB.disabled = false;
+        if (liveT) liveMsg.textContent = "En directo · actualizado a las " + new Date().toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      };
+      medB.addEventListener("click", traer);
+      /* Monitor en directo: vuelve a leer el medidor cada 60 s mientras estéis en esta estación */
+      let liveT = null;
+      const liveB = H("button", { class: "btn small", type: "button", "aria-pressed": "false" }, "▶ Monitorizar en directo (cada 60 s)");
+      const liveMsg = H("span", { class: "status", "aria-live": "polite" });
+      const stopLive = () => { clearInterval(liveT); liveT = null; liveB.textContent = "▶ Monitorizar en directo (cada 60 s)"; liveB.setAttribute("aria-pressed", "false"); liveMsg.textContent = ""; };
+      liveB.addEventListener("click", () => {
+        if (liveT){ stopLive(); return; }
+        liveB.textContent = "⏸ Parar el directo"; liveB.setAttribute("aria-pressed", "true");
+        traer();
+        liveT = setInterval(() => { if (!document.body.contains(liveB) || (location.hash || "").slice(1) !== "cuanti"){ stopLive(); return; } if (document.visibilityState === "visible") traer(); }, 60000);
       });
+      /* Prompt para que Claude interprete los datos del medidor */
+      const anaPrompt = () => {
+        const v = N(fu.vis), c = N(fu.cli), r = N(fu.reg), pm = N(d.medidor && d.medidor.premium);
+        const can = Object.entries(d.canales || {}).filter(([, x]) => x && Number(x.visita) > 0).map(([k, x]) => `- ${k}: ${x.visita} visitas, ${x.cta} clics en el CTA, ${x.registro} registros`).join("\n") || "- (sin datos por canal)";
+        const tc = cards(R).map(x => `- ${x.id}: ${x.hip}${x.met ? " · mediremos: " + x.met : ""}${x.crit ? " · acertamos si: " + x.crit : ""}`).join("\n");
+        return ["Actúa como analista de marketing digital. Estos son los datos reales del medidor de nuestro prototipo (smoke test):",
+          `Visitas: ${isNaN(v) ? "–" : v} · Clics en el CTA: ${isNaN(c) ? "–" : c} · Registros: ${isNaN(r) ? "–" : r}${pm > 0 ? " · Clics en Premium: " + pm : ""}`,
+          `Criterio de conversión de la test card: ${fu.crit === "" || fu.crit == null ? "(sin fijar)" : fu.crit + " %"}`,
+          d.medidor && d.medidor.primero ? `Periodo: del ${new Date(d.medidor.primero).toLocaleString("es-ES")} al ${new Date(d.medidor.ultimo).toLocaleString("es-ES")}` : "",
+          "Por canal (utm_source):", can,
+          tc ? "Nuestras test cards:\n" + tc : "",
+          "", "1) ¿En qué paso del embudo perdemos más gente y por qué puede ser? 2) ¿Qué canal funciona mejor y cuánto fiarnos con este n? 3) Veredicto frente al criterio, con la cautela que pida el tamaño de la muestra. 4) Tres cambios concretos en la landing o en la difusión para las próximas 24 horas, cada uno con la métrica que debería moverse. No inventes datos que no estén aquí."
+        ].filter(Boolean).join("\n");
+      };
+      const anaPre = H("pre", { class: "prompt", style: "max-height:160px" });
+      const anaB = copyBtn("Copiar prompt: analizar el medidor con Claude", () => anaPrompt(), anaPre);
+      b.append(H("div", { class: "cq-acts" }, liveB, liveMsg, anaB));
       function paintFun(){
         const v = N(fu.vis), c = N(fu.cli), r = N(fu.reg);
         const out = [];
