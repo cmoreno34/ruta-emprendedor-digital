@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 24/10/2026 11:46</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 24/10/2026 11:50</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -5234,7 +5234,20 @@ ${claudeMd(d, R)}`;
       const mdAlt = R.h("button", { class: "btn small", type: "button" }, "Copiar prompt «crea el CLAUDE.md»");
       mdAlt.addEventListener("click", () => copy(mdAlt, "Crea en esta carpeta un archivo llamado CLAUDE.md (si ya existe, sustitúyelo) con exactamente este contenido y confírmame cuando esté:\n\n" + claudeMd(d, R), mdPre, "Copiar prompt «crea el CLAUDE.md»"));
       b.append(R.h("div", { class: "pt-md", style: "display:flex;flex-direction:column;gap:8px" }, R.h("div", { class: "pt-bar" }, mdGo, mdAlt, mdBtn), mdPre));
-      R.tip(b, "<b>Sin descargar nada (recomendado):</b> en la pestaña <b>Code</b> de la app de Claude, abrid una carpeta vacía (por ejemplo <i>Documentos › ed-vuestro-proyecto</i>) y pegad el prompt <b>«crear el proyecto en GitHub»</b>. Claude crea el CLAUDE.md, el repositorio <b>ed-…</b> en vuestro GitHub y activa GitHub Pages. Desde ese momento todo vive en GitHub: cada prompt del LAB termina subiendo los cambios. La app os pedirá permiso para ejecutar comandos: pulsad <b>Permitir</b> (o «permitir siempre» para git y gh).<br>Si cambiáis el brief o el wireframe, volved a copiar el prompt: actualiza el CLAUDE.md y lo sube. Se publica en GitHub junto con la web: nada de datos personales.");
+      {
+        const fol = "ed-" + projSlug(R);
+        const box = R.h("div", { class: "tip" });
+        box.innerHTML = `<b>Cómo empezar, sin descargar nada (en el portátil con Claude Code):</b>
+<ol style="margin:6px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:4px">
+<li><b>Cread una carpeta vacía</b> para el prototipo, con este nombre: <code>${R.esc(fol)}</code>.<br>· <b>Windows:</b> Explorador de archivos → <i>Documentos</i> → clic derecho en un hueco → <i>Nuevo</i> → <i>Carpeta</i> → escribid <code>${R.esc(fol)}</code>.<br>· <b>Mac:</b> Finder → <i>Documentos</i> → menú <i>Archivo</i> → <i>Nueva carpeta</i> → escribid <code>${R.esc(fol)}</code>.<br>«Vacía» significa que no tiene nada dentro: ahí Claude guardará la web y el CLAUDE.md, y de ahí lo sube a GitHub.</li>
+<li><b>Abridla en Claude:</b> app de escritorio de Claude → pestaña <b>Code</b> → sesión nueva → cuando os pida la carpeta de trabajo, elegid <code>${R.esc(fol)}</code> (en <i>Documentos</i>).</li>
+<li><b>Pegad el prompt</b> «crear el proyecto en GitHub» (botón de abajo) y pulsad Enter. Cuando la app pida permiso para ejecutar comandos (git, gh), pulsad <b>Permitir</b> («permitir siempre» para no repetirlo).</li>
+<li>Claude crea el CLAUDE.md, el repositorio <b>${R.esc(fol)}</b> en vuestro GitHub y GitHub Pages, y os da las dos URL. <b>Guardad la URL de la web</b> abajo, en el paso 6.</li>
+<li><b>El resto del LAB, siempre en esa misma carpeta</b> (paso 5): cada prompt termina subiendo los cambios a GitHub.</li>
+</ol>
+<p style="margin:6px 0 0">Si cambiáis el brief o el wireframe, volved a pegar el prompt de arranque: actualiza el CLAUDE.md y lo sube. Todo lo que hay en esa carpeta se publica: nada de datos personales.</p>`;
+        b.append(box);
+      }
       refreshers.push(() => { mdPre.textContent = claudeMd(d, R); });
 
       /* ---------- 5. Prompts del LAB ---------- */
