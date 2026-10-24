@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 24/10/2026 13:34</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 24/10/2026 13:44</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -5124,7 +5124,7 @@ ${claudeMd(d, R)}`;
         "<b>Qué es:</b> diez minutos en los que <b>otro equipo prueba vuestro prototipo como si fuera un cliente</b>, y vosotros el suyo. Sirve para ver lo que vosotros ya no veis.<br><b>Cómo (en rueda: el equipo 1 revisa el prototipo del 2, el 2 el del 3 y el 3 el del 1):</b><br>1 · Pasaos la URL (o dejad el portátil).<br>2 · <b>2′ · Test de 5 segundos:</b> una persona del otro equipo mira la primera pantalla 5 segundos y responde: ¿qué es?, ¿para quién?, ¿qué harías ahora?<br>3 · <b>5′ · Tarea en voz alta:</b> le pedís «apúntate a la lista de espera» (o la acción clave) y lo hace pensando en voz alta. Vosotros <b>observáis y anotáis sin ayudar ni explicar</b>: dónde duda, qué no entiende, qué dice.<br>4 · <b>3′ · Feedback:</b> 3 cosas que funcionan, 3 que confunden o frenan y 1 cambio prioritario.<br>5 · Escribid vuestras notas aquí abajo y copiad el prompt: Claude las convierte en una lista de arreglos para el Sprint B. Decide el Product Owner cuáles se aplican.",
         { key: "cruzada", label: "Notas de la revisión cruzada", hint: "lo que visteis y lo que os dijeron; sin nombres", ph: "5 segundos: pensó que era una web de pisos, no de compañeros.\nTarea: tardó en encontrar el botón; dudó en «test de convivencia».\nFunciona: titular, colores, móvil.\nConfunde: precio, qué pasa al apuntarse, el test.\nCambio prioritario: decir que es gratis junto al botón." }],
       ["Sprint B · 20′", "B1 · Medidor y lista de espera", "15′",
-        `Vamos a medir el prototipo sin herramientas externas, con el medidor del curso:\n1) Pega este bloque, tal cual, justo antes de </head> en index.html (y también en app/index.html si el prototipo tiene versión app):\n\n${medidor(R)}\n\n2) Llama a medir("cta") cada vez que se pulse un botón de CTA.\n3) Lista de espera: pide solo el email (como mucho una pregunta más del wireframe) y una casilla obligatoria de consentimiento. Al enviarlo, llama a medir("registro", { email: <el email> }) y cambia el formulario por un mensaje honesto: «¡Gracias! Esto es un prototipo de un proyecto de clase del Máster en Marketing Digital (CEU). Si sale adelante, te avisaremos.» Bajo el botón, una línea de privacidad: el email solo se usa para este experimento, solo lo ve el profesor y se borra al terminar el curso.\n4) Si hay botón Premium (fake door), llama a medir("premium") y muestra «Aún no está disponible: te avisaremos».\n5) No añadas cookies, otros scripts ni servicios externos.\nAl terminar, explícanos en 3 líneas cómo comprobar que funciona (con ?prueba=1 al final de la URL nuestras pruebas no cuentan).` + pub,
+        `Vamos a medir el prototipo sin herramientas externas, con el medidor del curso:\n1) Pega este bloque, tal cual, justo antes de </head> en index.html (y también en app/index.html si el prototipo tiene versión app):\n\n${medidor(R)}\n\n2) Llama a medir("cta") cada vez que se pulse un botón de CTA.\n3) Lista de espera: pide solo el email (como mucho una pregunta más del wireframe) y una casilla obligatoria de consentimiento. Al enviarlo, llama a medir("registro", { email: <el email> }) y cambia el formulario por un mensaje honesto: «¡Gracias! Esto es un prototipo de un proyecto de clase del Máster en Marketing Digital (CEU). Si sale adelante, te avisaremos.» Bajo el botón, una línea de privacidad: el email solo se usa para este experimento, solo lo ve el profesor y se borra al terminar el curso.\n4) Si hay botón Premium (fake door), llama a medir("premium") y muestra «Aún no está disponible: te avisaremos».\n5) No añadas cookies, otros scripts ni servicios externos.\n6) Panel del equipo: crea panel.html (en la raíz) para ver los datos del medidor desde cualquier sitio. Al abrirlo pide el código de equipo (rellenado con ${ct ? ct.team : "[CÓDIGO DEL EQUIPO]"}) y el PIN; el PIN NUNCA va en el código ni en la URL: solo en sessionStorage mientras la pestaña esté abierta. Con ellos hace fetch("${R.cloudUrl || "[URL DEL MEDIDOR]"}", { method: "POST", body: JSON.stringify({ a: "stats", team, pin }) }) sin cabeceras (texto plano, sin cookies) y lee la respuesta JSON: { ok, total: { visita, cta, registro, premium }, porCanal: { canal: { visita, cta, registro } }, primero, ultimo } (si ok es false y error es "pin", muestra «El PIN no coincide»). Enseña en grande visitas, clics en el CTA, registros y clics en Premium; la conversión (registros ÷ visitas), clic en el CTA y clic → registro; una tabla por canal (utm_source) con su conversión; primer y último evento; un botón «Actualizar» y refresco automático cada 60 segundos. Mobile-first, con el mismo estilo de la web y una línea: «Estos datos también se traen a la Ruta (estación 11)». Añade en el pie de index.html un enlace discreto «Panel del equipo» a panel.html. No pongas el medidor en panel.html (no debe contar visitas).\nAl terminar, explícanos en 3 líneas cómo comprobar que funciona (con ?prueba=1 al final de la URL nuestras pruebas no cuentan) y la URL del panel.` + pub,
         "<b>Qué es:</b> un <b>medidor casero del curso</b>, sin cuentas ni instalaciones. Es un trozo de código que Claude pega en vuestra página: cada vez que alguien la abre, pulsa el botón, se apunta o pulsa Premium, la página lo apunta en la nube del curso (la misma que guarda esta Ruta), con el canal de origen (UTM). <b>Dónde veis los números:</b> en la estación 11 · Validación cuantitativa, paso 5, botón «Traer datos del prototipo». Los emails no los veis vosotros: solo el profesor, y se borran al terminar el curso. <b>Vuestras pruebas:</b> abrid la página con <code>?prueba=1</code> al final para no inflar los datos." + (ct ? ` Vuestro código de equipo (<b>${R.esc(ct.team)}</b>) ya va dentro del prompt.` : " <span class=\"pt-warn\">⚠ Conectad antes el equipo a la nube (barra de arriba): el prompt necesita vuestro código de equipo.</span>")],
       ["Sprint B · 20′", "B2 · Enlaces con UTM", "5′", `Genera los enlaces con UTM para ${url}: Instagram (utm_source=instagram, utm_medium=social), WhatsApp de grupos de máster (utm_source=whatsapp, utm_medium=mensajeria), LinkedIn (utm_source=linkedin, utm_medium=social) y email (utm_source=email, utm_medium=email), todos con utm_campaign=${camp}. Devuélvelos en una tabla (canal, enlace completo) y recuérdanos qué número mirar en cada canal para H2. Guarda la tabla en utm.md dentro de la carpeta.` + pub,
         "<b>Qué es:</b> la misma URL con etiquetas al final (<code>?utm_source=instagram…</code>) para saber <b>de qué canal viene cada visita</b>. Compartid cada enlace solo en su canal; el medidor lee las etiquetas solo y en la estación 11 veréis visitas y registros por canal."]
@@ -6968,6 +6968,14 @@ details.cl-opt .in{display:flex;flex-direction:column;gap:10px;min-width:0}
       const anaPre = H("pre", { class: "prompt", style: "max-height:160px" });
       const anaB = copyBtn("Copiar prompt: analizar el medidor con Claude", () => anaPrompt(), anaPre);
       b.append(H("div", { class: "cq-acts" }, liveB, liveMsg, anaB));
+      {
+        const ct = R.cloudTeam();
+        if (ct && R.medidorUrl){
+          const u = R.medidorUrl(ct.team);
+          b.append(H("div", { class: "tip" }, H("b", { text: "Panel del medidor (desde cualquier sitio): " }), H("a", { href: u, target: "_blank", rel: "noopener", text: u }), " ",
+            copyBtn("Copiar enlace", () => u), H("br"), "Se abre en el móvil o en otro ordenador, pide el PIN del equipo (no va en el enlace) y se actualiza cada minuto. Los datos son los mismos que trae este paso."));
+        }
+      }
       function paintFun(){
         const v = N(fu.vis), c = N(fu.cli), r = N(fu.reg);
         const out = [];
@@ -7225,6 +7233,7 @@ const DONE = "ruta-enc-hechas", MINE = "ruta-enc-mi-equipo";
 const base = () => location.origin + location.pathname;
 R.encuestaUrl = team => base() + "?movil=encuesta&equipo=" + encodeURIComponent(String(team || "").toUpperCase());
 R.encuestasUrl = () => base() + "?movil=encuestas";
+R.medidorUrl = team => base() + "?movil=medidor&equipo=" + encodeURIComponent(String(team || "").toUpperCase());
 const getDone = () => { try { return JSON.parse(localStorage.getItem(DONE) || "[]"); } catch (e){ return []; } };
 const addDone = t => { try { const l = getDone(); if (!l.includes(t)) l.push(t); localStorage.setItem(DONE, JSON.stringify(l)); } catch (e){} };
 const T = s => String(s == null ? "" : s).trim();
@@ -7363,6 +7372,62 @@ R.mobile.encuesta = function (){
 function classLink(primary){ return H("a", { class: "btn" + (primary ? " primary" : ""), href: R.encuestasUrl(), text: "Ver las encuestas de la clase →" }); }
 
 /* ---------- página de la clase ---------- */
+/* Panel del medidor: página propia (?movil=medidor&equipo=X). Se abre desde cualquier sitio y pide el PIN del equipo,
+   que no va en el enlace (se guarda solo mientras la pestaña esté abierta). Se refresca cada 60 s. */
+R.mobile.medidor = function (){
+  const qs = new URLSearchParams(location.search);
+  const root = shell();
+  const mbrand = () => H("p", { class: "brand", style: "margin:0", text: "Máster en Marketing Digital · CEU · Medidor del prototipo" });
+  let team = String(qs.get("equipo") || "").toUpperCase(), pin = "", timer = null;
+  try { pin = sessionStorage.getItem("ruta-med-" + team) || ""; } catch (e){}
+  const inSt = "width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font:16px var(--f-body);background:var(--bg)";
+  const pct = (a, b2) => b2 > 0 ? (100 * a / b2).toLocaleString("es-ES", { maximumFractionDigits: 1 }) + " %" : "–";
+  function login(err){
+    clearInterval(timer); timer = null;
+    const t = H("input", { id: "md-team", type: "text", value: team, autocomplete: "off", style: inSt });
+    const p = H("input", { id: "md-pin", type: "password", autocomplete: "off", style: inSt });
+    const go = H("button", { class: "btn primary", type: "button" }, "Ver los datos");
+    const m = H("p", { class: "cmsg", text: err || "" });
+    go.addEventListener("click", () => { team = t.value.trim().toUpperCase(); pin = p.value.trim(); if (!team || pin.length < 4){ m.textContent = "Escribid el código de equipo y el PIN."; return; } m.textContent = "Leyendo el medidor…"; load(true); });
+    p.addEventListener("keydown", e => { if (e.key === "Enter") go.click(); });
+    root.replaceChildren(mbrand(), H("h1", { text: "Medidor del prototipo" }),
+      H("p", { class: "tb-help", text: "Datos en directo del prototipo de un equipo: visitas, clics en el CTA, registros, Premium y canales. Hace falta el PIN del equipo." }),
+      H("div", { class: "enc-card" }, H("label", { for: "md-team", text: "Código de equipo" }), t, H("label", { for: "md-pin", text: "PIN del equipo" }), p, go, m));
+  }
+  async function load(first){
+    let r;
+    try { r = await R.cloudCall({ a: "stats", team, pin }); } catch (e){ if (first) login("Sin conexión. Revisad la wifi y volved a intentarlo."); return; }
+    if (!r || !r.ok){ login(r && r.error === "pin" ? "El PIN no coincide con el del equipo." : "No se pudo leer el medidor (" + (r && r.error) + ")."); return; }
+    try { sessionStorage.setItem("ruta-med-" + team, pin); } catch (e){}
+    paint(r);
+    if (!timer) timer = setInterval(() => { if (document.visibilityState === "visible") load(false); }, 60000);
+  }
+  function paint(r){
+    const t = r.total || {}, g = k => Number(t[k]) || 0;
+    const v = g("visita"), c = g("cta"), reg = g("registro"), pm = g("premium");
+    const big = (val, lab) => H("div", { class: "enc-card", style: "flex:1 1 120px;min-width:0;text-align:center" }, H("p", { class: "enc-big", style: "margin:0", text: String(val) }), H("p", { class: "tb-help", style: "margin:0", text: lab }));
+    const rows = Object.entries(r.porCanal || {}).sort((a, b2) => (Number(b2[1].visita) || 0) - (Number(a[1].visita) || 0)).map(([k, x]) => {
+      const xv = Number(x.visita) || 0, xc = Number(x.cta) || 0, xr = Number(x.registro) || 0;
+      return H("tr", null, H("td", { text: k }), H("td", { text: String(xv) }), H("td", { text: String(xc) }), H("td", { text: String(xr) }), H("td", { text: pct(xr, xv) }));
+    });
+    const when = iso => iso ? new Date(iso).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" }) : "–";
+    const refresh = H("button", { class: "btn small", type: "button", on: { click: () => load(false) } }, "⟳ Actualizar ahora");
+    const out = H("button", { class: "btn small ghost", type: "button", on: { click: () => { try { sessionStorage.removeItem("ruta-med-" + team); } catch (e){} pin = ""; login(); } } }, "Salir");
+    root.replaceChildren(...[mbrand(), H("h1", { text: "Medidor · " + team }),
+      H("p", { class: "tb-help", style: "margin:0", text: "Se actualiza solo cada minuto · última lectura: " + new Date().toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) }),
+      H("div", { style: "display:flex;gap:10px;flex-wrap:wrap" }, big(v, "visitas"), big(c, "clics en el CTA"), big(reg, "registros"), pm ? big(pm, "clics en Premium") : null),
+      H("div", { class: "enc-card" }, H("b", { text: "Embudo" }),
+        H("p", { style: "margin:0" }, `Clic en el CTA: ${pct(c, v)} · Clic → registro: ${pct(reg, c)} · `, H("b", { text: `Conversión (registros / visitas): ${pct(reg, v)}` })),
+        H("p", { class: "tb-help", style: "margin:0", text: v < 30 ? "Con menos de 30 visitas los porcentajes cambian mucho: tomadlos como orientación." : "Comparad la conversión con el criterio de vuestra test card en la estación 11." })),
+      rows.length ? H("div", { class: "enc-card", style: "overflow-x:auto" }, H("b", { text: "Por canal (utm_source)" }),
+        H("table", { style: "width:100%;border-collapse:collapse;font-size:14px" }, H("thead", null, H("tr", null, ...["Canal", "Visitas", "Clics", "Registros", "Conversión"].map(x => H("th", { style: "text-align:left;border-bottom:1px solid var(--line);padding:4px", text: x })))), H("tbody", null, ...rows))) : null,
+      H("p", { class: "tb-help", style: "margin:0", text: `Primer evento: ${when(r.primero)} · último: ${when(r.ultimo)}. Las visitas con ?prueba=1 no cuentan.` }),
+      H("p", { class: "tb-help", style: "margin:0", text: "Estos mismos datos se traen a la Ruta (estación 11 · «Traer datos del prototipo») para el veredicto y el entregable." }),
+      H("div", { class: "chips" }, refresh, out)].filter(Boolean));
+  }
+  if (team && pin) load(true); else login();
+};
+
 R.mobile.encuestas = function (){
   const root = shell();
   root.append(brand(), H("h1", { text: "Encuestas de la clase" }), H("p", { class: "tb-help", text: "Cargando…" }));
