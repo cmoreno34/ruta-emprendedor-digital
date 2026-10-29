@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 24/10/2026 14:11</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 29/10/2026 18:11</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -4972,7 +4972,14 @@ No me pidas contraseñas ni tokens y no los guardes en ningún archivo.`;
 3. Si GitHub Pages no está activo, actívalo desde la rama main y la raíz con «gh api -X POST repos/⟨usuario⟩/ed-⟨proyecto⟩/pages -f "source[branch]=main" -f "source[path]=/"» (si responde que ya existe, sigue).
 4. Comprueba cada 20 segundos, durante un máximo de 5 minutos, que la web responde, y dame la URL final: https://⟨usuario⟩.github.io/ed-⟨proyecto⟩/ (y la de la subcarpeta web/ o app/ si el prototipo está ahí).
 Sube los cambios directamente (commit y push), sin pedirme confirmación; solo avísame si algo falla. Nunca uses --force ni borres repositorios.`;
-  const ghUser = d => T(d.ghUser).replace(/^@/, "") || "vuestro-usuario";
+  /* Usuario de GitHub tal cual lo escriban: «usuario», «@usuario», «usuario/repositorio» o la URL de github.com o github.io */
+  const ghParts = d => {
+    let v = T(d.ghUser).replace(/^@/, "").replace(/^https?:\/\//, "").replace(/\/+$/, "");
+    let m = v.match(/^([^./]+)\.github\.io(?:\/([^/?#]+))?/i); if (m) return { user: m[1], repo: m[2] || "" };
+    m = v.match(/^(?:www\.)?github\.com\/([^/]+)(?:\/([^/?#]+))?/i); if (m) return { user: m[1], repo: m[2] || "" };
+    const [user, repo] = v.split("/"); return { user: user || "", repo: repo || "" };
+  };
+  const ghUser = d => ghParts(d).user || "vuestro-usuario";
   const projSlug = R => slug(T(R.project.nombre) || T(R.project.equipo) || "proyecto");
   const PUBLICAR_WEB = `Cuando termines, publica en GitHub:
 1. Haz commit con un mensaje claro en castellano y sube los cambios directamente a la rama main de este repositorio (si no puedes subir a main, súbelos a una rama y dime en una línea cómo fusionarla en main desde GitHub).
@@ -4980,7 +4987,7 @@ Sube los cambios directamente (commit y push), sin pedirme confirmación; solo a
 3. Recuérdame la URL de la web: https://⟨usuario⟩.github.io/ed-⟨proyecto⟩/ (y la de app/ si el prototipo tiene versión app). GitHub Pages tarda 1–5 minutos en actualizarse.
 Sube los cambios sin pedirme confirmación; solo avísame si algo falla. Nunca uses --force ni borres el repositorio.`;
   const publicar = (d, R) => (d.modo === "navegador" ? PUBLICAR_WEB : PUBLICAR).split("⟨proyecto⟩").join(projSlug(R)).split("⟨usuario⟩").join(ghUser(d));
-  const pagesUrl = (d, R) => `https://${ghUser(d)}.github.io/ed-${projSlug(R)}/`;
+  const pagesUrl = (d, R) => `https://${ghUser(d)}.github.io/${ghParts(d).repo || "ed-" + projSlug(R)}/`;
   window.RutaED = window.RutaED || {};
   /* URL publicadas del prototipo: la que guardó el equipo (paso 6) o la calculada con su usuario de GitHub */
   window.RutaED.protoLinks = () => {
