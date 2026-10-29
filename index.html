@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 29/10/2026 18:11</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 29/10/2026 18:15</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -6954,6 +6954,10 @@ details.cl-opt .in{display:flex;flex-direction:column;gap:10px;min-width:0}
             if (Number(vb.visita) > 0){ Object.assign(d.ab, { na: Number(va.visita) || 0, xa: Number(va.registro) || 0, nb: Number(vb.visita) || 0, xb: Number(vb.registro) || 0 }); }
             R.save(); paintFun(); paintAll();
             medMsg.replaceChildren(H("div", { class: "tip ok", text: g("visita") ? `Datos del medidor: ${g("visita")} visitas${Number(vb.visita) > 0 ? "; también la versión B (A/B en las calculadoras)" : ""}.` : "El medidor todavía no ha registrado visitas: comprobad que el prototipo publicado lleva el código del medidor (estación 9)." }));
+            if (g("registro") === 0 && g("cta") > 0){
+              const useCta = H("button", { class: "btn small", type: "button", on: { click: () => { fu.reg = Math.min(fu.cli, fu.vis); Object.entries(fIn).forEach(([k, inp]) => inp.value = fu[k]); R.save(); paintFun(); paintAll(); useCta.disabled = true; useCta.textContent = "Hecho ✓ (práctica)"; } } }, "Usar los clics en el CTA como registros (práctica)");
+              medMsg.append(H("div", { class: "tip warn" }, H("b", { text: "El medidor no ha contado registros" }), " (vuestro prototipo no envía el formulario como «registro»). Para practicar el análisis podéis usar los clics en el CTA como registros, o escribir arriba los números a mano. Decidlo en el entregable. ", useCta));
+            }
           } else medMsg.replaceChildren(H("div", { class: "tip warn", text: ({ pin: "El PIN no coincide con el del equipo.", team: "Código de equipo no válido." })[r && r.error] || "No se pudo leer el medidor (" + (r && r.error) + ")." }));
         } catch (e){ medMsg.replaceChildren(H("div", { class: "tip warn", text: "Sin conexión con la nube. Probad de nuevo en un momento." })); }
         medB.disabled = false;
