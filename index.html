@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 31/10/2026 12:45</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 31/10/2026 12:55</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -8112,7 +8112,7 @@ R.deliverable({
 Mensaje central: ${T(d.mensaje) || "(vacío)"}
 Frase-lema: ${T(d.lema) || "(vacía)"}
 Prototipo: ${lk.app || web}
-
+${T(d.mejorasHechas) ? "\nCambios que hicimos tras el test (antes → después); ponlos en la slide de la solución o en una slide «Lo que cambiamos», con capturas de la versión nueva:\n" + T(d.mejorasHechas) + "\n" : ""}
 Guion:
 ${guion}
 
