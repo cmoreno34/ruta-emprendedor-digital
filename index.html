@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 29/10/2026 18:15</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 31/10/2026 09:40</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -429,14 +429,29 @@ const R = (() => {
   /* Repinta sin romper lo que alguien está escribiendo: la estación abierta y la ficha se repintan cuando se sale del campo. */
   let deferred = false;
   const typingIn = el => { const a = document.activeElement; return !!(a && el && el.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) || !!(a && a.isContentEditable && el && el.contains(a)); };
+  /* Repinta con los cambios del equipo aunque haya un cursor puesto: se devuelve el cursor al mismo campo y posición. */
+  let lastInput = 0;
+  document.addEventListener("input", () => { lastInput = Date.now(); }, true);
+  function repaintKeep(){
+    const a = document.activeElement, y = window.scrollY;
+    const box = ["project", "station"].map(id => document.getElementById(id)).find(el => el && a && el.contains(a));
+    let idx = -1, ss = null, se = null;
+    if (box){ idx = Array.from(box.querySelectorAll("input,textarea,select")).indexOf(a); try { ss = a.selectionStart; se = a.selectionEnd; } catch(e){} }
+    paintProject(); paintStation();
+    if (box && idx >= 0){
+      const nb = document.getElementById(box.id), el = nb && nb.querySelectorAll("input,textarea,select")[idx];
+      if (el && el.tagName === a.tagName){ try { el.focus({ preventScroll: true }); if (ss != null) el.setSelectionRange(ss, se); } catch(e){} }
+    }
+    window.scrollTo(0, y);
+  }
   function repaintMerged(changed){
     paintRail(); paintCloud();
     const proj = document.getElementById("project"), main = document.getElementById("station");
     const needP = changed.includes("project"), needS = changed.includes(cur) || needP;
     if (needP && !typingIn(proj)) paintProject();
     if (needS){
-      if (typingIn(main) || (needP && typingIn(proj))){
-        if (!deferred){ deferred = setInterval(() => { if (typingIn(main) || typingIn(proj)) return; clearInterval(deferred); deferred = false; paintProject(); paintStation(); }, 800); }
+      if ((typingIn(main) || (needP && typingIn(proj))) && Date.now() - lastInput < 3000){
+        if (!deferred){ deferred = setInterval(() => { if ((typingIn(main) || typingIn(proj)) && Date.now() - lastInput < 3000) return; clearInterval(deferred); deferred = false; repaintKeep(); }, 800); }
       } else paintStation();
     }
   }
@@ -494,7 +509,7 @@ const R = (() => {
     afterMerge(r, "Combinado con los cambios de otra persona del equipo · versión " + r.version + ".");
     repaintMerged(changed);
   }
-  /* Cada 30 s, si no hay cambios pendientes aquí, se traen los cambios de los compañeros. */
+  /* Cada 15 s (y al volver a la pestaña), si no hay cambios pendientes aquí, se traen los cambios de los compañeros. */
   async function cloudPull(){
     if (!cloudOn() || S.isExample || cloud.busy || cloud.pending || cloud.conflict || document.visibilityState !== "visible") return;
     let r;
@@ -505,7 +520,8 @@ const R = (() => {
     afterMerge(r, "Actualizado con los cambios del equipo · versión " + r.version + ".");
     repaintMerged(changed);
   }
-  setInterval(cloudPull, 30000);
+  setInterval(cloudPull, 15000);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") cloudPull(); });
   /* Botón «Actualizar»: sube lo pendiente de este ordenador, trae lo de los compañeros y repinta todo. */
   async function refreshNow(){
     if (!cloudOn() || S.isExample) return;
