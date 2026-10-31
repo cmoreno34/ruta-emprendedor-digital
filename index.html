@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 31/10/2026 11:40</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 31/10/2026 12:20</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -7849,7 +7849,7 @@ R.deliverable({
     const dc = st.decidir || {};
     const rows = Array.isArray(dc.rows) ? dc.rows.filter(r => r && (r.hip || r.res)) : [];
     const EST = { ok: "validada", mid: "con cautela", no: "no validada", pend: "pendiente" };
-    const ev = rows.map(r => { const n = N(r.n), x = N(r.x); const p = n > 0 && x >= 0 ? 100 * x / n : N(r.pct); return `${r.id || ""}${r.tipo ? " " + r.tipo : ""}: ${isNaN(p) ? (r.res || "") : R.stats.num(p, 1) + " %"}${n > 0 ? ` (n = ${n})` : ""}${r.critPct !== "" && r.critPct != null ? `, umbral ${r.critPct} %` : ""} → ${EST[r.estado || "pend"]}.`; }).join(" ");
+    const ev = rows.filter(r => (r.estado && r.estado !== "pend") || String(r.res || "").trim() || N(r.n) > 0 || String(r.pct || "").trim()).map(r => { const n = N(r.n), x = N(r.x); const p = n > 0 && x >= 0 ? 100 * x / n : N(r.pct); return `${r.id || ""}${r.tipo ? " " + r.tipo : ""}: ${isNaN(p) ? (r.res || "") : R.stats.num(p, 1) + " %"}${n > 0 ? ` (n = ${n})` : ""}${r.critPct !== "" && r.critPct != null ? `, umbral ${r.critPct} %` : ""} → ${EST[r.estado || "pend"]}.`; }).join(" ");
     const dec = { perseverar: "Perseveramos", iterar: "Iteramos", pivotar: "Pivotamos", abandonar: "Abandonamos" }[dc.decision] || "";
     const lc = dc.lc && dc.lc.portanto ? dc.lc.portanto.trim() : "";
     const pv = st.pivote || {};
@@ -7963,17 +7963,25 @@ R.deliverable({
         const short = t => { t = T(t).replace(/\.$/, ""); if (t.length <= 90) return t; const c = t.slice(0, 90); const i = Math.max(c.lastIndexOf(","), c.lastIndexOf(":")); return (i > 40 ? c.slice(0, i) : c.slice(0, c.lastIndexOf(" "))) + "…"; };
         const put = (k, txt, slide) => { const x = d.blocks[k]; if (txt && !T(x.txt)){ x.txt = txt.replace(/\.\./g, ".").replace(/\.;/g, ";"); n++; } if (slide && !T(x.slide)){ x.slide = short(slide); n++; } };
         put("gancho", T(se.porque) ? "Os contamos algo que nos pasó: " + s1(se.porque) + " (pausa) ¿A cuántos os ha pasado?" : (fl(se.problema) ? "¿Os ha pasado? " + s1(se.problema) : ""), s1(se.problema) || s1(em.povNecesidad));
-        put("problema", [c.prob ? `${c.prob.res || ""}${c.prob.n ? ` (n = ${c.prob.n})` : ""}.` : "", dol.length ? "Lo que nos contaron: " + dol.join("; ") + "." : "", fl(ln.alternativas || se.hoy) ? "Hoy lo resuelven con " + fl(ln.alternativas || se.hoy).replace(/\.$/, "") + ", y no les basta." : ""].filter(Boolean).join(" "), dol[0] || fl(ln.problema));
+        put("problema", [c.prob && String(c.prob.res || "").trim() ? `${c.prob.res || ""}${c.prob.n ? ` (n = ${c.prob.n})` : ""}.` : "", dol.length ? "Lo que nos contaron: " + dol.join("; ") + "." : "", fl(ln.alternativas || se.hoy) ? "Hoy lo resuelven con " + fl(ln.alternativas || se.hoy).replace(/\.$/, "") + ", y no les basta." : ""].filter(Boolean).join(" "), dol[0] || fl(ln.problema));
         put("insight", ins ? "Nuestro insight: " + ins : "", s1(ins));
         put("solucion", `${nombre}: ${fl(ln.uvp) || rm(cs.beneficio) || c.concept}. Os lo enseñamos en directo. (DEMO)${T(d.mejorasHechas) ? " Después del test cambiamos: " + lines(d.mejorasHechas, 3).join("; ") + "." : ""}`, `${nombre} · demo en vivo`);
-        put("evidencia", c.ev || evid, c.nRows ? "Qué hemos validado y qué no" : (evid ? "Lo que vimos en los tests con usuarios" : ""));
+        const cq = st.cuanti || {}, itp = cq.interp && typeof cq.interp === "object" ? cq.interp : {};
+        const itpTxt = Object.keys(itp).filter(k => /^H\d/i.test(k) && itp[k] && T(itp[k].sig)).map(k => `${k}: ${rm(itp[k].sig)}`).join(" ");
+        const nResp = Array.isArray(cq.data) ? cq.data.length : (cq.data && Array.isArray(cq.data.rows) ? cq.data.rows.length : 0);
+        const probs = (cu.problemas || []).filter(p => p && T(p.txt)).length;
+        const evAlt = [itpTxt ? `Encuesta${nResp ? " (n = " + nResp + ", datos de práctica)" : ""}: ${itpTxt}` : "", probs ? `En el test con usuarios vimos ${probs} problemas de uso; los más graves los hemos corregido en esta versión.` : "", evid].filter(Boolean).join(" ");
+        put("evidencia", c.ev || evAlt, c.ev ? "Qué hemos validado y qué no" : (evAlt ? "Lo que nos dicen los datos" : ""));
         put("modelo", c.ing ? "Quién paga y cuánto: " + c.ing : (lines(ln.ingresos, 3).length ? "Cómo ganamos dinero: " + lines(ln.ingresos, 3).join("; ") + "." : ""), fl(c.ing || ln.ingresos));
-        put("decision", [c.dec ? c.dec + "." : "", c.frase, c.lc].filter(Boolean).join(" "), c.dec ? c.dec + (c.lc ? ": " + s1(c.lc) : "") : "");
+        const itpDec = Object.keys(itp).filter(k => itp[k] && T(itp[k].dec)).slice(0, 2).map(k => rm(itp[k].dec)).join(" ");
+        put("decision", [c.dec ? c.dec + "." : "", c.frase, c.lc || itpDec].filter(Boolean).join(" "), c.dec ? c.dec + (c.lc ? ": " + s1(c.lc) : (itpDec ? ": " + s1(itpDec) : "")) : "");
         if (!T(d.lema) && T(cs.frase)){ d.lema = rm(cs.frase); lemaInp.value = d.lema; n++; }
         put("peticion", `Probad ${nombre} ahora: escanead el QR. ${T(d.lema)}`.trim(), "Escanead el QR y probadlo");
         if (!T(d.mensaje)){
           const rows = (st.decidir && Array.isArray(st.decidir.rows)) ? st.decidir.rows : [];
           const ok = rows.filter(r => r && r.estado === "ok").map(r => s1(r.hip || r.tipo || r.id)), no = rows.filter(r => r && (r.estado === "no" || r.estado === "mid")).map(r => s1(r.hip || r.tipo || r.id));
+          const sig1 = Object.keys(itp).filter(k => /^H\d/i.test(k) && itp[k] && T(itp[k].sig)).map(k => s1(itp[k].sig))[0];
+          if (!ok.length && !no.length && sig1){ d.mensaje = `${sig1.replace(/\.$/, "")}; por eso ${(c.dec || "seguimos").toLowerCase()}.`; msgInp.value = d.mensaje; n++; }
           if (ok.length || no.length){ d.mensaje = `Hemos validado ${ok.join(", ") || "poco todavía"}${no.length ? ", pero no " + no.join(", ") : ""}; por eso ${(c.dec || "seguimos").toLowerCase()}.`; msgInp.value = d.mensaje; n++; }
         }
         if (c.url && !(d.url || "").trim()){ d.url = c.url; urlInp.value = c.url; n++; }
@@ -8024,7 +8032,15 @@ R.deliverable({
           H("div", { class: "verdict " + cls, text: e > 300 ? "Os pasáis de 5:00: el cronómetro del demo day corta. Recortad los bloques en rojo." : e > 285 ? "Muy justo: dejad aire para pausas y transiciones (objetivo ≈ 4:45)." : "Cabe en 5 minutos. Comprobadlo en voz alta con el cronómetro: el ritmo real manda." }));
       }
       drawBlocks(); paintTotal();
-      if (!d.autoFilled && !B.some(([k]) => (d.blocks[k].txt || "").trim()) && !R.state.isExample){ d.autoFilled = true; fillFromContext(true); }
+      if (!d.autoFilled && !B.some(([k]) => (d.blocks[k].txt || "").trim()) && !R.state.isExample){ d.autoFilled = true; d.autoFilled2 = true; fillFromContext(true); }
+      else if (d.autoFilled && !d.autoFilled2 && !R.state.isExample){
+        d.autoFilled2 = true;
+        const ev = d.blocks.evidencia, dc = d.blocks.decision;
+        if (/^(\s*H\d+[^:]*:\s*→\s*pendiente\.?)+\s*$/.test(ev.txt || "")){ ev.txt = ""; if (ev.slide === "Qué hemos validado y qué no") ev.slide = ""; }
+        if (/^\s*(Perseveramos|Iteramos|Pivotamos|Abandonamos)\.\s*$/.test(dc.txt || "")) dc.txt = "";
+        if (/^\.\s/.test(d.blocks.problema.txt || "")) d.blocks.problema.txt = d.blocks.problema.txt.replace(/^\.\s*/, "");
+        fillFromContext(true);
+      }
       R.tip(b, "<b>Datos honestos:</b> cada cifra con su n y su fuente; con menos de ~30 casos, números absolutos («3 de 4»); eje desde 0 y una línea con el umbral; todas las hipótesis con su veredicto, también las que fallan.");
 
       /* 3 · mejoras al prototipo antes del Demo Day */
@@ -8034,6 +8050,7 @@ R.deliverable({
       const traer = () => {
         const cu = stp.cuali || {}, dc = stp.decidir || {}, out = [];
         if (T(cu.cambios)) out.push(T(cu.cambios));
+        else (cu.problemas || []).filter(p => p && T(p.txt)).slice().sort((a, b2) => (Number(b2.sev) || 0) - (Number(a.sev) || 0)).slice(0, 4).forEach((p, i) => out.push(`${i + 1}) ${T(p.txt)}${p.sev ? " (gravedad " + p.sev + ")" : ""}`));
         (cu.evid || []).forEach(e => { if (e && T(e.decision) && !/^segu/i.test(T(e.decision))) out.push("- " + T(e.decision) + (T(e.hip) ? " (" + T(e.hip).slice(0, 80) + ")" : "")); });
         if (dc.lc && T(dc.lc.portanto)) out.push("- " + T(dc.lc.portanto));
         return out.join("\n");
