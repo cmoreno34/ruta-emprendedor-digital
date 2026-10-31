@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 31/10/2026 11:10</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 31/10/2026 11:40</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -7933,31 +7933,52 @@ R.deliverable({
       const H = R.h;
 
       /* 1 · mensaje y contexto */
-      let b = R.step(el, 1, "Mensaje central y lo que ya tenéis", "Una frase que el jurado deba recordar: «Hemos validado que… pero no que…; por eso…». Traed de las estaciones anteriores el POV, el concepto, el enlace del prototipo y el validation board.");
-      R.field(b, { label: "Mensaje central", rows: 2, ph: "Hemos validado que… pero no que…; por eso…" }, d, "mensaje");
+      let b = R.step(el, 1, "Mensaje central y lo que ya tenéis", "Una frase que el jurado deba recordar: «Hemos validado que… pero no que…; por eso…». La web prepara el guion sola con lo de las estaciones anteriores (POV, concepto, modelo, validación y decisión): revisadlo y cambiad lo que queráis.");
+      const msgInp = R.field(b, { label: "Mensaje central", rows: 2, ph: "Hemos validado que… pero no que…; por eso…" }, d, "mensaje");
       const r1 = H("div", { class: "row2" }); b.append(r1);
-      R.field(r1, { label: "Frase-lema", hint: "abre y cierra el pitch", single: true }, d, "lema");
+      const lemaInp = R.field(r1, { label: "Frase-lema", hint: "abre y cierra el pitch", single: true }, d, "lema");
       const urlInp = R.field(r1, { label: "Enlace del prototipo", hint: "para la demo y el QR", single: true, ph: "https://usuario.github.io/ed-equipo/" }, d, "url");
       const ctxBox = H("div", { class: "pt-ctx" });
       const ctxMsg = H("span", { class: "status", "aria-live": "polite" });
-      b.append(ctxBox, H("div", { style: "display:flex;gap:10px;flex-wrap:wrap;align-items:center" }, H("button", { class: "btn small", type: "button", on: { click: fillFromContext } }, "Rellenar bloques vacíos con lo anterior"), ctxMsg));
+      b.append(ctxBox, H("div", { style: "display:flex;gap:10px;flex-wrap:wrap;align-items:center" }, H("button", { class: "btn small", type: "button", on: { click: () => fillFromContext(false) } }, "Rellenar bloques vacíos con lo anterior"), ctxMsg));
       function paintCtx(){
         const c = context(R);
         const it = (lab, v) => H("div", { class: "it " + (v ? "on" : "off") }, H("b", { text: lab }), H("span", { text: v ? (v.length > 140 ? v.slice(0, 140) + "…" : v) : "Vacío en su estación" }));
         ctxBox.replaceChildren(it("POV (Empatía)", c.pov), it("Concepto", c.concept), it("Prototipo", c.url), it("Validation board", c.nRows ? `${c.nRows} hipótesis · ${c.dec || "sin decisión"}` : ""), it("Frase del pivote", c.frase));
       }
-      function fillFromContext(){
-        const c = context(R); let n = 0;
-        const put = (k, txt) => { if (txt && !(d.blocks[k].txt || "").trim()){ d.blocks[k].txt = txt; n++; } };
-        if (c.prob) put("problema", `${c.prob.res || ""}${c.prob.n ? ` (n = ${c.prob.n})` : ""}.`);
-        put("insight", c.pov ? "Nuestro insight: " + c.pov : "");
-        put("solucion", c.concept ? `${c.concept}. Os lo enseñamos en directo. (DEMO)${c.url ? " Está publicado: tenéis el QR en pantalla." : ""}` : "");
-        put("evidencia", c.ev);
-        put("modelo", c.ing ? "Quién paga y cuánto: " + c.ing : "");
-        put("decision", [c.dec ? c.dec + "." : "", c.frase, c.lc].filter(Boolean).join(" "));
+      function fillFromContext(auto){
+        const c = context(R), st = (R.state && R.state.st) || {}, P = R.project || {};
+        const T = v => String(v == null ? "" : v).trim();
+        const rm = t => T(t).replace(/\s*\[[A-Z]\]/g, "").replace(/\s*\((?:D\d+[,\s]*)+\)/g, "").replace(/\*\*/g, "").trim();
+        const lines = (t, n) => rm(t).split(/\n/).map(x => x.replace(/^[-•\d.)\s]+/, "").replace(/[.;:\s]+$/, "").trim()).filter(Boolean).slice(0, n);
+        const fl = t => lines(t, 1)[0] || "";
+        const s1 = t => { const x = rm(t); const m = x.match(/^(.{20,140}?[.!?])(\s|$)/); return m ? m[1] : x.slice(0, 140); };
+        const se = st.semilla || {}, em = st.empatia || {}, cs = (st.ideas && st.ideas.concept) || {}, ln = (st.modelo && st.modelo.lean) || {}, vpc = (st.modelo && st.modelo.vpc) || {}, cu = st.cuali || {};
+        const nombre = T(cs.nombre) || T(P.nombre) || "nuestro proyecto";
+        const dol = lines(vpc.dolores, 2);
+        const VL = { ok: "validada", si: "validada", mid: "a medias", no: "no validada", pend: "pendiente" };
+        const evid = (cu.evid || []).filter(e => e && T(e.hip) && e.veredicto).map(e => `${s1(e.hip)} → ${VL[e.veredicto] || e.veredicto}.`).join(" ");
+        const ins = rm(em.povInsight || cs.insight || c.pov);
+        let n = 0;
+        const short = t => { t = T(t).replace(/\.$/, ""); if (t.length <= 90) return t; const c = t.slice(0, 90); const i = Math.max(c.lastIndexOf(","), c.lastIndexOf(":")); return (i > 40 ? c.slice(0, i) : c.slice(0, c.lastIndexOf(" "))) + "…"; };
+        const put = (k, txt, slide) => { const x = d.blocks[k]; if (txt && !T(x.txt)){ x.txt = txt.replace(/\.\./g, ".").replace(/\.;/g, ";"); n++; } if (slide && !T(x.slide)){ x.slide = short(slide); n++; } };
+        put("gancho", T(se.porque) ? "Os contamos algo que nos pasó: " + s1(se.porque) + " (pausa) ¿A cuántos os ha pasado?" : (fl(se.problema) ? "¿Os ha pasado? " + s1(se.problema) : ""), s1(se.problema) || s1(em.povNecesidad));
+        put("problema", [c.prob ? `${c.prob.res || ""}${c.prob.n ? ` (n = ${c.prob.n})` : ""}.` : "", dol.length ? "Lo que nos contaron: " + dol.join("; ") + "." : "", fl(ln.alternativas || se.hoy) ? "Hoy lo resuelven con " + fl(ln.alternativas || se.hoy).replace(/\.$/, "") + ", y no les basta." : ""].filter(Boolean).join(" "), dol[0] || fl(ln.problema));
+        put("insight", ins ? "Nuestro insight: " + ins : "", s1(ins));
+        put("solucion", `${nombre}: ${fl(ln.uvp) || rm(cs.beneficio) || c.concept}. Os lo enseñamos en directo. (DEMO)${T(d.mejorasHechas) ? " Después del test cambiamos: " + lines(d.mejorasHechas, 3).join("; ") + "." : ""}`, `${nombre} · demo en vivo`);
+        put("evidencia", c.ev || evid, c.nRows ? "Qué hemos validado y qué no" : (evid ? "Lo que vimos en los tests con usuarios" : ""));
+        put("modelo", c.ing ? "Quién paga y cuánto: " + c.ing : (lines(ln.ingresos, 3).length ? "Cómo ganamos dinero: " + lines(ln.ingresos, 3).join("; ") + "." : ""), fl(c.ing || ln.ingresos));
+        put("decision", [c.dec ? c.dec + "." : "", c.frase, c.lc].filter(Boolean).join(" "), c.dec ? c.dec + (c.lc ? ": " + s1(c.lc) : "") : "");
+        if (!T(d.lema) && T(cs.frase)){ d.lema = rm(cs.frase); lemaInp.value = d.lema; n++; }
+        put("peticion", `Probad ${nombre} ahora: escanead el QR. ${T(d.lema)}`.trim(), "Escanead el QR y probadlo");
+        if (!T(d.mensaje)){
+          const rows = (st.decidir && Array.isArray(st.decidir.rows)) ? st.decidir.rows : [];
+          const ok = rows.filter(r => r && r.estado === "ok").map(r => s1(r.hip || r.tipo || r.id)), no = rows.filter(r => r && (r.estado === "no" || r.estado === "mid")).map(r => s1(r.hip || r.tipo || r.id));
+          if (ok.length || no.length){ d.mensaje = `Hemos validado ${ok.join(", ") || "poco todavía"}${no.length ? ", pero no " + no.join(", ") : ""}; por eso ${(c.dec || "seguimos").toLowerCase()}.`; msgInp.value = d.mensaje; n++; }
+        }
         if (c.url && !(d.url || "").trim()){ d.url = c.url; urlInp.value = c.url; n++; }
         R.save(); drawBlocks(); paintTotal();
-        ctxMsg.textContent = n ? `${n} campo(s) rellenados. Revisadlos y pasadlos a lenguaje oral.` : "No había bloques vacíos que rellenar (o las estaciones anteriores están vacías).";
+        ctxMsg.textContent = n ? (auto ? "Guion preparado con lo que ya teníais. " : `${n} campo(s) rellenados. `) + "Revisadlo, pasadlo a lenguaje oral y cambiad lo que queráis." : "No había bloques vacíos que rellenar (o las estaciones anteriores están vacías).";
       }
       paintCtx();
 
@@ -8003,10 +8024,71 @@ R.deliverable({
           H("div", { class: "verdict " + cls, text: e > 300 ? "Os pasáis de 5:00: el cronómetro del demo day corta. Recortad los bloques en rojo." : e > 285 ? "Muy justo: dejad aire para pausas y transiciones (objetivo ≈ 4:45)." : "Cabe en 5 minutos. Comprobadlo en voz alta con el cronómetro: el ritmo real manda." }));
       }
       drawBlocks(); paintTotal();
+      if (!d.autoFilled && !B.some(([k]) => (d.blocks[k].txt || "").trim()) && !R.state.isExample){ d.autoFilled = true; fillFromContext(true); }
       R.tip(b, "<b>Datos honestos:</b> cada cifra con su n y su fuente; con menos de ~30 casos, números absolutos («3 de 4»); eje desde 0 y una línea con el umbral; todas las hipótesis con su veredicto, también las que fallan.");
 
-      /* 3 · cronómetro */
-      b = R.step(el, 3, "Ensayo cronometrado", "Pitch completo con la demo real. El cronómetro marca en qué bloque deberíais estar y avisa al cambiar. Aprended la estructura, no el texto palabra por palabra.");
+      /* 3 · mejoras al prototipo antes del Demo Day */
+      b = R.step(el, 3, "Aplicad las mejoras al prototipo con Claude Code", "≈ 15′, antes del Demo Day. Una persona lanza el prompt mientras el resto revisa el guion. Así la demo enseña la versión mejorada y en el pitch podéis decir «lo vimos en el test y lo cambiamos». Solo cambios pequeños y concretos; el pivote grande viene después (estación 14).");
+      const stp = R.state.st || {};
+      const T = v => String(v == null ? "" : v).trim();
+      const traer = () => {
+        const cu = stp.cuali || {}, dc = stp.decidir || {}, out = [];
+        if (T(cu.cambios)) out.push(T(cu.cambios));
+        (cu.evid || []).forEach(e => { if (e && T(e.decision) && !/^segu/i.test(T(e.decision))) out.push("- " + T(e.decision) + (T(e.hip) ? " (" + T(e.hip).slice(0, 80) + ")" : "")); });
+        if (dc.lc && T(dc.lc.portanto)) out.push("- " + T(dc.lc.portanto));
+        return out.join("\n");
+      };
+      if (typeof d.mejoras !== "string") d.mejoras = "";
+      if (!T(d.mejoras) && traer()) d.mejoras = traer();
+      const mTa = R.field(b, { label: "Cambios que vamos a hacer", hint: "vienen de la validación cualitativa (estación 10) y de la decisión (estación 12); quitad o añadid lo que queráis", rows: 6, ph: "1) El botón de registro no se ve en el móvil: más grande y arriba\n2) …" }, d, "mejoras");
+      const mPre = H("pre", { class: "prompt-pre", style: "white-space:pre-wrap;max-height:220px;overflow:auto;font-size:12.5px" });
+      const repo = () => { const lk = window.RutaED && window.RutaED.protoLinks ? window.RutaED.protoLinks() : {}; const m = String(lk.web || "").match(/^https?:\/\/([^.\/]+)\.github\.io\/([^\/?#]+)/i); return m ? m[1] + "/" + m[2] : ""; };
+      const mPrompt = () => (repo() ? `Trabajamos sobre nuestro prototipo, que ya está en GitHub: https://github.com/${repo()} (web publicada en https://${repo().split("/")[0]}.github.io/${repo().split("/")[1]}/). Si esta carpeta o sesión no tiene ese repositorio, clónalo primero (gh repo clone ${repo()}) y trabaja dentro de él.\n\n` : "Trabajamos sobre nuestro prototipo, que ya está en GitHub (el repositorio del CLAUDE.md). Si esta carpeta o sesión no lo tiene, pregúntanos el repositorio y clónalo antes de empezar.\n\n") + `Lee CLAUDE.md. Hemos probado el prototipo con usuarios y hemos decidido estos cambios:\n\n${T(d.mejoras) || "(escribid aquí los cambios)"}\n\nAplícalos uno a uno, en este orden, en la web y también en app/ si existe. No rediseñes lo demás, no cambies el texto que no tenga que ver con estos cambios y no quites el medidor ni sus eventos. Si un cambio es grande o ambiguo, haz la versión más sencilla que lo resuelva. Al terminar, dame una lista corta «antes → después» de cada cambio, en frases que podamos decir en el pitch.\n\n` + (window.RutaED && window.RutaED.publicar ? window.RutaED.publicar() : "Después, publica los cambios en GitHub Pages (commit y push, sin pedirme confirmación).");
+      const mB = H("button", { class: "btn accent small", type: "button" }, "Copiar prompt: aplicar las mejoras");
+      mB.addEventListener("click", async () => { const t = mPrompt(); mPre.textContent = t; try { await navigator.clipboard.writeText(t); mB.textContent = "Copiado ✓"; } catch (e){ mB.textContent = "Seleccionad el texto y copiadlo"; } setTimeout(() => { mB.textContent = "Copiar prompt: aplicar las mejoras"; }, 2500); });
+      const reB = H("button", { class: "btn small", type: "button" }, "Volver a traer de la validación");
+      reB.addEventListener("click", () => { const t = traer(); if (!t) return; d.mejoras = t; mTa.value = t; R.save(); });
+      b.append(H("div", { class: "chips" }, mB, reB), mPre);
+      R.tip(b, "Pegad el prompt en Claude Code, en la misma conversación o proyecto del prototipo (estación 9). Cuando Claude diga que está publicado, esperad 1–5 minutos, recargad la URL del prototipo y probad la demo otra vez.");
+      R.field(b, { label: "Qué hemos cambiado (para el pitch)", hint: "la lista «antes → después» que os da Claude; usadla en el bloque de evidencia o de solución", rows: 4 }, d, "mejorasHechas");
+      /* 4 · slides con Claude Code */
+      b = R.step(el, 4, "Slides con Claude Code, con el estilo de vuestra app", "Claude Code hace las slides a partir del guion del paso 2: los mismos colores, tipografías y botones de vuestro prototipo, y capturas reales de la app. Quedan publicadas en GitHub como una página más (pitch/), se presentan desde el navegador y se pueden guardar en PDF. Lanzadlo cuando el guion esté revisado y las mejoras del paso 3, publicadas.");
+      const sPre = H("pre", { class: "prompt-pre", style: "white-space:pre-wrap;max-height:220px;overflow:auto;font-size:12.5px" });
+      const sPrompt = () => {
+        const rp = repo(), user = rp ? rp.split("/")[0] : "", name = rp ? rp.split("/")[1] : "";
+        const web = rp ? `https://${user}.github.io/${name}/` : (T(d.url) || "(URL del prototipo)");
+        const lk = window.RutaED && window.RutaED.protoLinks ? window.RutaED.protoLinks() : {};
+        const guion = B.map(([k, nm], i) => { const x = d.blocks[k] || {}; return `${i + 1}. ${nm}\n   Slide: ${T(x.slide) || "(propón tú el título-mensaje)"}\n   Notas del orador: ${T(x.txt) || "(vacío)"}`; }).join("\n");
+        return (rp ? `Trabajamos sobre nuestro prototipo, que ya está en GitHub: https://github.com/${rp}. Si esta carpeta o sesión no tiene ese repositorio, clónalo primero (gh repo clone ${rp}) y trabaja dentro de él.\n\n` : "Trabajamos sobre nuestro prototipo, que ya está en GitHub (el repositorio del CLAUDE.md). Si esta carpeta o sesión no lo tiene, pregúntanos el repositorio y clónalo antes de empezar.\n\n") +
+`Lee CLAUDE.md. Haznos las slides de nuestro pitch de 5 minutos (Demo Day) como una presentación web en la carpeta pitch/ del repositorio: pitch/index.html, un único archivo con su CSS y JS, sin librerías ni servicios externos.
+
+1. Estilo: usa la identidad visual de nuestra app. Lee sus archivos (CSS, variables de color, tipografías, logo, iconos, botones, bordes y sombras) y reutilízalos tal cual, para que las slides parezcan parte del producto. Nada de plantillas genéricas.
+2. Una slide por bloque del guion (8–10 en total), 16:9, con el «Slide» como título-mensaje grande (si es largo, acórtalo sin cambiar el mensaje) y como mucho una idea, un dato o un gráfico por slide. El texto hablado NO va en la slide: ponlo como notas del orador (la tecla N las muestra u oculta).
+3. Capturas reales de la app: haz capturas de las pantallas clave (inicio, el recorrido de la demo paso a paso y la pantalla donde se ve el valor) y guárdalas en pitch/img/. ${lk.app ? `Hazlas en formato móvil (390 × 844) desde ${lk.app}` : `Hazlas desde ${web}`}, añadiendo ?prueba=1 a la URL para que no cuenten en el medidor. Usa un navegador sin ventana (Chrome o Edge en modo headless, o Playwright si está instalado) sobre la versión local o la publicada. Preséntalas dentro de un marco de móvil o de navegador. Si no puedes hacer capturas, inserta la app en vivo en ese marco con un iframe.
+4. Gráficos de la evidencia en HTML/CSS o SVG: barras con el eje desde 0, una línea con el umbral de cada hipótesis, y el n y la fuente debajo. Los datos de clase son de práctica: decláralo en pequeño.
+5. En la slide de la solución, un botón «Demo en vivo» que abra ${lk.app || web} en otra pestaña. En la última, un QR grande a esa URL (genéralo como imagen local con una herramienta, por ejemplo Python qrcode o npx qrcode, y guárdalo en pitch/img/qr.svg) y la frase-lema.
+6. Navegación con flechas y espacio, número de slide, pantalla completa con F, y que al imprimir (Ctrl+P → Guardar como PDF) salga una slide por página.
+7. No pongas datos personales ni nombres de entrevistados. No cambies nada de la app.
+
+Mensaje central: ${T(d.mensaje) || "(vacío)"}
+Frase-lema: ${T(d.lema) || "(vacía)"}
+Prototipo: ${lk.app || web}
+
+Guion:
+${guion}
+
+Al terminar, dame la URL de las slides (${rp ? web + "pitch/" : "…/pitch/"}) y una lista de qué capturas has hecho.
+
+` + (window.RutaED && window.RutaED.publicar ? window.RutaED.publicar() : "Después, publica los cambios en GitHub Pages (commit y push, sin pedirme confirmación).");
+      };
+      const sB = H("button", { class: "btn accent small", type: "button" }, "Copiar prompt: slides del pitch");
+      sB.addEventListener("click", async () => { const t = sPrompt(); sPre.textContent = t; try { await navigator.clipboard.writeText(t); sB.textContent = "Copiado ✓"; } catch (e){ sB.textContent = "Seleccionad el texto y copiadlo"; } setTimeout(() => { sB.textContent = "Copiar prompt: slides del pitch"; }, 2500); });
+      b.append(H("div", { class: "chips" }, sB), sPre);
+      R.tip(b, "Revisad las slides en el navegador y pedid a Claude Code los cambios que queráis en la misma conversación (por ejemplo: «la slide 5, con el gráfico más grande» o «quita la captura 2»). Para presentar: abrid la URL, pulsad F y moveos con las flechas. Si preferís PowerPoint o Google Slides, guardadla en PDF con Ctrl+P y subid el PDF.");
+      R.field(b, { label: "URL de las slides", hint: "la que os da Claude al publicar", single: true, ph: "https://usuario.github.io/ed-equipo/pitch/" }, d, "slidesUrl");
+
+      /* 5 · cronómetro */
+      b = R.step(el, 5, "Ensayo cronometrado", "Pitch completo con la demo real. El cronómetro marca en qué bloque deberíais estar y avisa al cambiar. Aprended la estructura, no el texto palabra por palabra.");
       const tm = R.timer(b, { minutes: 5, label: "Ensayo completo · 5:00" });
       const nowEl = H("div", { class: "pt-now", "aria-live": "polite" });
       const run = H("div", { class: "pt-run" }, ...B.map(([k, name, a, z], i) => H("div", { class: "it", "data-i": String(i) }, H("span", { class: "n", text: String(i + 1) }), H("span", { text: name }), H("span", { class: "tm", text: `${mmss(a)}–${mmss(z)}` }))));
@@ -8033,8 +8115,8 @@ R.deliverable({
       ] }, d.ensayos);
       R.tip(b, "<b>Plan B de la demo:</b> vídeo de 60″ grabado y enlazado en la slide, capturas en una slide oculta y QR al prototipo. Regla de los 10 segundos: si algo no carga, «os lo enseño en vídeo» y seguís.", "warn");
 
-      /* 4 · feedback */
-      b = R.step(el, 4, "Hoja de feedback del ensayo cruzado", "Ensayo cruzado rápido (10′): cada equipo hace su pitch ante otro y este lo rellena en el momento. Puntuación de 1 a 5 y tres preguntas abiertas; corregid antes del Demo Day.");
+      /* 6 · feedback */
+      b = R.step(el, 6, "Hoja de feedback del ensayo cruzado", "Ensayo cruzado rápido (10′): cada equipo hace su pitch ante otro y este lo rellena en el momento. Puntuación de 1 a 5 y tres preguntas abiertas; corregid antes del Demo Day.");
       R.field(b, { label: "Equipo que observa", single: true }, d.fb, "equipo");
       const tb = H("tbody");
       RUB.forEach((c, i) => { const id = "pt-rub-" + i; const s = H("select", { id }, ...[["", "–"], ["1", "1"], ["2", "2"], ["3", "3"], ["4", "4"], ["5", "5"]].map(([v, l]) => H("option", { value: v, text: l }))); s.value = d.fb.r[i] === "" || d.fb.r[i] == null ? "" : String(d.fb.r[i]); s.addEventListener("change", () => { d.fb.r[i] = s.value === "" ? "" : Number(s.value); R.save(); paintAvg(); }); tb.append(H("tr", null, H("td", null, H("label", { for: id, text: c })), H("td", null, s))); });
@@ -8048,30 +8130,6 @@ R.deliverable({
       R.field(r3, { label: "¿Qué es creíble y qué no?", rows: 4 }, d.fb, "creible");
       R.field(r3, { label: "¿Qué cambiaríais?", rows: 4 }, d.fb, "cambiar");
 
-      /* 5 · mejoras al prototipo antes del Demo Day */
-      b = R.step(el, 5, "Aplicad las mejoras al prototipo con Claude Code", "≈ 15′, antes del Demo Day. Una persona lanza el prompt mientras el resto termina el guion. Así la demo enseña la versión mejorada y en el pitch podéis decir «lo vimos en el test y lo cambiamos». Solo cambios pequeños y concretos; el pivote grande viene después (estación 14).");
-      const stp = R.state.st || {};
-      const T = v => String(v == null ? "" : v).trim();
-      const traer = () => {
-        const cu = stp.cuali || {}, dc = stp.decidir || {}, out = [];
-        if (T(cu.cambios)) out.push(T(cu.cambios));
-        (cu.evid || []).forEach(e => { if (e && T(e.decision) && !/^segu/i.test(T(e.decision))) out.push("- " + T(e.decision) + (T(e.hip) ? " (" + T(e.hip).slice(0, 80) + ")" : "")); });
-        if (dc.lc && T(dc.lc.portanto)) out.push("- " + T(dc.lc.portanto));
-        return out.join("\n");
-      };
-      if (typeof d.mejoras !== "string") d.mejoras = "";
-      if (!T(d.mejoras) && traer()) d.mejoras = traer();
-      const mTa = R.field(b, { label: "Cambios que vamos a hacer", hint: "vienen de la validación cualitativa (estación 10) y de la decisión (estación 12); quitad o añadid lo que queráis", rows: 6, ph: "1) El botón de registro no se ve en el móvil: más grande y arriba\n2) …" }, d, "mejoras");
-      const mPre = H("pre", { class: "prompt-pre", style: "white-space:pre-wrap;max-height:220px;overflow:auto;font-size:12.5px" });
-      const repo = () => { const lk = window.RutaED && window.RutaED.protoLinks ? window.RutaED.protoLinks() : {}; const m = String(lk.web || "").match(/^https?:\/\/([^.\/]+)\.github\.io\/([^\/?#]+)/i); return m ? m[1] + "/" + m[2] : ""; };
-      const mPrompt = () => (repo() ? `Trabajamos sobre nuestro prototipo, que ya está en GitHub: https://github.com/${repo()} (web publicada en https://${repo().split("/")[0]}.github.io/${repo().split("/")[1]}/). Si esta carpeta o sesión no tiene ese repositorio, clónalo primero (gh repo clone ${repo()}) y trabaja dentro de él.\n\n` : "Trabajamos sobre nuestro prototipo, que ya está en GitHub (el repositorio del CLAUDE.md). Si esta carpeta o sesión no lo tiene, pregúntanos el repositorio y clónalo antes de empezar.\n\n") + `Lee CLAUDE.md. Hemos probado el prototipo con usuarios y hemos decidido estos cambios:\n\n${T(d.mejoras) || "(escribid aquí los cambios)"}\n\nAplícalos uno a uno, en este orden, en la web y también en app/ si existe. No rediseñes lo demás, no cambies el texto que no tenga que ver con estos cambios y no quites el medidor ni sus eventos. Si un cambio es grande o ambiguo, haz la versión más sencilla que lo resuelva. Al terminar, dame una lista corta «antes → después» de cada cambio, en frases que podamos decir en el pitch.\n\n` + (window.RutaED && window.RutaED.publicar ? window.RutaED.publicar() : "Después, publica los cambios en GitHub Pages (commit y push, sin pedirme confirmación).");
-      const mB = H("button", { class: "btn accent small", type: "button" }, "Copiar prompt: aplicar las mejoras");
-      mB.addEventListener("click", async () => { const t = mPrompt(); mPre.textContent = t; try { await navigator.clipboard.writeText(t); mB.textContent = "Copiado ✓"; } catch (e){ mB.textContent = "Seleccionad el texto y copiadlo"; } setTimeout(() => { mB.textContent = "Copiar prompt: aplicar las mejoras"; }, 2500); });
-      const reB = H("button", { class: "btn small", type: "button" }, "Volver a traer de la validación");
-      reB.addEventListener("click", () => { const t = traer(); if (!t) return; d.mejoras = t; mTa.value = t; R.save(); });
-      b.append(H("div", { class: "chips" }, mB, reB), mPre);
-      R.tip(b, "Pegad el prompt en Claude Code, en la misma conversación o proyecto del prototipo (estación 9). Cuando Claude diga que está publicado, esperad 1–5 minutos, recargad la URL del prototipo y probad la demo otra vez.");
-      R.field(b, { label: "Qué hemos cambiado (para el pitch)", hint: "la lista «antes → después» que os da Claude; usadla en el bloque de evidencia o de solución", rows: 4 }, d, "mejorasHechas");
     },
     progress(d){
       const bl = d.blocks || {};
