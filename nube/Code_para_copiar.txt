@@ -6,7 +6,7 @@
  * POST {a:"save", team, pin, base, data, info}  (Content-Type text/plain) → { ok, version, updated } | { ok:false, error:"conflict"|"pin"|... }
  *
  * - Un archivo JSON por equipo en la carpeta «Ruta Emprendedor Digital · datos».
- * - Historial: se guardan las últimas 40 versiones de cada equipo en la subcarpeta «historial».
+ * - Historial: se guardan las últimas 40 versiones de cada equipo (como mucho una cada 5 minutos) en la subcarpeta «historial».
  * - Panel del profesor: hoja «Ruta ED · panel del profesor» con una fila por equipo.
  * - El PIN se guarda cifrado (SHA-256 con sal). Para reiniciar el PIN de un equipo, borrad su celda «pin_hash» en el panel.
  *
@@ -100,7 +100,9 @@ function save_(b) {
     const base = Number(b.base || 0);
     if (current && base !== current) return { ok: false, error: "conflict", version: current, updated: row.updated };
     const file = fileFor_(team, true);
-    if (current) archive_(team, file, current);
+    // Historial como mucho cada 5 minutos por equipo: copiar el archivo en cada guardado bloqueaba a toda la clase.
+    const cache = CacheService.getScriptCache();
+    if (current && !cache.get("arch_" + team)) { archive_(team, file, current); cache.put("arch_" + team, "1", 300); }
     file.setContent(json);
     const now = new Date();
     const info = b.info || {};
