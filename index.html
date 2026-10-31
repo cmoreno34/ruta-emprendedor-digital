@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 31/10/2026 12:20</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 31/10/2026 12:45</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -7967,20 +7967,21 @@ R.deliverable({
         put("insight", ins ? "Nuestro insight: " + ins : "", s1(ins));
         put("solucion", `${nombre}: ${fl(ln.uvp) || rm(cs.beneficio) || c.concept}. Os lo enseñamos en directo. (DEMO)${T(d.mejorasHechas) ? " Después del test cambiamos: " + lines(d.mejorasHechas, 3).join("; ") + "." : ""}`, `${nombre} · demo en vivo`);
         const cq = st.cuanti || {}, itp = cq.interp && typeof cq.interp === "object" ? cq.interp : {};
-        const itpTxt = Object.keys(itp).filter(k => /^H\d/i.test(k) && itp[k] && T(itp[k].sig)).map(k => `${k}: ${rm(itp[k].sig)}`).join(" ");
+        const pick = t => { const x = rm(t), m = x.match(/Qué dicen los datos:\s*([^\n]+)/i); return m ? m[1].trim() : s1(x.replace(/\n+/g, ". ")); };
+        const itpTxt = Object.keys(itp).filter(k => /^H\d/i.test(k) && itp[k] && T(itp[k].sig)).map(k => `${k}: ${pick(itp[k].sig)}`).join(" ");
         const nResp = Array.isArray(cq.data) ? cq.data.length : (cq.data && Array.isArray(cq.data.rows) ? cq.data.rows.length : 0);
         const probs = (cu.problemas || []).filter(p => p && T(p.txt)).length;
         const evAlt = [itpTxt ? `Encuesta${nResp ? " (n = " + nResp + ", datos de práctica)" : ""}: ${itpTxt}` : "", probs ? `En el test con usuarios vimos ${probs} problemas de uso; los más graves los hemos corregido en esta versión.` : "", evid].filter(Boolean).join(" ");
         put("evidencia", c.ev || evAlt, c.ev ? "Qué hemos validado y qué no" : (evAlt ? "Lo que nos dicen los datos" : ""));
         put("modelo", c.ing ? "Quién paga y cuánto: " + c.ing : (lines(ln.ingresos, 3).length ? "Cómo ganamos dinero: " + lines(ln.ingresos, 3).join("; ") + "." : ""), fl(c.ing || ln.ingresos));
-        const itpDec = Object.keys(itp).filter(k => itp[k] && T(itp[k].dec)).slice(0, 2).map(k => rm(itp[k].dec)).join(" ");
+        const itpDec = Object.keys(itp).filter(k => itp[k] && T(itp[k].dec)).slice(0, 2).map(k => s1(rm(itp[k].dec).replace(/\n+/g, ". "))).join(" ");
         put("decision", [c.dec ? c.dec + "." : "", c.frase, c.lc || itpDec].filter(Boolean).join(" "), c.dec ? c.dec + (c.lc ? ": " + s1(c.lc) : (itpDec ? ": " + s1(itpDec) : "")) : "");
         if (!T(d.lema) && T(cs.frase)){ d.lema = rm(cs.frase); lemaInp.value = d.lema; n++; }
         put("peticion", `Probad ${nombre} ahora: escanead el QR. ${T(d.lema)}`.trim(), "Escanead el QR y probadlo");
         if (!T(d.mensaje)){
           const rows = (st.decidir && Array.isArray(st.decidir.rows)) ? st.decidir.rows : [];
           const ok = rows.filter(r => r && r.estado === "ok").map(r => s1(r.hip || r.tipo || r.id)), no = rows.filter(r => r && (r.estado === "no" || r.estado === "mid")).map(r => s1(r.hip || r.tipo || r.id));
-          const sig1 = Object.keys(itp).filter(k => /^H\d/i.test(k) && itp[k] && T(itp[k].sig)).map(k => s1(itp[k].sig))[0];
+          const sig1 = Object.keys(itp).filter(k => /^H\d/i.test(k) && itp[k] && T(itp[k].sig)).map(k => { const x = rm(itp[k].sig), mm = x.match(/Qué significa:\s*([^\n]+)/i); const f = mm ? s1(mm[1]) : fl(x); return f.length > 25 ? f : pick(x); }).map(f => f.charAt(0).toUpperCase() + f.slice(1))[0];
           if (!ok.length && !no.length && sig1){ d.mensaje = `${sig1.replace(/\.$/, "")}; por eso ${(c.dec || "seguimos").toLowerCase()}.`; msgInp.value = d.mensaje; n++; }
           if (ok.length || no.length){ d.mensaje = `Hemos validado ${ok.join(", ") || "poco todavía"}${no.length ? ", pero no " + no.join(", ") : ""}; por eso ${(c.dec || "seguimos").toLowerCase()}.`; msgInp.value = d.mensaje; n++; }
         }
@@ -8036,9 +8037,10 @@ R.deliverable({
       else if (d.autoFilled && !d.autoFilled2 && !R.state.isExample){
         d.autoFilled2 = true;
         const ev = d.blocks.evidencia, dc = d.blocks.decision;
-        if (/^(\s*H\d+[^:]*:\s*→\s*pendiente\.?)+\s*$/.test(ev.txt || "")){ ev.txt = ""; if (ev.slide === "Qué hemos validado y qué no") ev.slide = ""; }
+        if (/^(\s*H\d+[^:]*:[^→]*→\s*pendiente\.?)+\s*$/.test(ev.txt || "")){ ev.txt = ""; if (ev.slide === "Qué hemos validado y qué no") ev.slide = ""; }
         if (/^\s*(Perseveramos|Iteramos|Pivotamos|Abandonamos)\.\s*$/.test(dc.txt || "")) dc.txt = "";
         if (/^\.\s/.test(d.blocks.problema.txt || "")) d.blocks.problema.txt = d.blocks.problema.txt.replace(/^\.\s*/, "");
+        if (d.decisionAuto !== false && /^\s*$/.test(d.mensaje || "")) d.mensaje = "";
         fillFromContext(true);
       }
       R.tip(b, "<b>Datos honestos:</b> cada cifra con su n y su fuente; con menos de ~30 casos, números absolutos («3 de 4»); eje desde 0 y una línea con el umbral; todas las hipótesis con su veredicto, también las que fallan.");
@@ -8048,19 +8050,39 @@ R.deliverable({
       const stp = R.state.st || {};
       const T = v => String(v == null ? "" : v).trim();
       const traer = () => {
-        const cu = stp.cuali || {}, dc = stp.decidir || {}, out = [];
-        if (T(cu.cambios)) out.push(T(cu.cambios));
-        else (cu.problemas || []).filter(p => p && T(p.txt)).slice().sort((a, b2) => (Number(b2.sev) || 0) - (Number(a.sev) || 0)).slice(0, 4).forEach((p, i) => out.push(`${i + 1}) ${T(p.txt)}${p.sev ? " (gravedad " + p.sev + ")" : ""}`));
-        (cu.evid || []).forEach(e => { if (e && T(e.decision) && !/^segu/i.test(T(e.decision))) out.push("- " + T(e.decision) + (T(e.hip) ? " (" + T(e.hip).slice(0, 80) + ")" : "")); });
-        if (dc.lc && T(dc.lc.portanto)) out.push("- " + T(dc.lc.portanto));
-        return out.join("\n");
+        const cu = stp.cuali || {}, dc = stp.decidir || {}, cq = stp.cuanti || {}, out = [], seen = new Set();
+        const add = t => { t = T(t).replace(/\*\*/g, "").replace(/\s*\[VERIFICAR\]/g, ""); const k = t.toLowerCase().slice(0, 50); if (t && !seen.has(k)){ seen.add(k); out.push(t); } };
+        if (T(cu.cambios)) T(cu.cambios).split(/\n/).forEach(add);
+        (cu.problemas || []).filter(p => p && T(p.txt) && Number(p.sev) !== 0).slice().sort((a, b2) => (Number(b2.sev) || 0) - (Number(a.sev) || 0)).forEach(p => add(`${T(p.txt)}${p.sev ? " (gravedad " + p.sev + (p.who ? ", " + p.who : "") + ")" : ""}`));
+        /* prioridades que propuso Claude al analizar el test (estación 10, paso 3) */
+        const ia = String(cu._ia || ""), m = ia.match(/(?:^|\n)[^\n]*(?:Prioridad de cambios|Qué cambiar|Cambios (?:en|del) (?:el )?prototipo|Cambios priorizados)[^\n]*\n([\s\S]*?)(?=\n\s*(?:\*\*)?\d+[.)]\s*\*\*|\n\s*\*\*\d|\n#+\s|$)/i);
+        if (m) m[1].split(/\n/).map(x => x.replace(/\*\*/g, "").replace(/^[\s\-•*]*(\d+[.)])?\s*/, "").trim())
+          .filter(x => x.length > 8 && !/^todos los problemas|^probad primero|^registrar|próximo test/i.test(x))
+          .map(x => x.replace(/:\s*severidad[^.]*\.\s*/i, ". ").replace(/\s*\([\d–\-\s×x]+\)\.?$/, "").split(/(?<=\.)\s/)[0])
+          .slice(0, 5).forEach(x => {
+            const w = t => new Set(t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/[^a-zñ]+/).filter(v => v.length > 4));
+            const wx = w(x); if (out.some(o => { let c = 0; w(o).forEach(v => { if (wx.has(v)) c++; }); return c >= 2; })) return;
+            add(x);
+          });
+        (cu.evid || []).forEach(e => { if (e && T(e.decision) && !/^segu/i.test(T(e.decision))) add(T(e.decision)); });
+        if (dc.lc && T(dc.lc.portanto)) add(T(dc.lc.portanto));
+        if (d.fb && T(d.fb.cambiar)) add("Del ensayo del pitch: " + T(d.fb.cambiar));
+        return out.slice(0, 8).map((x, i) => `${i + 1}) ${x.replace(/^\d+[.)]\s*/, "")}`).join("\n");
       };
       if (typeof d.mejoras !== "string") d.mejoras = "";
       if (!T(d.mejoras) && traer()) d.mejoras = traer();
       const mTa = R.field(b, { label: "Cambios que vamos a hacer", hint: "vienen de la validación cualitativa (estación 10) y de la decisión (estación 12); quitad o añadid lo que queráis", rows: 6, ph: "1) El botón de registro no se ve en el móvil: más grande y arriba\n2) …" }, d, "mejoras");
       const mPre = H("pre", { class: "prompt-pre", style: "white-space:pre-wrap;max-height:220px;overflow:auto;font-size:12.5px" });
       const repo = () => { const lk = window.RutaED && window.RutaED.protoLinks ? window.RutaED.protoLinks() : {}; const m = String(lk.web || "").match(/^https?:\/\/([^.\/]+)\.github\.io\/([^\/?#]+)/i); return m ? m[1] + "/" + m[2] : ""; };
-      const mPrompt = () => (repo() ? `Trabajamos sobre nuestro prototipo, que ya está en GitHub: https://github.com/${repo()} (web publicada en https://${repo().split("/")[0]}.github.io/${repo().split("/")[1]}/). Si esta carpeta o sesión no tiene ese repositorio, clónalo primero (gh repo clone ${repo()}) y trabaja dentro de él.\n\n` : "Trabajamos sobre nuestro prototipo, que ya está en GitHub (el repositorio del CLAUDE.md). Si esta carpeta o sesión no lo tiene, pregúntanos el repositorio y clónalo antes de empezar.\n\n") + `Lee CLAUDE.md. Hemos probado el prototipo con usuarios y hemos decidido estos cambios:\n\n${T(d.mejoras) || "(escribid aquí los cambios)"}\n\nAplícalos uno a uno, en este orden, en la web y también en app/ si existe. No rediseñes lo demás, no cambies el texto que no tenga que ver con estos cambios y no quites el medidor ni sus eventos. Si un cambio es grande o ambiguo, haz la versión más sencilla que lo resuelva. Al terminar, dame una lista corta «antes → después» de cada cambio, en frases que podamos decir en el pitch.\n\n` + (window.RutaED && window.RutaED.publicar ? window.RutaED.publicar() : "Después, publica los cambios en GitHub Pages (commit y push, sin pedirme confirmación).");
+      const valCtx = () => {
+        const cq = stp.cuanti || {}, itp = cq.interp && typeof cq.interp === "object" ? cq.interp : {}, out = [];
+        Object.keys(itp).forEach(k => { const o = itp[k] || {}; const x = String(o.sig || ""), m = x.match(/Qué significa:\s*([^\n]+)/i), first = m ? m[1] : x.split(/\n/).map(T).filter(Boolean).slice(-1)[0] || ""; const dec = T(o.dec); if (T(first) || dec) out.push(`- ${k === "CRUCES" ? "Cruces" : k}: ${T(first)}${dec ? " Decisión: " + dec : ""}`); });
+        (stp.cuali && stp.cuali.evid || []).forEach(e => { if (e && T(e.contra) && /\bH\d/.test(T(e.hip)) && !out.some(o => o.includes(T(e.hip).slice(0, 3) + ":"))) out.push(`- ${T(e.hip).slice(0, 80)} · en contra: ${T(e.contra).slice(0, 200)}`); });
+        const dc = stp.decidir || {};
+        if (dc.decision) out.push(`- Decisión del equipo: ${{ perseverar: "perseverar", iterar: "iterar", pivotar: "pivotar", abandonar: "abandonar" }[dc.decision] || dc.decision}${T(dc.just) ? " (" + T(dc.just).slice(0, 200) + ")" : ""}`);
+        return out.slice(0, 7).join("\n");
+      };
+      const mPrompt = () => (repo() ? `Trabajamos sobre nuestro prototipo, que ya está en GitHub: https://github.com/${repo()} (web publicada en https://${repo().split("/")[0]}.github.io/${repo().split("/")[1]}/). Si esta carpeta o sesión no tiene ese repositorio, clónalo primero (gh repo clone ${repo()}) y trabaja dentro de él.\n\n` : "Trabajamos sobre nuestro prototipo, que ya está en GitHub (el repositorio del CLAUDE.md). Si esta carpeta o sesión no lo tiene, pregúntanos el repositorio y clónalo antes de empezar.\n\n") + `Lee CLAUDE.md. Hemos probado el prototipo con usuarios y hemos decidido estos cambios:\n\n${T(d.mejoras) || "(escribid aquí los cambios)"}\n\n${valCtx() ? "Lo que nos dijo la validación (para que los cambios respondan a lo que vimos):\n" + valCtx() + "\nSi de aquí sale algún cambio pequeño y evidente en el prototipo (por ejemplo, que se entienda o se crea mejor algo que dudaban), añádelo al final, como mucho dos, y dinos por qué.\n\n" : ""}Aplícalos uno a uno, en este orden, en la web y también en app/ si existe. No rediseñes lo demás, no cambies el texto que no tenga que ver con estos cambios y no quites el medidor ni sus eventos. Si un cambio es grande o ambiguo, haz la versión más sencilla que lo resuelva. Al terminar, dame una lista corta «antes → después» de cada cambio, en frases que podamos decir en el pitch.\n\n` + (window.RutaED && window.RutaED.publicar ? window.RutaED.publicar() : "Después, publica los cambios en GitHub Pages (commit y push, sin pedirme confirmación).");
       const mB = H("button", { class: "btn accent small", type: "button" }, "Copiar prompt: aplicar las mejoras");
       mB.addEventListener("click", async () => { const t = mPrompt(); mPre.textContent = t; try { await navigator.clipboard.writeText(t); mB.textContent = "Copiado ✓"; } catch (e){ mB.textContent = "Seleccionad el texto y copiadlo"; } setTimeout(() => { mB.textContent = "Copiar prompt: aplicar las mejoras"; }, 2500); });
       const reB = H("button", { class: "btn small", type: "button" }, "Volver a traer de la validación");
