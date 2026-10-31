@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 31/10/2026 12:55</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 31/10/2026 13:10</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -8463,7 +8463,7 @@ Al terminar, dame la URL de las slides (${rp ? web + "pitch/" : "…/pitch/"}) y
       if (!anyBefore) importModelo();
 
       /* 5 · BMC del nuevo modelo */
-      b = R.step(el, 5, "Business Model Canvas del nuevo modelo", "Ahora sí: con el pivote aparecen socios, actividades, recursos y relaciones que el Lean Canvas no recoge (en B2B2C: residencias, propietarios, venta B2B). Pasad los bloques comunes del Lean Canvas «después» y completad los resaltados.");
+      b = R.step(el, 5, "Business Model Canvas", "Si no pivotáis, empezad aquí directamente (los pasos 1–4 son solo para el pivote). La web rellena el canvas con vuestro Lean Canvas (o el «después» si habéis pivotado) y con lo que ya teníais en la estación Modelo. Faltan socios, actividades, recursos y relaciones: Claude los propone con todo lo trabajado y vosotros revisáis y cambiáis lo que queráis.");
       if (!d.bmc || typeof d.bmc !== "object") d.bmc = {};
       ["socios", "actividades", "recursos", "propuesta", "relaciones", "canales", "segmentos", "costes", "ingresos"].forEach(k => { if (d.bmc[k] == null) d.bmc[k] = ""; });
       const bmcWrap = H("div"), bmMsg = H("span", { class: "status", "aria-live": "polite" });
@@ -8487,6 +8487,48 @@ Al terminar, dame la URL de las slides (${rp ? web + "pitch/" : "…/pitch/"}) y
           { key: "ingresos", label: "Fuentes de ingresos", col: "6 / span 5", row: "3", ph: "Quién paga, cuánto y cómo" }
         ] }, d.bmc); g.classList.add("pv-bmc"); }
       drawB();
+      /* Relleno automático (al abrir, solo si el BMC está vacío) */
+      const T5 = v => String(v == null ? "" : v).trim();
+      const st5 = (R.state && R.state.st) || {}, mo = st5.modelo || {}, mb = mo.bmc || {}, mvpc = mo.vpc || {};
+      function autoBmc(){
+        const lean = readModelo(R), map = { segmentos: "seg", propuesta: "uvp", canales: "can", ingresos: "ing", costes: "cos" }; let n = 0;
+        Object.keys(d.bmc).forEach(k => { if (!T5(d.bmc[k]) && T5(mb[k])){ d.bmc[k] = T5(mb[k]); n++; } });
+        Object.entries(map).forEach(([k, lk]) => { if (T5(d.bmc[k])) return; const c = (d.canvas && d.canvas[lk]) || {}; const v = T5(c.b) || T5(c.a) || T5(lean[lk]); if (v){ d.bmc[k] = v; n++; } });
+        if (!T5(d.bmc.propuesta) && T5(mvpc.productos)){ d.bmc.propuesta = T5(mvpc.productos); n++; }
+        return n;
+      }
+      if (!Object.values(d.bmc).some(v => T5(v)) && !R.state.isExample){ const n = autoBmc(); if (n){ R.save(); drawB(); bmMsg.textContent = `Canvas preparado con ${n} bloques de lo que ya teníais. Revisadlo.`; } }
+      /* Claude completa los bloques que faltan con todo lo anterior */
+      const BL = { socios: "Socios clave", actividades: "Actividades clave", recursos: "Recursos clave", propuesta: "Propuesta de valor", relaciones: "Relaciones con clientes", canales: "Canales", segmentos: "Segmentos de clientes", costes: "Estructura de costes", ingresos: "Fuentes de ingresos" };
+      const bmcPrompt = () => {
+        const pt = st5.pitch || {}, cq = st5.cuanti || {}, itp = cq.interp && typeof cq.interp === "object" ? cq.interp : {}, dc = st5.decidir || {};
+        const val = Object.keys(itp).map(k => { const x = String((itp[k] || {}).sig || ""), m = x.match(/Qué significa:\s*([^\n]+)/i); const f = m ? m[1] : x.split(/\n/).map(T5).filter(Boolean)[0] || ""; return f || T5((itp[k] || {}).dec) ? `- ${k}: ${T5(f)}${T5((itp[k] || {}).dec) ? " Decisión: " + T5(itp[k].dec) : ""}` : ""; }).filter(Boolean).join("\n");
+        const lean = readModelo(R);
+        const leanTxt = LC.map(([k, nm]) => { const c = (d.canvas && d.canvas[k]) || {}; const v = T5(c.b) || T5(c.a) || T5(lean[k]); return v ? `- ${nm}: ${v.replace(/\n+/g, "; ")}` : ""; }).filter(Boolean).join("\n");
+        const cur = Object.entries(BL).map(([k, nm]) => `${nm}: ${T5(d.bmc[k]).replace(/\n+/g, "; ") || "(vacío)"}`).join("\n");
+        return `Actúa como profesor de modelos de negocio. Completa el Business Model Canvas (Osterwalder y Pigneur, 2010) de nuestro proyecto con lo que ya hemos trabajado. No inventes datos: si algo no sale de lo que te damos, propónlo como supuesto y márcalo con [S].
+
+Proyecto: ${T5(R.project && R.project.nombre)}${T5(R.project && R.project.frase) ? " — " + T5(R.project.frase) : ""}
+${T5(pt.mensaje) ? "Mensaje del pitch: " + T5(pt.mensaje) + "\n" : ""}${T5(pt.mejorasHechas) ? "Cambios tras el test: " + T5(pt.mejorasHechas).replace(/\n+/g, "; ") + "\n" : ""}${dc.decision ? "Decisión tras validar: " + dc.decision + "\n" : ""}
+Lean Canvas:
+${leanTxt || "(vacío)"}
+${T5(mvpc.trabajos) || T5(mvpc.dolores) ? `\nMapa de valor:\n- Trabajos: ${T5(mvpc.trabajos).slice(0, 300)}\n- Dolores: ${T5(mvpc.dolores).replace(/\n+/g, "; ").slice(0, 300)}\n- Productos: ${T5(mvpc.productos).replace(/\n+/g, "; ").slice(0, 300)}\n` : ""}${val ? "\nLo que dijo la validación:\n" + val + "\n" : ""}
+BMC actual (revísalo y completa lo vacío):
+${cur}
+
+Devuélveme los 9 bloques, cada uno en una línea que empiece exactamente por su nombre y dos puntos (Socios clave:, Actividades clave:, Recursos clave:, Propuesta de valor:, Relaciones con clientes:, Canales:, Segmentos de clientes:, Estructura de costes:, Fuentes de ingresos:), con 2–4 elementos separados por « · ». Distingue quién usa y quién paga. Después, en 3 líneas: el bloque más débil y qué experimento lo comprobaría.`;
+      };
+      const bPre = H("pre", { class: "prompt-pre", style: "white-space:pre-wrap;max-height:200px;overflow:auto;font-size:12.5px" });
+      const bB = H("button", { class: "btn accent small", type: "button" }, "Copiar prompt: Claude completa el BMC");
+      bB.addEventListener("click", async () => { const t = bmcPrompt(); bPre.textContent = t; try { await navigator.clipboard.writeText(t); bB.textContent = "Copiado ✓"; } catch (e){ bB.textContent = "Seleccionad el texto y copiadlo"; } setTimeout(() => { bB.textContent = "Copiar prompt: Claude completa el BMC"; }, 2500); });
+      const bAns = H("textarea", { rows: 5, placeholder: "Pegad aquí la respuesta de Claude y pulsad «Leer»", style: "width:100%;border:1px solid var(--line);border-radius:9px;padding:7px 9px;font:400 14px/1.5 var(--f-body)" });
+      const bRead = H("button", { class: "btn small", type: "button" }, "Leer la respuesta de Claude");
+      bRead.addEventListener("click", () => {
+        const txt = bAns.value || ""; let n = 0;
+        Object.entries(BL).forEach(([k, nm]) => { const re = new RegExp("(?:^|\\n)[\\s*#\\-]*" + nm.replace(/ /g, "\\s+") + "\\s*\\**\\s*:\\s*\\**\\s*([^\\n]+)", "i"); const m = txt.match(re); if (m && T5(m[1])){ d.bmc[k] = T5(m[1]).replace(/\*\*/g, "").split(/\s+·\s+/).join("\n"); n++; } });
+        R.save(); drawB(); bmMsg.textContent = n ? `${n} bloques actualizados con la respuesta de Claude. Revisadlos y cambiad lo que queráis.` : "No encuentro las líneas «Socios clave: …». Revisad que Claude respetó el formato.";
+      });
+      b.append(H("div", { class: "chips" }, bB), bPre, bAns, H("div", { class: "chips" }, bRead));
 
       /* 5 · rehacer el prototipo */
       b = R.step(el, 6, "Rehacer el prototipo", "50′ con Claude Code: el prototipo tiene que contar el pivote. Decidid qué cambia en la web, la app o la campaña (titular, beneficios, precios, CTA, flujo, público de los anuncios) y qué se queda igual. Antes de rehacer, Claude Code copia la versión actual a la carpeta v1/: así el «antes» sigue publicado y el informe final enlaza las dos URL.");
