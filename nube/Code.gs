@@ -20,6 +20,7 @@
  * POST {a:"enc_list"}  → encuestas publicadas [{team, titulo}] para la página de la clase
  * POST {a:"resp", team, answers}  → apunta una respuesta (pestaña «respuestas»)
  * POST {a:"resp_get", team, pin}  → respuestas del equipo
+ * POST {a:"resp_count"}  → número de respuestas por equipo (marcador de la clase; sin contenido)
  */
 const FOLDER_NAME = "Ruta Emprendedor Digital · datos";
 const SHEET_NAME = "Ruta ED · panel del profesor";
@@ -45,6 +46,7 @@ function doPost(e) {
   if (body.a === "enc_list") return out(encList_());
   if (body.a === "resp") return out(resp_(body));
   if (body.a === "resp_get") return out(respGet_(body.team, body.pin));
+  if (body.a === "resp_count") return out(respCount_());
   return out({ ok: false, error: "bad_request" });
 }
 
@@ -294,6 +296,16 @@ function resp_(b) {
   if (json.length > MAX_RESP) return { ok: false, error: "too_large" };
   respSheet_().appendRow([new Date(), team, json]);
   return { ok: true };
+}
+function respCount_() {
+  const sh = respSheet_(), n = sh.getLastRow(), counts = {}, last = {};
+  if (n >= 2) sh.getRange(2, 1, n - 1, 2).getValues().forEach(r => {
+    if (!r[1]) return;
+    counts[r[1]] = (counts[r[1]] || 0) + 1;
+    const t = new Date(r[0]).toISOString();
+    if (!last[r[1]] || t > last[r[1]]) last[r[1]] = t;
+  });
+  return { ok: true, counts: counts, last: last };
 }
 function respGet_(team, pin) {
   const t = teamOk_(team, pin);

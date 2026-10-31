@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 31/10/2026 09:40</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 31/10/2026 10:50</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -7466,6 +7466,36 @@ R.mobile.medidor = function (){
       H("div", { class: "chips" }, refresh, out)].filter(Boolean));
   }
   if (team && pin) load(true); else login();
+};
+
+/* Marcador de la clase (?movil=marcador): respuestas por equipo, en grande para proyectar. Se refresca cada 10 s. */
+R.mobile.marcador = function (){
+  const root = shell();
+  root.append(brand(), H("h1", { text: "Encuestas · marcador" }), H("p", { class: "tb-help", text: "Cargando…" }));
+  async function load(){
+    let a, b;
+    try { [a, b] = await Promise.all([R.cloudCall({ a: "enc_list" }), R.cloudCall({ a: "resp_count" })]); } catch (e){ return; }
+    if (!a || !a.ok) return;
+    const counts = (b && b.ok && b.counts) || {}, last = (b && b.ok && b.last) || {};
+    const list = (a.list || []).slice().sort((x, y) => (counts[y.team] || 0) - (counts[x.team] || 0));
+    const total = list.reduce((t, x) => t + (counts[x.team] || 0), 0);
+    const max = Math.max(20, ...list.map(x => counts[x.team] || 0));
+    const when = iso => iso ? new Date(iso).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }) : "–";
+    root.replaceChildren(brand(), H("h1", { style: "font-size:clamp(28px,5vw,56px);margin:0", text: "Encuestas · marcador" }),
+      H("p", { style: "margin:0;font-size:clamp(16px,2.2vw,24px)", text: `${total} respuestas en total · meta: 20–30 por equipo` }),
+      ...list.map(x => {
+        const n = counts[x.team] || 0;
+        return H("div", { class: "enc-card", style: "gap:6px" },
+          H("div", { style: "display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap" },
+            H("b", { style: "font-size:clamp(18px,2.6vw,30px)", text: `${x.team} · ${x.titulo || ""}` }),
+            H("span", { class: "enc-big", style: "margin:0;font-size:clamp(36px,6vw,72px)", text: String(n) })),
+          H("div", { style: "height:18px;border-radius:9px;background:var(--line);overflow:hidden" },
+            H("div", { style: `height:100%;width:${Math.min(100, 100 * n / max)}%;background:var(--accent, #2a6df4);border-radius:9px` })),
+          H("p", { class: "tb-help", style: "margin:0", text: "Última respuesta: " + when(last[x.team]) }));
+      }),
+      H("p", { class: "tb-help", style: "margin:0", text: "Se actualiza solo cada 10 s · contestad en " + R.encuestasUrl() }));
+  }
+  load(); setInterval(() => { if (document.visibilityState === "visible") load(); }, 10000);
 };
 
 R.mobile.encuestas = function (){
