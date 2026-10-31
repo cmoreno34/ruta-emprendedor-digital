@@ -294,7 +294,7 @@ footer.foot b{color:var(--red)}
 <div class="wrap">
   <header class="top">
     <div>
-      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 31/10/2026 10:50</span></p>
+      <p class="brand">Máster en Marketing Digital · CEU · Emprendimiento Digital <span class="ver">· versión 31/10/2026 11:10</span></p>
       <h1>Ruta del Emprendedor Digital</h1>
       <p class="lede">Quince estaciones para llevar vuestra idea del problema al pitch: idea de partida, Scrum, Design Thinking, lluvia de ideas, Crazy 8s, modelo de negocio, experimentos, wireframe, prototipo con Claude Code, validación y pivote. Cada estación os pide lo justo y prepara el prompt para Claude con todo lo que ya habéis decidido.</p>
     </div>
@@ -5013,6 +5013,7 @@ Sube los cambios sin pedirme confirmación; solo avísame si algo falla. Nunca u
     if (pd.ruta === "app" && web){ const base = web.replace(/app\/?$/, ""); return { ruta: "app", web: base, app: base + "app/" }; }
     return { ruta: pd.ruta || "web", web, app: "" };
   };
+  window.RutaED.publicar = () => publicar((R.state.st && R.state.st.prototipo) || {}, R);
   window.RutaED.installHtml = app => `<b>Instalar la app en el móvil</b> (para probarla como una app de verdad)${app ? `: abrid <a href="${R.esc(app)}" target="_blank" rel="noopener">${R.esc(app)}</a>` : ""}<br>· <b>Android (Chrome):</b> menú <b>⋮</b> → <b>Instalar aplicación</b> o <b>Añadir a pantalla de inicio</b> → Instalar.<br>· <b>iPhone (Safari):</b> botón <b>Compartir</b> (cuadrado con flecha) → <b>Añadir a pantalla de inicio</b> → Añadir.<br>Después se abre desde el icono, a pantalla completa. Si no aparece «Instalar», funciona igual desde el navegador.<br><b>Actualizaciones:</b> llegan solas. Cuando el equipo publique cambios, basta con cerrar la app del todo y volver a abrirla con conexión (si no se ven, esperad 1–5 minutos a que GitHub Pages se actualice).`;
   const arranqueWeb = (d, R) => `Prepara este repositorio (ed-${projSlug(R)}) para el prototipo, sin pedirme confirmación en cada paso (solo avísame si algo falla):
 1. Crea en la raíz el archivo CLAUDE.md con exactamente el contenido de abajo (si ya existe, sustitúyelo) y un .gitignore que excluya datos/, .env y cualquier archivo con datos personales.
@@ -8047,19 +8048,35 @@ R.deliverable({
       R.field(r3, { label: "¿Qué es creíble y qué no?", rows: 4 }, d.fb, "creible");
       R.field(r3, { label: "¿Qué cambiaríais?", rows: 4 }, d.fb, "cambiar");
 
-      /* 5 · preguntas */
-      b = R.step(el, 5, "Preguntas difíciles del jurado", "Método: escuchad entera la pregunta, reformuladla en una frase, responded en 20–30″ con un dato vuestro. Si no lo sabéis, decidlo y explicad cómo lo comprobaríais. Repartid los temas antes.");
-      R.list(b, { add: "Añadir pregunta", numbered: true, cols: [
-        { key: "q", label: "Pregunta probable", type: "area", w: "1fr" },
-        { key: "a", label: "Respuesta preparada (con dato)", type: "area", rows: 3, w: "1.6fr" },
-        { key: "quien", label: "Quién responde", w: "110px" }
-      ] }, d.qs);
-      R.tip(b, "Otras que suelen salir: «¿Cuántos clientes necesitáis para que sea un negocio?» (orden de magnitud con supuestos explícitos) y «¿Cómo tratáis los datos personales?» (mínimos, consentimiento, anonimización).");
+      /* 5 · mejoras al prototipo antes del Demo Day */
+      b = R.step(el, 5, "Aplicad las mejoras al prototipo con Claude Code", "≈ 15′, antes del Demo Day. Una persona lanza el prompt mientras el resto termina el guion. Así la demo enseña la versión mejorada y en el pitch podéis decir «lo vimos en el test y lo cambiamos». Solo cambios pequeños y concretos; el pivote grande viene después (estación 14).");
+      const stp = R.state.st || {};
+      const T = v => String(v == null ? "" : v).trim();
+      const traer = () => {
+        const cu = stp.cuali || {}, dc = stp.decidir || {}, out = [];
+        if (T(cu.cambios)) out.push(T(cu.cambios));
+        (cu.evid || []).forEach(e => { if (e && T(e.decision) && !/^segu/i.test(T(e.decision))) out.push("- " + T(e.decision) + (T(e.hip) ? " (" + T(e.hip).slice(0, 80) + ")" : "")); });
+        if (dc.lc && T(dc.lc.portanto)) out.push("- " + T(dc.lc.portanto));
+        return out.join("\n");
+      };
+      if (typeof d.mejoras !== "string") d.mejoras = "";
+      if (!T(d.mejoras) && traer()) d.mejoras = traer();
+      const mTa = R.field(b, { label: "Cambios que vamos a hacer", hint: "vienen de la validación cualitativa (estación 10) y de la decisión (estación 12); quitad o añadid lo que queráis", rows: 6, ph: "1) El botón de registro no se ve en el móvil: más grande y arriba\n2) …" }, d, "mejoras");
+      const mPre = H("pre", { class: "prompt-pre", style: "white-space:pre-wrap;max-height:220px;overflow:auto;font-size:12.5px" });
+      const repo = () => { const lk = window.RutaED && window.RutaED.protoLinks ? window.RutaED.protoLinks() : {}; const m = String(lk.web || "").match(/^https?:\/\/([^.\/]+)\.github\.io\/([^\/?#]+)/i); return m ? m[1] + "/" + m[2] : ""; };
+      const mPrompt = () => (repo() ? `Trabajamos sobre nuestro prototipo, que ya está en GitHub: https://github.com/${repo()} (web publicada en https://${repo().split("/")[0]}.github.io/${repo().split("/")[1]}/). Si esta carpeta o sesión no tiene ese repositorio, clónalo primero (gh repo clone ${repo()}) y trabaja dentro de él.\n\n` : "Trabajamos sobre nuestro prototipo, que ya está en GitHub (el repositorio del CLAUDE.md). Si esta carpeta o sesión no lo tiene, pregúntanos el repositorio y clónalo antes de empezar.\n\n") + `Lee CLAUDE.md. Hemos probado el prototipo con usuarios y hemos decidido estos cambios:\n\n${T(d.mejoras) || "(escribid aquí los cambios)"}\n\nAplícalos uno a uno, en este orden, en la web y también en app/ si existe. No rediseñes lo demás, no cambies el texto que no tenga que ver con estos cambios y no quites el medidor ni sus eventos. Si un cambio es grande o ambiguo, haz la versión más sencilla que lo resuelva. Al terminar, dame una lista corta «antes → después» de cada cambio, en frases que podamos decir en el pitch.\n\n` + (window.RutaED && window.RutaED.publicar ? window.RutaED.publicar() : "Después, publica los cambios en GitHub Pages (commit y push, sin pedirme confirmación).");
+      const mB = H("button", { class: "btn accent small", type: "button" }, "Copiar prompt: aplicar las mejoras");
+      mB.addEventListener("click", async () => { const t = mPrompt(); mPre.textContent = t; try { await navigator.clipboard.writeText(t); mB.textContent = "Copiado ✓"; } catch (e){ mB.textContent = "Seleccionad el texto y copiadlo"; } setTimeout(() => { mB.textContent = "Copiar prompt: aplicar las mejoras"; }, 2500); });
+      const reB = H("button", { class: "btn small", type: "button" }, "Volver a traer de la validación");
+      reB.addEventListener("click", () => { const t = traer(); if (!t) return; d.mejoras = t; mTa.value = t; R.save(); });
+      b.append(H("div", { class: "chips" }, mB, reB), mPre);
+      R.tip(b, "Pegad el prompt en Claude Code, en la misma conversación o proyecto del prototipo (estación 9). Cuando Claude diga que está publicado, esperad 1–5 minutos, recargad la URL del prototipo y probad la demo otra vez.");
+      R.field(b, { label: "Qué hemos cambiado (para el pitch)", hint: "la lista «antes → después» que os da Claude; usadla en el bloque de evidencia o de solución", rows: 4 }, d, "mejorasHechas");
     },
     progress(d){
       const bl = d.blocks || {};
       const filled = B.filter(([k]) => bl[k] && (bl[k].txt || "").trim()).length;
-      return R.share([d.mensaje, filled >= 6 ? "x" : "", filled === 8 ? "x" : "", (d.ensayos || []).some(e => e && e.dur) ? "x" : "", d.fb && (d.fb.cambiar || d.fb.claro) ? "x" : "", (d.qs || []).filter(q => q && q.a).length >= 3 ? "x" : ""]);
+      return R.share([d.mensaje, filled >= 6 ? "x" : "", filled === 8 ? "x" : "", (d.ensayos || []).some(e => e && e.dur) ? "x" : "", d.fb && (d.fb.cambiar || d.fb.claro) ? "x" : "", String(d.mejorasHechas || "").trim() ? "x" : ""]);
     },
     prompt(d, R){
       const bl = d.blocks || {};
